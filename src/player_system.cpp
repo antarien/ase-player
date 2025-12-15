@@ -249,10 +249,10 @@ float PlayerSystem::get_terrain_height(float x, float z) {
     return 0.0f;  // Default flat ground
 }
 
-// Auto-register PlayerSystem in Replication phase (after terrain systems)
+// Auto-register PlayerSystem in Agents phase (gameplay logic, after terrain)
 AUTO_REGISTER_SYSTEM(
     PlayerSystem,
-    ase::ecs::SystemPhase::Replication,
+    ase::ecs::SystemPhase::Agents,
     (std::vector<std::string>{"ChunkLookupSystem"})
 )
 
