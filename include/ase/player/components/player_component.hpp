@@ -5,9 +5,12 @@
  *
  * Contains position, velocity, and identity.
  * Updated by PlayerSystem each tick.
+ *
+ * Input handling uses ase::input::InputComponent - see ase-input module.
  */
 
 #include <ase/player/types.hpp>
+#include <ase/input/components/input_component.hpp>
 #include <string>
 #include <chrono>
 
@@ -41,15 +44,6 @@ struct PlayerComponent {
         : player_id(id)
         , spawned_at(std::chrono::steady_clock::now())
     {}
-};
-
-/**
- * Player input component - buffered input from client
- * Separate from PlayerComponent so it can be updated independently
- */
-struct PlayerInput {
-    MovementInput movement;
-    bool dirty = false;  // Has new input since last tick
 };
 
 /**

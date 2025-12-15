@@ -7,11 +7,16 @@
  *
  * Components:
  *   - PlayerComponent: Core player state (position, velocity, yaw)
- *   - PlayerInput: Buffered client input
  *   - PlayerChunkPresence: Current chunk tracking
  *
  * Systems:
  *   - PlayerSystem: Movement, gravity, terrain collision
+ *
+ * Dependencies:
+ *   - ase-input: InputComponent for buffered client input
+ *   - ase-math: Vec3 for vector operations
+ *   - ase-ecs: ECS registry and system base
+ *   - ase-terrain: Terrain height queries
  *
  * Usage:
  *   auto* player_sys = world.get_system<PlayerSystem>();

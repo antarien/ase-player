@@ -7,18 +7,15 @@
 namespace ase::player {
 
 void PlayerSystem::tick(ecs::Registry& registry, float dt) {
-    // Process all players with input
-    auto view = registry.view<PlayerComponent, PlayerInput>();
+    // Process all players with InputComponent
+    auto view = registry.view<PlayerComponent, input::InputComponent>();
 
     for (auto [entity, player, input] : view.each()) {
-        // Process movement if we have input
-        if (input.dirty) {
-            process_movement(player, input, dt);
-            input.dirty = false;
-        } else {
-            // Apply friction/gravity even without input
-            process_movement(player, input, dt);
-        }
+        // Process movement from input
+        process_movement(player, input, dt);
+
+        // Clear input flags after processing
+        input.clear_flags();
 
         // Update chunk presence
         auto* presence = registry.try_get<PlayerChunkPresence>(entity);
@@ -92,7 +89,9 @@ ecs::Entity PlayerSystem::spawn_player(
     float ground = get_terrain_height(position.x, position.z);
     player.position.y = ground + 1.0f;  // Spawn slightly above ground
 
-    registry.emplace<PlayerInput>(entity);
+    // Add InputComponent from ase-input module
+    auto& input_comp = registry.emplace<input::InputComponent>(entity);
+    input_comp.controller_id = player_id;
 
     auto& presence = registry.emplace<PlayerChunkPresence>(entity);
     presence.chunk_x = static_cast<int32_t>(std::floor(position.x / 32.0f));
@@ -141,7 +140,7 @@ bool PlayerSystem::despawn_player(ecs::Registry& registry, const std::string& pl
 }
 
 ecs::Entity PlayerSystem::find_player(const std::string& player_id) const {
-    std::lock_guard lock(const_cast<std::mutex&>(player_map_mutex_));
+    std::lock_guard lock(player_map_mutex_);
     auto it = player_map_.find(player_id);
     if (it != player_map_.end()) {
         return it->second;
@@ -159,10 +158,10 @@ void PlayerSystem::apply_input(
         return;
     }
 
-    auto* player_input = registry.try_get<PlayerInput>(entity);
-    if (player_input) {
-        player_input->movement = input;
-        player_input->dirty = true;
+    // Update InputComponent (from ase-input module)
+    auto* input_comp = registry.try_get<input::InputComponent>(entity);
+    if (input_comp) {
+        input_comp->set_movement(input);
     }
 
     auto* player = registry.try_get<PlayerComponent>(entity);
@@ -172,7 +171,7 @@ void PlayerSystem::apply_input(
     }
 }
 
-void PlayerSystem::process_movement(PlayerComponent& player, const PlayerInput& input, float dt) {
+void PlayerSystem::process_movement(PlayerComponent& player, const input::InputComponent& input, float dt) {
     const auto& mov = input.movement;
 
     // Calculate movement direction based on yaw

@@ -36,6 +36,8 @@ target_link_libraries(ase-player
         ase::ecs
         ase::log
         ase::terrain
+        ase::input    # Input types and components
+        ase::math     # Vec3, math utilities
 )
 
 # ------------------------------------------------------------------------------

@@ -4,7 +4,7 @@
  * PlayerSystem - ECS System for player movement
  *
  * Responsibilities:
- * - Process player inputs and update velocities
+ * - Process player inputs from InputComponent (ase-input module)
  * - Apply gravity and friction
  * - Query terrain for ground height
  * - Update player positions
@@ -14,6 +14,7 @@
 #include <ase/ecs/ecs.hpp>
 #include <ase/player/types.hpp>
 #include <ase/player/components/player_component.hpp>
+#include <ase/input/components/input_component.hpp>
 #include <ase/terrain/types.hpp>
 
 #include <functional>
@@ -53,7 +54,7 @@ public:
     ecs::Entity find_player(const std::string& player_id) const;
 
     /**
-     * Apply movement input to player
+     * Apply movement input to player (updates InputComponent)
      */
     void apply_input(
         ecs::Registry& registry,
@@ -112,7 +113,7 @@ public:
 private:
     // Player ID -> Entity mapping
     std::unordered_map<std::string, ecs::Entity> player_map_;
-    std::mutex player_map_mutex_;
+    mutable std::mutex player_map_mutex_;
 
     // Movement configuration
     MovementConfig config_;
@@ -127,7 +128,7 @@ private:
     OnPlayerChunkChange on_chunk_change_;
 
     // Internal methods
-    void process_movement(PlayerComponent& player, const PlayerInput& input, float dt);
+    void process_movement(PlayerComponent& player, const input::InputComponent& input, float dt);
     float get_terrain_height(float x, float z);
 };
 
