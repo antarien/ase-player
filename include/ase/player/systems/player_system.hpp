@@ -54,6 +54,11 @@ public:
     ecs::Entity find_player(const std::string& player_id) const;
 
     /**
+     * Get all current players (for sending to new clients)
+     */
+    std::vector<std::pair<std::string, ecs::Entity>> get_all_players() const;
+
+    /**
      * Apply movement input to player (updates InputComponent)
      */
     void apply_input(

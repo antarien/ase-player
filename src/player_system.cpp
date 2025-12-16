@@ -157,6 +157,16 @@ ecs::Entity PlayerSystem::find_player(const std::string& player_id) const {
     return ecs::NullEntity;
 }
 
+std::vector<std::pair<std::string, ecs::Entity>> PlayerSystem::get_all_players() const {
+    std::lock_guard lock(player_map_mutex_);
+    std::vector<std::pair<std::string, ecs::Entity>> result;
+    result.reserve(player_map_.size());
+    for (const auto& [id, entity] : player_map_) {
+        result.emplace_back(id, entity);
+    }
+    return result;
+}
+
 void PlayerSystem::apply_input(
     ecs::Registry& registry,
     const std::string& player_id,
