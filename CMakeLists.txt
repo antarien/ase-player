@@ -38,6 +38,8 @@ target_link_libraries(ase-player
         ase::terrain
         ase::input    # Input types and components
         ase::math     # Vec3, math utilities
+    PRIVATE
+        ase::camera   # Only used in player_system.cpp for CameraComponent.movement_yaw
 )
 
 # ------------------------------------------------------------------------------

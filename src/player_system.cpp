@@ -1,5 +1,6 @@
 #include <ase/player/systems/player_system.hpp>
 #include <ase/ecs/system_registry.hpp>
+#include <ase/camera/components/camera_component.hpp>
 #include <ase/log/log.hpp>
 
 #include <cmath>
@@ -11,6 +12,13 @@ void PlayerSystem::tick(ecs::Registry& registry, float dt) {
     auto view = registry.view<PlayerComponent, input::InputComponent>();
 
     for (auto [entity, player, input] : view.each()) {
+        // Get movement direction from camera (CameraSystem updates movement_yaw in Input phase)
+        // This ensures orbit mode (CTRL) correctly decouples camera view from movement
+        auto* cam = registry.try_get<camera::CameraComponent>(entity);
+        if (cam) {
+            player.yaw = cam->movement_yaw;
+        }
+
         // Process movement from input
         process_movement(player, input, dt);
 
@@ -85,9 +93,10 @@ ecs::Entity PlayerSystem::spawn_player(
     auto& player = registry.emplace<PlayerComponent>(entity, player_id);
     player.position = position;
 
-    // Get terrain height at spawn position
+    // Get terrain height at spawn position - spawn at ground level
+    // Camera system adds +1.0f offset to look at chest, not feet
     float ground = get_terrain_height(position.x, position.z);
-    player.position.y = ground + 1.0f;  // Spawn slightly above ground
+    player.position.y = ground;
 
     // Add InputComponent from ase-input module
     auto& input_comp = registry.emplace<input::InputComponent>(entity);
@@ -164,9 +173,10 @@ void PlayerSystem::apply_input(
         input::InputSystem::set_movement(*input_comp, input);
     }
 
+    // Note: player->yaw is now read from CameraComponent.movement_yaw during tick()
+    // This ensures orbit mode (CTRL) correctly decouples camera view from movement
     auto* player = registry.try_get<PlayerComponent>(entity);
     if (player) {
-        player->yaw = input.yaw;
         player->last_input = std::chrono::steady_clock::now();
     }
 }
@@ -225,7 +235,11 @@ void PlayerSystem::process_movement(PlayerComponent& player, const input::InputC
     // Ground collision
     float ground_height = get_terrain_height(player.position.x, player.position.z);
 
-    if (player.position.y <= ground_height) {
+    // Small tolerance for ground detection (prevents jitter on flat surfaces)
+    constexpr float GROUND_SNAP_DIST = 0.1f;
+
+    if (player.position.y <= ground_height + GROUND_SNAP_DIST) {
+        // On or slightly above ground - snap to ground
         player.position.y = ground_height;
         player.velocity.y = 0;
         player.on_ground = true;
@@ -237,6 +251,8 @@ void PlayerSystem::process_movement(PlayerComponent& player, const input::InputC
             player.state = PlayerState::Idle;
         }
     } else {
+        // Above ground - should be falling
+        player.on_ground = false;
         if (player.velocity.y < 0) {
             player.state = PlayerState::Falling;
         }
