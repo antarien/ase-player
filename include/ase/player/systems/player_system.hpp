@@ -14,7 +14,7 @@
 #include <ase/ecs/ecs.hpp>
 #include <ase/player/types.hpp>
 #include <ase/player/components/player_component.hpp>
-#include <ase/input/components/input_component.hpp>
+#include <ase/input/input.hpp>
 #include <ase/terrain/types.hpp>
 
 #include <functional>

@@ -15,7 +15,7 @@ void PlayerSystem::tick(ecs::Registry& registry, float dt) {
         process_movement(player, input, dt);
 
         // Clear input flags after processing
-        input.clear_flags();
+        input::InputSystem::clear_flags(input);
 
         // Update chunk presence
         auto* presence = registry.try_get<PlayerChunkPresence>(entity);
@@ -161,7 +161,7 @@ void PlayerSystem::apply_input(
     // Update InputComponent (from ase-input module)
     auto* input_comp = registry.try_get<input::InputComponent>(entity);
     if (input_comp) {
-        input_comp->set_movement(input);
+        input::InputSystem::set_movement(*input_comp, input);
     }
 
     auto* player = registry.try_get<PlayerComponent>(entity);
@@ -175,13 +175,14 @@ void PlayerSystem::process_movement(PlayerComponent& player, const input::InputC
     const auto& mov = input.movement;
 
     // Calculate movement direction based on yaw
+    // Note: In Three.js, -Z is forward, so we negate forward component
     float sin_yaw = std::sin(player.yaw);
     float cos_yaw = std::cos(player.yaw);
 
-    // Forward/backward and strafe movement
+    // Forward/backward and strafe movement (negated forward for Three.js coords)
     Vec3 move_dir{0, 0, 0};
-    move_dir.x = mov.forward * sin_yaw + mov.strafe * cos_yaw;
-    move_dir.z = mov.forward * cos_yaw - mov.strafe * sin_yaw;
+    move_dir.x = -mov.forward * sin_yaw + mov.strafe * cos_yaw;
+    move_dir.z = -mov.forward * cos_yaw - mov.strafe * sin_yaw;
 
     // Normalize if moving diagonally
     if (move_dir.length_xz() > 1.0f) {
