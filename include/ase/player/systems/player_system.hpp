@@ -133,7 +133,7 @@ private:
     OnPlayerChunkChange on_chunk_change_;
 
     // Internal methods
-    void process_movement(PlayerComponent& player, const input::InputComponent& input, float dt);
+    void process_movement(PlayerComponent& player, const input::InputComponent& input, float movement_yaw, float dt);
     float get_terrain_height(float x, float z);
 };
 

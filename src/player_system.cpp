@@ -12,15 +12,45 @@ void PlayerSystem::tick(ecs::Registry& registry, float dt) {
     auto view = registry.view<PlayerComponent, input::InputComponent>();
 
     for (auto [entity, player, input] : view.each()) {
-        // Get movement direction from camera (CameraSystem updates movement_yaw in Input phase)
-        // This ensures orbit mode (CTRL) correctly decouples camera view from movement
+        // Get camera for movement direction
         auto* cam = registry.try_get<camera::CameraComponent>(entity);
-        if (cam) {
-            player.yaw = cam->movement_yaw;
+
+        // Movement direction comes from camera (movement_yaw = cam.yaw always now)
+        float movement_yaw = cam ? cam->movement_yaw : player.yaw;
+
+        // Check if player is actually moving
+        const auto& mov = input.movement;
+        bool is_moving = mov.forward != 0.0f || mov.strafe != 0.0f;
+
+        // Only turn player body to face movement direction when:
+        // 1. Player is actually moving (walking/running)
+        // 2. NOT in orbit mode (orbit key not pressed)
+        // In orbit mode: player body stays facing old direction (crab walk allowed)
+        if (is_moving && cam && !cam->orbit_mode) {
+            // Smooth rotation interpolation (not abrupt snapping)
+            constexpr float TURN_SPEED = 10.0f;  // Radians per second
+            constexpr float TWO_PI = 6.28318530718f;
+
+            // Calculate shortest angle difference (handle wrap-around)
+            float delta = movement_yaw - player.yaw;
+            while (delta > 3.14159f) delta -= TWO_PI;
+            while (delta < -3.14159f) delta += TWO_PI;
+
+            // Interpolate towards target yaw
+            float max_turn = TURN_SPEED * dt;
+            if (std::abs(delta) < max_turn) {
+                player.yaw = movement_yaw;
+            } else {
+                player.yaw += (delta > 0 ? max_turn : -max_turn);
+            }
+
+            // Wrap yaw to [0, 2π]
+            while (player.yaw < 0.0f) player.yaw += TWO_PI;
+            while (player.yaw >= TWO_PI) player.yaw -= TWO_PI;
         }
 
-        // Process movement from input
-        process_movement(player, input, dt);
+        // Process movement using CAMERA direction (not player body direction)
+        process_movement(player, input, movement_yaw, dt);
 
         // Clear input flags after processing
         input::InputSystem::clear_flags(input);
@@ -191,13 +221,14 @@ void PlayerSystem::apply_input(
     }
 }
 
-void PlayerSystem::process_movement(PlayerComponent& player, const input::InputComponent& input, float dt) {
+void PlayerSystem::process_movement(PlayerComponent& player, const input::InputComponent& input, float movement_yaw, float dt) {
     const auto& mov = input.movement;
 
-    // Calculate movement direction based on yaw
+    // Calculate movement direction based on CAMERA yaw (not player body yaw)
+    // This allows movement in camera direction even when body faces different direction (orbit mode)
     // Note: In Three.js, -Z is forward, so we negate forward component
-    float sin_yaw = std::sin(player.yaw);
-    float cos_yaw = std::cos(player.yaw);
+    float sin_yaw = std::sin(movement_yaw);
+    float cos_yaw = std::cos(movement_yaw);
 
     // Forward/backward and strafe movement (negated forward for Three.js coords)
     Vec3 move_dir{0, 0, 0};
