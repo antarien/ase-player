@@ -1,5 +1,5 @@
 #include <ase/player/systems/player_system.hpp>
-#include <ase/ecs/system_registry.hpp>
+#include <ase/ecs/schedule_registry.hpp>
 #include <ase/camera/components/camera_component.hpp>
 #include <ase/log/log.hpp>
 
@@ -307,11 +307,10 @@ float PlayerSystem::get_terrain_height(float x, float z) {
     return 0.0f;  // Default flat ground
 }
 
-// Auto-register PlayerSystem in Agents phase (gameplay logic, after terrain)
-AUTO_REGISTER_SYSTEM(
-    PlayerSystem,
-    ase::ecs::SystemPhase::Agents,
-    (std::vector<std::string>{"TerrainChunkSystem"})
-)
+// Register in FixedUpdate schedule (gameplay logic, after terrain)
+REGISTER_SYSTEM(PlayerSystem)
+    .in_schedule(ecs::Schedule::FixedUpdate)
+    .with_priority(70)
+    .run_after("TerrainChunkSystem");
 
 }  // namespace ase::player
