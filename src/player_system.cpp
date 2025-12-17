@@ -311,7 +311,7 @@ float PlayerSystem::get_terrain_height(float x, float z) {
 AUTO_REGISTER_SYSTEM(
     PlayerSystem,
     ase::ecs::SystemPhase::Agents,
-    (std::vector<std::string>{"ChunkLookupSystem"})
+    (std::vector<std::string>{"TerrainChunkSystem"})
 )
 
 }  // namespace ase::player
