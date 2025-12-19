@@ -12,8 +12,19 @@
 #include <ase/player/components/player_config_component.hpp>
 #include <ase/player/components/player_tags.hpp>
 #include <ase/player/types.hpp>
-#include <ase/input/components/input_component.hpp>
-#include <ase/camera/components/camera_component.hpp>
+#include <ase/input/components/input_movement_component.hpp>
+#include <ase/input/components/input_action_component.hpp>
+#include <ase/input/components/input_camera_component.hpp>
+#include <ase/input/components/input_meta_component.hpp>
+#include <ase/input/components/input_tags.hpp>
+// ase-camera (ECS-compliant - separate components + tags)
+#include <ase/camera/components/camera_position_component.hpp>
+#include <ase/camera/components/camera_orientation_component.hpp>
+#include <ase/camera/components/camera_input_component.hpp>
+#include <ase/camera/components/camera_orbit_component.hpp>
+#include <ase/camera/components/camera_config_component.hpp>
+#include <ase/camera/components/camera_target_component.hpp>
+#include <ase/camera/components/camera_tags.hpp>
 #include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
@@ -97,14 +108,39 @@ ecs::Entity create_player_entity(
     chunk.chunk_x = static_cast<int32_t>(std::floor(x / config.chunk_size));
     chunk.chunk_y = static_cast<int32_t>(std::floor(z / config.chunk_size));
 
-    // Input (from ase-input)
-    auto& input_comp = registry.emplace<input::InputComponent>(entity);
-    input_comp.controller_id = player_id;
+    // Input Components (from ase-input - split by concern)
+    registry.emplace<input::InputMovementComponent>(entity);
+    registry.emplace<input::InputActionComponent>(entity);
+    registry.emplace<input::InputCameraComponent>(entity);
+    auto& input_meta = registry.emplace<input::InputMetaComponent>(entity);
+    input_meta.controller_id = player_id;
+    input_meta.last_update = std::chrono::steady_clock::now();
 
-    // Camera (from ase-camera) - use config.eye_height (SSOT)
-    auto& cam = registry.emplace<camera::CameraComponent>(entity);
-    cam.target = {x, ground_y + config.eye_height, z};
-    cam.mode = camera::CameraMode::ThirdPerson;
+    // Input Tag: LocalControlled for local player (set by caller if needed)
+    registry.emplace<input::LocalControlled>(entity);
+
+    // Camera Components (from ase-camera - split by concern)
+    auto& cam_pos = registry.emplace<camera::CameraPositionComponent>(entity);
+    cam_pos.target = {x, ground_y + config.eye_height, z};
+    cam_pos.position = {x, ground_y + config.eye_height + 15.0f, z + 15.0f};  // Initial orbit position
+
+    auto& cam_orient = registry.emplace<camera::CameraOrientationComponent>(entity);
+    cam_orient.pitch = 0.4f;  // Default pitch
+
+    registry.emplace<camera::CameraInputComponent>(entity);
+
+    auto& cam_orbit = registry.emplace<camera::CameraOrbitComponent>(entity);
+    cam_orbit.distance = 15.0f;
+    cam_orbit.target_distance = 15.0f;
+
+    registry.emplace<camera::CameraConfigComponent>(entity);
+
+    auto& cam_target = registry.emplace<camera::CameraTargetComponent>(entity);
+    cam_target.target_entity = static_cast<uint32_t>(entity);
+
+    // Camera Mode: ThirdPerson (Tag statt enum!)
+    registry.emplace<camera::ThirdPersonCameraTag>(entity);
+    registry.emplace<camera::ActiveCameraTag>(entity);
 
     // Tags for broadcast
     registry.emplace<PlayerJustSpawnedTag>(entity);

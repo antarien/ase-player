@@ -5,7 +5,7 @@
  *
  * ECS STATELESS: No private member state!
  *
- * Reads: InputComponent, PlayerPositionComponent, PlayerPhysicsComponent
+ * Reads: InputMovementComponent, PlayerPositionComponent, PlayerPhysicsComponent
  * Writes: PlayerVelocityComponent
  *
  * Priority: 71 (after input processing)

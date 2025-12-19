@@ -3,9 +3,9 @@
 #include <ase/player/components/player_position_component.hpp>
 #include <ase/player/components/player_config_component.hpp>
 #include <ase/player/components/player_tags.hpp>
-#include <ase/input/components/input_component.hpp>
-#include <ase/input/systems/input_system.hpp>
-#include <ase/camera/components/camera_component.hpp>
+#include <ase/input/components/input_movement_component.hpp>
+#include <ase/camera/components/camera_orientation_component.hpp>
+#include <ase/camera/components/camera_input_component.hpp>
 #include <ase/math/spherical.hpp>
 #include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
@@ -46,24 +46,27 @@ void PlayerInputSystem::tick(ecs::Registry& registry, float dt) {
     auto view = registry.view<
         PlayerIdentityComponent,
         PlayerPositionComponent,
-        input::InputComponent
+        input::InputMovementComponent
     >();
 
-    for (auto [entity, identity, pos, input] : view.each()) {
-        // Get camera for movement direction
-        auto* cam = registry.try_get<camera::CameraComponent>(entity);
+    for (auto [entity, identity, pos, movement] : view.each()) {
+        // Get camera components for movement direction
+        auto* cam_orient = registry.try_get<camera::CameraOrientationComponent>(entity);
+        auto* cam_input = registry.try_get<camera::CameraInputComponent>(entity);
 
         // Movement direction comes from camera (or current player yaw if no camera)
-        float movement_yaw = cam ? cam->movement_yaw : pos.yaw;
+        float movement_yaw = cam_orient ? cam_orient->movement_yaw : pos.yaw;
 
         // Check if player is actually moving
-        const auto& mov = input.movement;
-        bool is_moving = mov.forward != 0.0f || mov.strafe != 0.0f;
+        bool is_moving = movement.forward != 0.0f || movement.strafe != 0.0f;
+
+        // Check orbit mode (from camera input component)
+        bool orbit_mode = cam_input ? cam_input->orbit_mode : false;
 
         // Only turn player body to face movement direction when:
         // 1. Player is actually moving (walking/running)
         // 2. NOT in orbit mode (orbit key not pressed)
-        if (is_moving && cam && !cam->orbit_mode) {
+        if (is_moving && cam_orient && !orbit_mode) {
             // Calculate shortest angle difference (handle wrap-around)
             float delta = movement_yaw - pos.yaw;
             while (delta > PI) delta -= TWO_PI;

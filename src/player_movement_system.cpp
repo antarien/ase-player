@@ -3,8 +3,8 @@
 #include <ase/player/components/player_velocity_component.hpp>
 #include <ase/player/components/player_physics_component.hpp>
 #include <ase/player/components/player_config_component.hpp>
-#include <ase/input/components/input_component.hpp>
-#include <ase/camera/components/camera_component.hpp>
+#include <ase/input/components/input_movement_component.hpp>
+#include <ase/camera/components/camera_orientation_component.hpp>
 #include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
@@ -41,23 +41,21 @@ void PlayerMovementSystem::tick(ecs::Registry& registry, float dt) {
         PlayerPositionComponent,
         PlayerVelocityComponent,
         PlayerPhysicsComponent,
-        input::InputComponent
+        input::InputMovementComponent
     >();
 
-    for (auto [entity, pos, vel, physics, input] : view.each()) {
-        // Get camera for movement direction
-        auto* cam = registry.try_get<camera::CameraComponent>(entity);
-        float movement_yaw = cam ? cam->movement_yaw : pos.yaw;
-
-        const auto& mov = input.movement;
+    for (auto [entity, pos, vel, physics, movement] : view.each()) {
+        // Get camera orientation for movement direction
+        auto* cam_orient = registry.try_get<camera::CameraOrientationComponent>(entity);
+        float movement_yaw = cam_orient ? cam_orient->movement_yaw : pos.yaw;
 
         // Calculate movement direction based on camera yaw
         // Note: In Three.js, -Z is forward
         float sin_yaw = std::sin(movement_yaw);
         float cos_yaw = std::cos(movement_yaw);
 
-        float move_x = -mov.forward * sin_yaw + mov.strafe * cos_yaw;
-        float move_z = -mov.forward * cos_yaw - mov.strafe * sin_yaw;
+        float move_x = -movement.forward * sin_yaw + movement.strafe * cos_yaw;
+        float move_z = -movement.forward * cos_yaw - movement.strafe * sin_yaw;
 
         // Normalize if moving diagonally
         float move_len = std::sqrt(move_x * move_x + move_z * move_z);
@@ -67,7 +65,7 @@ void PlayerMovementSystem::tick(ecs::Registry& registry, float dt) {
         }
 
         // Determine speed
-        float speed = mov.sprint ? config.run_speed : config.walk_speed;
+        float speed = movement.sprint ? config.run_speed : config.walk_speed;
         float control = physics.on_ground ? 1.0f : config.air_control;
 
         // Target velocity
@@ -87,7 +85,7 @@ void PlayerMovementSystem::tick(ecs::Registry& registry, float dt) {
         }
 
         // Jump
-        if (mov.jump && physics.on_ground) {
+        if (movement.jump && physics.on_ground) {
             vel.vy = config.jump_impulse;
             physics.on_ground = false;
         }

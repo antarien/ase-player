@@ -6,7 +6,7 @@
  * Player-specific types. Uses ase-math for Vec3 and ase-input for input types.
  *
  * SSOT: All player-related constants are defined here in MovementConfig.
- * Systems must NOT have file-level static/constexpr (per ARCH_ASE_ECS_CRASHKURS.md).
+ * Systems must NOT have file-level static/constexpr (per INST_ASE_ECS_RULES.md).
  */
 
 #include <ase/math/vec3.hpp>

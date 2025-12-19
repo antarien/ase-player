@@ -1,11 +1,11 @@
 #pragma once
 
 /**
- * PlayerInputSystem - Process player input from InputComponent
+ * PlayerInputSystem - Process player input from InputMovementComponent
  *
  * ECS STATELESS: No private member state!
  *
- * Reads: InputComponent (from ase-input)
+ * Reads: InputMovementComponent (from ase-input)
  * Writes: PlayerPositionComponent (yaw rotation towards movement)
  *
  * Priority: 70 (runs first in player pipeline)
