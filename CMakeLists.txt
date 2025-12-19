@@ -15,7 +15,13 @@ project(ase-player
 # ------------------------------------------------------------------------------
 
 add_library(ase-player STATIC
-    src/player_system.cpp
+    src/player_lifecycle_system.cpp
+    src/player_input_system.cpp
+    src/player_movement_system.cpp
+    src/player_physics_system.cpp
+    src/player_state_system.cpp
+    src/player_chunk_system.cpp
+    src/player_broadcast_system.cpp
 )
 add_library(ase::player ALIAS ase-player)
 
@@ -38,8 +44,10 @@ target_link_libraries(ase-player
         ase::terrain
         ase::input    # Input types and components
         ase::math     # Vec3, math utilities
+        ase::camera   # CameraComponent for spawn_player
     PRIVATE
-        ase::camera   # Only used in player_system.cpp for CameraComponent.movement_yaw
+        ase::network  # RTCServer for broadcasting
+        nlohmann_json::nlohmann_json
 )
 
 # ------------------------------------------------------------------------------
