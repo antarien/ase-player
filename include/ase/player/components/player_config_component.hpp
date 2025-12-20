@@ -10,10 +10,6 @@
 #include <ase/player/types.hpp>
 #include <functional>
 
-namespace ase::network {
-class RTCServer;
-}
-
 namespace ase::player {
 
 /**
@@ -27,7 +23,6 @@ using HeightQueryFn = std::function<float(float world_x, float world_z)>;
 struct PlayerConfigComponent {
     MovementConfig movement;
     HeightQueryFn height_query;
-    network::RTCServer* rtc_server = nullptr;
 };
 
 }  // namespace ase::player

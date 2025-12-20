@@ -4,7 +4,7 @@
 #include <ase/player/components/player_state_component.hpp>
 #include <ase/player/components/player_config_component.hpp>
 #include <ase/player/components/player_tags.hpp>
-#include <ase/network/rtc_server.hpp>
+#include <ase/replication/components/replication_message.hpp>
 #include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
@@ -25,21 +25,10 @@ void PlayerBroadcastSystem::on_stop(ecs::Registry& /*registry*/) {
 }
 
 // =============================================================================
-// TICK - Broadcast dirty players via WebRTC
+// TICK - Broadcast dirty players via ECS message entities
 // =============================================================================
 
 void PlayerBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {
-    // Get RTCServer from config singleton
-    network::RTCServer* rtc = nullptr;
-    auto config_view = registry.view<PlayerConfigComponent>();
-    for (auto [config_entity, config] : config_view.each()) {
-        rtc = config.rtc_server;
-        break;
-    }
-    if (!rtc) {
-        return;  // No RTCServer available
-    }
-
     // Broadcast just-spawned players
     {
         auto view = registry.view<
@@ -54,7 +43,12 @@ void PlayerBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {
                 {"player_id", identity.player_id},
                 {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}
             };
-            rtc->broadcast("player_spawn", data);
+
+            // Create message entity for broadcast
+            auto msg = registry.create();
+            registry.emplace<replication::ReplicationData>(msg, "player_spawn", data.dump());
+            registry.emplace<replication::PendingBroadcast>(msg);
+
             to_remove.push_back(entity);
         }
         for (auto entity : to_remove) {
@@ -79,7 +73,12 @@ void PlayerBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {
                 {"yaw", pos.yaw},
                 {"state", static_cast<int>(state.state)}
             };
-            rtc->broadcast("player_update", data);
+
+            // Create message entity for broadcast
+            auto msg = registry.create();
+            registry.emplace<replication::ReplicationData>(msg, "player_update", data.dump());
+            registry.emplace<replication::PendingBroadcast>(msg);
+
             to_remove.push_back(entity);
         }
         for (auto entity : to_remove) {

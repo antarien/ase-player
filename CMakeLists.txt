@@ -45,8 +45,9 @@ target_link_libraries(ase-player
         ase::input    # Input types and components
         ase::math     # Vec3, math utilities
         ase::camera   # CameraComponent for spawn_player
+        ase::network  # ECS communication via network components
     PRIVATE
-        ase::network  # RTCServer for broadcasting
+        ase::replication  # ECS message pattern for broadcasting
         nlohmann_json::nlohmann_json
 )
 

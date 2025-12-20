@@ -12,7 +12,7 @@
  *   - PlayerPhysicsComponent: Ground contact and physics flags
  *   - PlayerStateComponent: State machine (Idle, Walking, Running...)
  *   - PlayerChunkComponent: Current chunk position
- *   - PlayerConfigComponent: Singleton with height query and RTCServer
+ *   - PlayerConfigComponent: Singleton with height query callback
  *   - Tags: PlayerDirtyTag, PlayerJustSpawnedTag, LocalPlayerTag, etc.
  *
  * Request Components (for spawn/despawn via ECS):
@@ -28,7 +28,7 @@
  *   - PlayerPhysicsSystem: Apply gravity, terrain collision
  *   - PlayerStateSystem: Update state machine
  *   - PlayerChunkSystem: Detect chunk changes
- *   - PlayerBroadcastSystem: WebRTC broadcast dirty entities
+ *   - PlayerBroadcastSystem: Broadcast dirty entities via ECS message pattern
  *
  * Dependencies:
  *   - ase-input: InputComponent for buffered client input

@@ -25,6 +25,10 @@
 #include <ase/camera/components/camera_config_component.hpp>
 #include <ase/camera/components/camera_target_component.hpp>
 #include <ase/camera/components/camera_tags.hpp>
+// ase-network (ECS communication via Components)
+#include <ase/network/components/player/req/network_plr_req_spawn_component.hpp>
+#include <ase/network/components/player/req/network_plr_req_despawn_component.hpp>
+#include <ase/network/components/player/state/network_plr_state_input_component.hpp>
 #include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
@@ -116,8 +120,8 @@ ecs::Entity create_player_entity(
     input_meta.controller_id = player_id;
     input_meta.last_update = std::chrono::steady_clock::now();
 
-    // Input Tag: LocalControlled for local player (set by caller if needed)
-    registry.emplace<input::LocalControlled>(entity);
+    // Input Tag: LocalControlledTag for local player (set by caller if needed)
+    registry.emplace<input::LocalControlledTag>(entity);
 
     // Camera Components (from ase-camera - split by concern)
     auto& cam_pos = registry.emplace<camera::CameraPositionComponent>(entity);
@@ -210,6 +214,68 @@ void process_despawn_requests(ecs::Registry& registry) {
     }
 }
 
+// ============================================================================
+// Network Component Processing (ECS communication via Components)
+// ============================================================================
+
+// Process spawn requests from Network module (NetworkPlrReqSpawnComponent)
+void process_network_spawn_requests(ecs::Registry& registry) {
+    auto view = registry.view<network::NetworkPlrReqSpawnComponent>();
+    std::vector<ecs::Entity> to_destroy;
+
+    for (auto [request_entity, req] : view.each()) {
+        std::string player_id(req.player_id.data());
+
+        // Check if player already exists
+        if (find_player_by_id(registry, player_id) == ecs::NullEntity) {
+            create_player_entity(registry, player_id, req.x, req.z);
+            log::info("[PlayerLifecycleSystem] Spawned player from network: {} at ({}, {})",
+                     player_id, req.x, req.z);
+        } else {
+            log::warn("[PlayerLifecycleSystem] Player already exists: {}", player_id);
+        }
+
+        // Mark for destruction (processed)
+        to_destroy.push_back(request_entity);
+    }
+
+    // Safe deletion: after iteration
+    for (auto entity : to_destroy) {
+        registry.destroy(entity);
+    }
+}
+
+// Process despawn requests from Network module (NetworkPlrReqDespawnComponent)
+void process_network_despawn_requests(ecs::Registry& registry) {
+    auto view = registry.view<network::NetworkPlrReqDespawnComponent>();
+    std::vector<ecs::Entity> to_destroy_requests;
+    std::vector<ecs::Entity> to_destroy_players;
+
+    for (auto [request_entity, req] : view.each()) {
+        std::string player_id(req.player_id.data());
+
+        // Find player entity
+        auto player_entity = find_player_by_id(registry, player_id);
+        if (player_entity != ecs::NullEntity && registry.valid(player_entity)) {
+            to_destroy_players.push_back(player_entity);
+            log::info("[PlayerLifecycleSystem] Despawned player from network: {}", player_id);
+        } else {
+            log::warn("[PlayerLifecycleSystem] Player not found for despawn: {}", player_id);
+        }
+
+        // Mark request for destruction (processed)
+        to_destroy_requests.push_back(request_entity);
+    }
+
+    // Safe deletion: after iteration
+    for (auto entity : to_destroy_players) {
+        registry.destroy(entity);
+    }
+    for (auto entity : to_destroy_requests) {
+        registry.destroy(entity);
+    }
+}
+
 }  // anonymous namespace
 
 // =============================================================================
@@ -225,12 +291,18 @@ void PlayerLifecycleSystem::on_stop(ecs::Registry& /*registry*/) {
 }
 
 // =============================================================================
-// TICK - Process spawn/despawn requests
+// TICK - Process spawn/despawn requests (from Player AND Network modules)
 // =============================================================================
 
 void PlayerLifecycleSystem::tick(ecs::Registry& registry, float /*dt*/) {
+    // Process requests from Player module (REST API)
     process_spawn_requests(registry);
     process_despawn_requests(registry);
+
+    // Process requests from Network module (WebRTC DataChannel)
+    // ECS communication: Network Systems write Components, Player Systems read them
+    process_network_spawn_requests(registry);
+    process_network_despawn_requests(registry);
 }
 
 // =============================================================================

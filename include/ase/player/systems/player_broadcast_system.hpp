@@ -1,14 +1,15 @@
 #pragma once
 
 /**
- * PlayerBroadcastSystem - Broadcast dirty player entities via WebRTC
+ * PlayerBroadcastSystem - Broadcast dirty player entities via ECS message pattern
  *
  * ECS STATELESS: No private member state!
  *
  * Reads: PlayerDirtyTag, PlayerJustSpawnedTag, all player components
- * Writes: Removes tags after broadcast
+ * Writes: Creates ReplicationData + PendingBroadcast message entities
+ *         Removes tags after creating messages
  *
- * Uses RTCServer singleton from ase-network for broadcasting.
+ * Uses ECS message entity pattern from ase-replication for broadcasting.
  *
  * Priority: 75 (last in player pipeline)
  */
