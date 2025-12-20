@@ -15,11 +15,9 @@ namespace ase::player {
 // =============================================================================
 
 void PlayerPhysicsSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerPhysicsSystem] Started");
 }
 
 void PlayerPhysicsSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerPhysicsSystem] Stopped");
 }
 
 // =============================================================================

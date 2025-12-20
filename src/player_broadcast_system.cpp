@@ -16,11 +16,9 @@ namespace ase::player {
 // =============================================================================
 
 void PlayerBroadcastSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerBroadcastSystem] Started");
 }
 
 void PlayerBroadcastSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerBroadcastSystem] Stopped");
 }
 
 // =============================================================================

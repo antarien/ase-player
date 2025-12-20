@@ -16,11 +16,9 @@ namespace ase::player {
 // =============================================================================
 
 void PlayerMovementSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerMovementSystem] Started");
 }
 
 void PlayerMovementSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerMovementSystem] Stopped");
 }
 
 // =============================================================================

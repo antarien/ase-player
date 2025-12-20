@@ -105,11 +105,9 @@ void process_network_input(ecs::Registry& registry) {
 // =============================================================================
 
 void PlayerInputSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerInputSystem] Started");
 }
 
 void PlayerInputSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerInputSystem] Stopped");
 }
 
 // =============================================================================

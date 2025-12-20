@@ -14,11 +14,9 @@ namespace ase::player {
 // =============================================================================
 
 void PlayerChunkSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerChunkSystem] Started");
 }
 
 void PlayerChunkSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerChunkSystem] Stopped");
 }
 
 // =============================================================================

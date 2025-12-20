@@ -282,11 +282,9 @@ void process_network_despawn_requests(ecs::Registry& registry) {
 // =============================================================================
 
 void PlayerLifecycleSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerLifecycleSystem] Started");
 }
 
 void PlayerLifecycleSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerLifecycleSystem] Stopped");
 }
 
 // =============================================================================
