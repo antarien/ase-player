@@ -25,6 +25,8 @@
 namespace ase::player {
 
 struct PlayerModule {
+    static constexpr const char* name() { return "ase-player"; }
+
     void build(ecs::App& app) {
         // FixedUpdate Systems with dependency chain
         app.add_system<PlayerLifecycleSystem>(ecs::Schedule::FixedUpdate);
