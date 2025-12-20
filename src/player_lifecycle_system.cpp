@@ -29,7 +29,6 @@
 #include <ase/network/components/player/req/network_plr_req_spawn_component.hpp>
 #include <ase/network/components/player/req/network_plr_req_despawn_component.hpp>
 #include <ase/network/components/player/state/network_plr_state_input_component.hpp>
-#include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
 #include <cmath>
@@ -310,8 +309,5 @@ void PlayerLifecycleSystem::tick(ecs::Registry& registry, float /*dt*/) {
 // =============================================================================
 
 // Run BEFORE other player systems - lifecycle must complete first
-REGISTER_SYSTEM(PlayerLifecycleSystem)
-    .in_schedule(ecs::Schedule::FixedUpdate)
-    .with_priority(69);  // Before PlayerInputSystem (70)
 
 }  // namespace ase::player

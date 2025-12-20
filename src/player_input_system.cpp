@@ -11,7 +11,6 @@
 // ase-network (ECS communication via Components)
 #include <ase/network/components/player/state/network_plr_state_input_component.hpp>
 #include <ase/math/spherical.hpp>
-#include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
 #include <cmath>
@@ -182,9 +181,5 @@ void PlayerInputSystem::tick(ecs::Registry& registry, float dt) {
 // REGISTRATION
 // =============================================================================
 
-REGISTER_SYSTEM(PlayerInputSystem)
-    .in_schedule(ecs::Schedule::FixedUpdate)
-    .with_priority(70)
-    .run_after("TerrainChunkSystem");
 
 }  // namespace ase::player

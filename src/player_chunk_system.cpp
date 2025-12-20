@@ -3,7 +3,6 @@
 #include <ase/player/components/player_chunk_component.hpp>
 #include <ase/player/components/player_config_component.hpp>
 #include <ase/player/components/player_tags.hpp>
-#include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
 #include <cmath>
@@ -56,9 +55,5 @@ void PlayerChunkSystem::tick(ecs::Registry& registry, float /*dt*/) {
 // REGISTRATION
 // =============================================================================
 
-REGISTER_SYSTEM(PlayerChunkSystem)
-    .in_schedule(ecs::Schedule::FixedUpdate)
-    .with_priority(74)
-    .run_after("PlayerStateSystem");
 
 }  // namespace ase::player

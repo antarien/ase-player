@@ -4,7 +4,6 @@
 #include <ase/player/components/player_physics_component.hpp>
 #include <ase/player/components/player_config_component.hpp>
 #include <ase/player/components/player_tags.hpp>
-#include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
 #include <cmath>
@@ -78,9 +77,5 @@ void PlayerPhysicsSystem::tick(ecs::Registry& registry, float dt) {
 // REGISTRATION
 // =============================================================================
 
-REGISTER_SYSTEM(PlayerPhysicsSystem)
-    .in_schedule(ecs::Schedule::FixedUpdate)
-    .with_priority(72)
-    .run_after("PlayerMovementSystem");
 
 }  // namespace ase::player

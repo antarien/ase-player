@@ -5,7 +5,6 @@
 #include <ase/player/components/player_config_component.hpp>
 #include <ase/input/components/input_movement_component.hpp>
 #include <ase/camera/components/camera_orientation_component.hpp>
-#include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
 #include <cmath>
@@ -101,9 +100,5 @@ void PlayerMovementSystem::tick(ecs::Registry& registry, float dt) {
 // REGISTRATION
 // =============================================================================
 
-REGISTER_SYSTEM(PlayerMovementSystem)
-    .in_schedule(ecs::Schedule::FixedUpdate)
-    .with_priority(71)
-    .run_after("PlayerInputSystem");
 
 }  // namespace ase::player

@@ -5,7 +5,6 @@
 #include <ase/player/components/player_config_component.hpp>
 #include <ase/player/components/player_tags.hpp>
 #include <ase/replication/components/replication_message.hpp>
-#include <ase/ecs/schedule_registry.hpp>
 #include <ase/log/log.hpp>
 
 #include <nlohmann/json.hpp>
@@ -103,9 +102,5 @@ void PlayerBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {
 // REGISTRATION
 // =============================================================================
 
-REGISTER_SYSTEM(PlayerBroadcastSystem)
-    .in_schedule(ecs::Schedule::FixedUpdate)
-    .with_priority(75)
-    .run_after("PlayerChunkSystem");
 
 }  // namespace ase::player
