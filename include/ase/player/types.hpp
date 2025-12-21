@@ -10,7 +10,7 @@
  */
 
 #include <ase/math/vec3.hpp>
-#include <ase/input/types.hpp>
+#include <ase/input/components/state/input_state_move_component.hpp>
 #include <cstdint>
 
 namespace ase::player {
@@ -18,8 +18,8 @@ namespace ase::player {
 // Use ase::math::Vec3 for all vector operations
 using Vec3 = ase::math::Vec3;
 
-// Use ase::input::MovementInput for player movement
-using MovementInput = ase::input::MovementInput;
+// Use ase::input::InputStateMoveComponent for player movement input
+using MovementInput = ase::input::InputStateMoveComponent;
 
 /**
  * Player state flags

@@ -1,26 +1,25 @@
 #pragma once
-
 /**
  * PlayerModule - Bevy-style module for player systems
  *
  * Dependency chain (FixedUpdate):
- *   PlayerLifecycleSystem (no deps)
- *   └─ PlayerInputSystem (→ TerrainChunkSystem - cross-module)
- *      └─ PlayerMovementSystem
- *         └─ PlayerPhysicsSystem
- *            └─ PlayerStateSystem
- *               └─ PlayerChunkSystem
- *                  └─ PlayerBroadcastSystem
+ *   PlayerLifeSpawnSystem (no deps)
+ *   └─ PlayerCtrlInputSystem (→ TerrainChunkSystem - cross-module)
+ *      └─ PlayerCtrlMoveSystem
+ *         └─ PlayerSimPhysSystem
+ *            └─ PlayerStateStatusSystem
+ *               └─ PlayerSpatialChunkSystem
+ *                  └─ PlayerNetBroadcastSystem
  */
 
 #include <ase/ecs/app.hpp>
-#include <ase/player/systems/player_lifecycle_system.hpp>
-#include <ase/player/systems/player_input_system.hpp>
-#include <ase/player/systems/player_movement_system.hpp>
-#include <ase/player/systems/player_physics_system.hpp>
-#include <ase/player/systems/player_state_system.hpp>
-#include <ase/player/systems/player_chunk_system.hpp>
-#include <ase/player/systems/player_broadcast_system.hpp>
+#include <ase/player/systems/lifecycle/player_life_spawn_system.hpp>
+#include <ase/player/systems/control/player_ctrl_input_system.hpp>
+#include <ase/player/systems/control/player_ctrl_move_system.hpp>
+#include <ase/player/systems/simulation/player_sim_phys_system.hpp>
+#include <ase/player/systems/state/player_state_status_system.hpp>
+#include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
+#include <ase/player/systems/network/player_net_broadcast_system.hpp>
 
 namespace ase::player {
 
@@ -28,26 +27,25 @@ struct PlayerModule {
     static constexpr const char* name() { return "ase-player"; }
 
     void build(ecs::App& app) {
-        // FixedUpdate Systems with dependency chain
-        app.add_system<PlayerLifecycleSystem>(ecs::Schedule::FixedUpdate);
+        app.add_system<PlayerLifeSpawnSystem>(ecs::Schedule::FixedUpdate);
 
-        app.add_system_with<PlayerInputSystem>(ecs::Schedule::FixedUpdate)
-            .run_after("TerrainChunkSystem");  // Cross-module dependency
+        app.add_system_with<PlayerCtrlInputSystem>(ecs::Schedule::FixedUpdate)
+            .run_after("TerrainChunkSystem");
 
-        app.add_system_with<PlayerMovementSystem>(ecs::Schedule::FixedUpdate)
-            .run_after("PlayerInputSystem");
+        app.add_system_with<PlayerCtrlMoveSystem>(ecs::Schedule::FixedUpdate)
+            .run_after("PlayerCtrlInputSystem");
 
-        app.add_system_with<PlayerPhysicsSystem>(ecs::Schedule::FixedUpdate)
-            .run_after("PlayerMovementSystem");
+        app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::FixedUpdate)
+            .run_after("PlayerCtrlMoveSystem");
 
-        app.add_system_with<PlayerStateSystem>(ecs::Schedule::FixedUpdate)
-            .run_after("PlayerPhysicsSystem");
+        app.add_system_with<PlayerStateStatusSystem>(ecs::Schedule::FixedUpdate)
+            .run_after("PlayerSimPhysSystem");
 
-        app.add_system_with<PlayerChunkSystem>(ecs::Schedule::FixedUpdate)
-            .run_after("PlayerStateSystem");
+        app.add_system_with<PlayerSpatialChunkSystem>(ecs::Schedule::FixedUpdate)
+            .run_after("PlayerStateStatusSystem");
 
-        app.add_system_with<PlayerBroadcastSystem>(ecs::Schedule::FixedUpdate)
-            .run_after("PlayerChunkSystem");
+        app.add_system_with<PlayerNetBroadcastSystem>(ecs::Schedule::FixedUpdate)
+            .run_after("PlayerSpatialChunkSystem");
     }
 };
 

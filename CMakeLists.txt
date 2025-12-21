@@ -15,13 +15,13 @@ project(ase-player
 # ------------------------------------------------------------------------------
 
 add_library(ase-player STATIC
-    src/player_lifecycle_system.cpp
-    src/player_input_system.cpp
-    src/player_movement_system.cpp
-    src/player_physics_system.cpp
-    src/player_state_system.cpp
-    src/player_chunk_system.cpp
-    src/player_broadcast_system.cpp
+    src/lifecycle/player_life_spawn_system.cpp
+    src/control/player_ctrl_input_system.cpp
+    src/control/player_ctrl_move_system.cpp
+    src/simulation/player_sim_phys_system.cpp
+    src/state/player_state_status_system.cpp
+    src/spatial/player_spatial_chunk_system.cpp
+    src/network/player_net_broadcast_system.cpp
 )
 add_library(ase::player ALIAS ase-player)
 

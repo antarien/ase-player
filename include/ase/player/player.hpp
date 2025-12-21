@@ -1,34 +1,35 @@
 #pragma once
-
 /**
  * ASE Player Module
  *
  * Provides player entity management using focused ECS components.
  *
- * Components (focused, single responsibility):
- *   - PlayerIdentityComponent: Player ID and session timestamps
- *   - PlayerPositionComponent: World position and rotation
- *   - PlayerVelocityComponent: Current velocity vector
- *   - PlayerPhysicsComponent: Ground contact and physics flags
- *   - PlayerStateComponent: State machine (Idle, Walking, Running...)
- *   - PlayerChunkComponent: Current chunk position
- *   - PlayerConfigComponent: Singleton with height query callback
- *   - Tags: PlayerDirtyTag, PlayerJustSpawnedTag, LocalPlayerTag, etc.
+ * Components (state/):
+ *   - PlayerStateIdComponent: Player ID and session timestamps
+ *   - PlayerStatePosComponent: World position and rotation
+ *   - PlayerStateVelComponent: Current velocity vector
+ *   - PlayerStatePhysComponent: Ground contact and physics flags
+ *   - PlayerStateStatusComponent: State machine (Idle, Walking, Running...)
+ *   - PlayerStateChunkComponent: Current chunk position
+ *   - PlayerStateCfgComponent: Singleton with height query callback
  *
- * Request Components (for spawn/despawn via ECS):
- *   - PlayerSpawnRequestComponent: Request to spawn a player
- *   - PlayerDespawnRequestComponent: Request to despawn a player
- *   - PlayerSpawnResultComponent: Result of spawn request
- *   - PlayerDespawnResultComponent: Result of despawn request
+ * Components (tag/):
+ *   - PlayerDirtyTag, PlayerSpawnedTag, PlayerLocalTag, etc.
+ *
+ * Components (request/):
+ *   - PlayerReqSpawnComponent: Request to spawn a player
+ *   - PlayerReqDespComponent: Request to despawn a player
+ *   - PlayerReqSpawnResComponent: Result of spawn request
+ *   - PlayerReqDespResComponent: Result of despawn request
  *
  * Systems:
- *   - PlayerLifecycleSystem: Process spawn/despawn requests
- *   - PlayerInputSystem: Process WebRTC input
- *   - PlayerMovementSystem: Calculate velocity from input
- *   - PlayerPhysicsSystem: Apply gravity, terrain collision
- *   - PlayerStateSystem: Update state machine
- *   - PlayerChunkSystem: Detect chunk changes
- *   - PlayerBroadcastSystem: Broadcast dirty entities via ECS message pattern
+ *   - PlayerLifeSpawnSystem: Process spawn/despawn requests
+ *   - PlayerCtrlInputSystem: Process WebRTC input
+ *   - PlayerCtrlMoveSystem: Calculate velocity from input
+ *   - PlayerSimPhysSystem: Apply gravity, terrain collision
+ *   - PlayerStateStatusSystem: Update state machine
+ *   - PlayerSpatialChunkSystem: Detect chunk changes
+ *   - PlayerNetBroadcastSystem: Broadcast dirty entities via ECS message pattern
  *
  * Dependencies:
  *   - ase-input: InputComponent for buffered client input
@@ -41,27 +42,33 @@
 // Types
 #include <ase/player/types.hpp>
 
-// Components (focused, single responsibility)
-#include <ase/player/components/player_identity_component.hpp>
-#include <ase/player/components/player_position_component.hpp>
-#include <ase/player/components/player_velocity_component.hpp>
-#include <ase/player/components/player_physics_component.hpp>
-#include <ase/player/components/player_state_component.hpp>
-#include <ase/player/components/player_chunk_component.hpp>
-#include <ase/player/components/player_config_component.hpp>
-#include <ase/player/components/player_tags.hpp>
+// Components - State (runtime state)
+#include <ase/player/components/state/player_state_id_component.hpp>
+#include <ase/player/components/state/player_state_pos_component.hpp>
+#include <ase/player/components/state/player_state_vel_component.hpp>
+#include <ase/player/components/state/player_state_phys_component.hpp>
+#include <ase/player/components/state/player_state_status_component.hpp>
+#include <ase/player/components/state/player_state_chunk_component.hpp>
+#include <ase/player/components/state/player_state_cfg_component.hpp>
 
-// Request/Result Components (ECS-based spawn/despawn)
-#include <ase/player/components/player_spawn_request_component.hpp>
-#include <ase/player/components/player_despawn_request_component.hpp>
-#include <ase/player/components/player_spawn_result_component.hpp>
-#include <ase/player/components/player_despawn_result_component.hpp>
+// Components - Tags (empty structs for ECS filtering)
+#include <ase/player/components/tag/player_tag_dirty_component.hpp>
+#include <ase/player/components/tag/player_tag_spawned_component.hpp>
+#include <ase/player/components/tag/player_tag_local_component.hpp>
+#include <ase/player/components/tag/player_tag_init_component.hpp>
+#include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
+
+// Components - Request/Result (ECS-based spawn/despawn)
+#include <ase/player/components/request/player_req_spawn_component.hpp>
+#include <ase/player/components/request/player_req_desp_component.hpp>
+#include <ase/player/components/request/player_req_spawn_res_component.hpp>
+#include <ase/player/components/request/player_req_desp_res_component.hpp>
 
 // Systems (focused, single responsibility)
-#include <ase/player/systems/player_lifecycle_system.hpp>
-#include <ase/player/systems/player_input_system.hpp>
-#include <ase/player/systems/player_movement_system.hpp>
-#include <ase/player/systems/player_physics_system.hpp>
-#include <ase/player/systems/player_state_system.hpp>
-#include <ase/player/systems/player_chunk_system.hpp>
-#include <ase/player/systems/player_broadcast_system.hpp>
+#include <ase/player/systems/lifecycle/player_life_spawn_system.hpp>
+#include <ase/player/systems/control/player_ctrl_input_system.hpp>
+#include <ase/player/systems/control/player_ctrl_move_system.hpp>
+#include <ase/player/systems/simulation/player_sim_phys_system.hpp>
+#include <ase/player/systems/state/player_state_status_system.hpp>
+#include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
+#include <ase/player/systems/network/player_net_broadcast_system.hpp>
