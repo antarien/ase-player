@@ -10,6 +10,9 @@
  *            └─ PlayerStateStatusSystem
  *               └─ PlayerSpatialChunkSystem
  *                  └─ PlayerNetBroadcastSystem
+ *
+ * Last (Debug/Logging):
+ *   PlayerLogCausalitySystem (→ all systems)
  */
 
 #include <ase/ecs/app.hpp>
@@ -20,6 +23,7 @@
 #include <ase/player/systems/state/player_state_status_system.hpp>
 #include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
 #include <ase/player/systems/network/player_net_broadcast_system.hpp>
+#include <ase/player/systems/log/player_log_causality_system.hpp>
 
 namespace ase::player {
 
@@ -46,6 +50,10 @@ struct PlayerModule {
 
         app.add_system_with<PlayerNetBroadcastSystem>(ecs::Schedule::FixedUpdate)
             .run_after("PlayerSpatialChunkSystem");
+
+        // Last (Debug/Logging) - runs after all other systems
+        app.add_system_with<PlayerLogCausalitySystem>(ecs::Schedule::Last)
+            .run_after("PlayerNetBroadcastSystem");
     }
 };
 

@@ -35,6 +35,13 @@ enum class PlayerState : uint8_t {
 };
 
 /**
+ * Logging defaults
+ */
+namespace LogDefaults {
+    constexpr float INTERVAL = 5.0f;  // Seconds between causality logs
+}
+
+/**
  * Movement constants - SSOT for all player systems
  *
  * All player-related magic numbers MUST be here.
