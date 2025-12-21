@@ -12,9 +12,11 @@
 namespace ase::player {
 
 void PlayerCtrlMoveSystem::on_start(ecs::Registry& /*registry*/) {
+    // No resources to initialize - pure state processing system
 }
 
 void PlayerCtrlMoveSystem::on_stop(ecs::Registry& /*registry*/) {
+    // No resources to cleanup - pure state processing system
 }
 
 void PlayerCtrlMoveSystem::tick(ecs::Registry& registry, float dt) {

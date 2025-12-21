@@ -11,9 +11,11 @@
 namespace ase::player {
 
 void PlayerSimPhysSystem::on_start(ecs::Registry& /*registry*/) {
+    // No resources to initialize - pure state processing system
 }
 
 void PlayerSimPhysSystem::on_stop(ecs::Registry& /*registry*/) {
+    // No resources to cleanup - pure state processing system
 }
 
 void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {

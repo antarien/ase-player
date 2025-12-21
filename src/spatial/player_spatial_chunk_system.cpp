@@ -10,9 +10,11 @@
 namespace ase::player {
 
 void PlayerSpatialChunkSystem::on_start(ecs::Registry& /*registry*/) {
+    // No resources to initialize - pure state processing system
 }
 
 void PlayerSpatialChunkSystem::on_stop(ecs::Registry& /*registry*/) {
+    // No resources to cleanup - pure state processing system
 }
 
 void PlayerSpatialChunkSystem::tick(ecs::Registry& registry, float /*dt*/) {

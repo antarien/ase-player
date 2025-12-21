@@ -38,6 +38,7 @@ void create_broadcast_message(
 }  // anonymous namespace
 
 void PlayerNetBroadcastSystem::on_start(ecs::Registry& /*registry*/) {
+    // No resources to initialize - pure state processing system
 }
 
 void PlayerNetBroadcastSystem::on_stop(ecs::Registry& registry) {
