@@ -87,7 +87,22 @@ void process_network_input(ecs::Registry& registry) {
 void PlayerCtrlInputSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
-void PlayerCtrlInputSystem::on_stop(ecs::Registry& /*registry*/) {
+void PlayerCtrlInputSystem::on_stop(ecs::Registry& registry) {
+    // Cleanup pending network input entities
+    auto view = registry.view<network::NetworkPlrStateInputComponent>();
+    std::vector<ecs::Entity> to_destroy;
+
+    for (auto entity : view) {
+        to_destroy.push_back(entity);
+    }
+
+    for (auto entity : to_destroy) {
+        registry.destroy(entity);
+    }
+
+    if (!to_destroy.empty()) {
+        log::info("[PlayerCtrlInputSystem] Cleaned up {} pending network inputs on shutdown", to_destroy.size());
+    }
 }
 
 void PlayerCtrlInputSystem::tick(ecs::Registry& registry, float dt) {

@@ -40,7 +40,26 @@ void create_broadcast_message(
 void PlayerNetBroadcastSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
-void PlayerNetBroadcastSystem::on_stop(ecs::Registry& /*registry*/) {
+void PlayerNetBroadcastSystem::on_stop(ecs::Registry& registry) {
+    // Cleanup pending broadcast messages - free allocated payloads
+    auto view = registry.view<replication::ReplicationMsgDatComponent, replication::ReplicationMsgPndBctTag>();
+    std::vector<ecs::Entity> to_destroy;
+
+    for (auto [entity, msg] : view.each()) {
+        // Free allocated payload
+        if (msg.pay_ptr != 0) {
+            delete[] reinterpret_cast<char*>(msg.pay_ptr);
+        }
+        to_destroy.push_back(entity);
+    }
+
+    for (auto entity : to_destroy) {
+        registry.destroy(entity);
+    }
+
+    if (!to_destroy.empty()) {
+        log::info("[PlayerNetBroadcastSystem] Cleaned up {} pending messages on shutdown", to_destroy.size());
+    }
 }
 
 void PlayerNetBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {

@@ -12,6 +12,7 @@
 #include <ase/player/components/state/player_state_cfg_component.hpp>
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 #include <ase/player/components/tag/player_tag_spawned_component.hpp>
+#include <ase/player/components/tag/player_tag_mgr_component.hpp>
 #include <ase/player/types.hpp>
 #include <ase/input/input.hpp>
 #include <ase/camera/camera.hpp>
@@ -228,10 +229,32 @@ void process_network_despawn_requests(ecs::Registry& registry) {
 
 }  // anonymous namespace
 
-void PlayerLifeSpawnSystem::on_start(ecs::Registry& /*registry*/) {
+void PlayerLifeSpawnSystem::on_start(ecs::Registry& registry) {
+    // Create manager entity with config if not exists
+    auto view = registry.view<PlayerMgrTag>();
+    if (view.empty()) {
+        auto mgr = registry.create();
+        registry.emplace<PlayerMgrTag>(mgr);
+        registry.emplace<PlayerStateCfgComponent>(mgr);
+        log::info("[PlayerLifeSpawnSystem] Created player manager entity");
+    }
 }
 
-void PlayerLifeSpawnSystem::on_stop(ecs::Registry& /*registry*/) {
+void PlayerLifeSpawnSystem::on_stop(ecs::Registry& registry) {
+    // Despawn all players on shutdown
+    std::vector<ecs::Entity> to_destroy;
+    auto view = registry.view<PlayerStateIdComponent>();
+    for (auto entity : view) {
+        to_destroy.push_back(entity);
+    }
+
+    for (auto entity : to_destroy) {
+        registry.destroy(entity);
+    }
+
+    if (!to_destroy.empty()) {
+        log::info("[PlayerLifeSpawnSystem] Despawned {} players on shutdown", to_destroy.size());
+    }
 }
 
 void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {

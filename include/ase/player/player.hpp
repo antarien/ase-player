@@ -14,6 +14,7 @@
  *   - PlayerStateCfgComponent: Singleton with height query callback
  *
  * Components (tag/):
+ *   - PlayerMgrTag: Manager entity marker (holds config)
  *   - PlayerDirtyTag, PlayerSpawnedTag, PlayerLocalTag, etc.
  *
  * Components (request/):
@@ -52,6 +53,7 @@
 #include <ase/player/components/state/player_state_cfg_component.hpp>
 
 // Components - Tags (empty structs for ECS filtering)
+#include <ase/player/components/tag/player_tag_mgr_component.hpp>
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 #include <ase/player/components/tag/player_tag_spawned_component.hpp>
 #include <ase/player/components/tag/player_tag_local_component.hpp>
