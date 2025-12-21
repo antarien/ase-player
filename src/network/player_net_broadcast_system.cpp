@@ -6,12 +6,36 @@
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 #include <ase/player/components/tag/player_tag_spawned_component.hpp>
 #include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
-#include <ase/replication/components/replication_message.hpp>
+#include <ase/replication/replication.hpp>
 #include <ase/log/log.hpp>
 
 #include <nlohmann/json.hpp>
+#include <cstring>
 
 namespace ase::player {
+
+namespace {
+
+void create_broadcast_message(
+    ecs::Registry& registry,
+    const char* channel,
+    const std::string& payload
+) {
+    auto msg = registry.create();
+    auto& msg_data = registry.emplace<replication::ReplicationMsgDatComponent>(msg);
+
+    std::strncpy(msg_data.chn.data(), channel, msg_data.chn.size() - 1);
+    msg_data.chn[msg_data.chn.size() - 1] = '\0';
+
+    auto* pay = new char[payload.size()];
+    std::memcpy(pay, payload.data(), payload.size());
+    msg_data.pay_ptr = reinterpret_cast<uint64_t>(pay);
+    msg_data.pay_len = static_cast<uint32_t>(payload.size());
+
+    registry.emplace<replication::ReplicationMsgPndBctTag>(msg);
+}
+
+}  // anonymous namespace
 
 void PlayerNetBroadcastSystem::on_start(ecs::Registry& /*registry*/) {
 }
@@ -35,10 +59,7 @@ void PlayerNetBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {
                 {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}
             };
 
-            auto msg = registry.create();
-            registry.emplace<replication::ReplicationData>(msg, "player_spawn", data.dump());
-            registry.emplace<replication::PendingBroadcast>(msg);
-
+            create_broadcast_message(registry, "player_spawn", data.dump());
             to_remove.push_back(entity);
         }
         for (auto entity : to_remove) {
@@ -64,10 +85,7 @@ void PlayerNetBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {
                 {"state", static_cast<int>(state.state)}
             };
 
-            auto msg = registry.create();
-            registry.emplace<replication::ReplicationData>(msg, "player_update", data.dump());
-            registry.emplace<replication::PendingBroadcast>(msg);
-
+            create_broadcast_message(registry, "player_update", data.dump());
             to_remove.push_back(entity);
         }
         for (auto entity : to_remove) {
