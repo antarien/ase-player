@@ -3,6 +3,7 @@
 #include <ase/player/components/state/player_state_chunk_component.hpp>
 #include <ase/player/components/state/player_state_cfg_component.hpp>
 #include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
+#include <ase/terrain/components/tag/terrain_tag_strm_obs_component.hpp>
 #include <ase/log/log.hpp>
 
 #include <cmath>
@@ -35,6 +36,14 @@ void PlayerSpatialChunkSystem::tick(ecs::Registry& registry, float /*dt*/) {
             chunk.chunk_x = new_chunk_x;
             chunk.chunk_y = new_chunk_z;
             registry.emplace_or_replace<PlayerChunkChangedTag>(entity);
+
+            // Update terrain streaming observer if present
+            auto* strm_obs = registry.try_get<terrain::TerrainStrmObsComponent>(entity);
+            if (strm_obs) {
+                strm_obs->chunk_x = new_chunk_x;
+                strm_obs->chunk_y = new_chunk_z;
+                strm_obs->needs_update = true;
+            }
         }
     }
 }

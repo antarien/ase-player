@@ -16,6 +16,7 @@
 #include <ase/player/types.hpp>
 #include <ase/input/input.hpp>
 #include <ase/camera/camera.hpp>
+#include <ase/terrain/components/tag/terrain_tag_strm_obs_component.hpp>
 #include <ase/network/components/player/req/network_plr_req_spawn_component.hpp>
 #include <ase/network/components/player/req/network_plr_req_despawn_component.hpp>
 #include <ase/network/components/player/state/network_plr_state_input_component.hpp>
@@ -121,6 +122,12 @@ ecs::Entity create_player_entity(
 
     registry.emplace<PlayerSpawnedTag>(entity);
     registry.emplace<PlayerDirtyTag>(entity);
+
+    // Terrain streaming: player is an observer that needs chunks loaded
+    auto& strm_obs = registry.emplace<terrain::TerrainStrmObsComponent>(entity);
+    strm_obs.chunk_x = chunk.chunk_x;
+    strm_obs.chunk_y = chunk.chunk_y;
+    strm_obs.needs_update = true;  // Trigger initial chunk loading
 
     return entity;
 }
