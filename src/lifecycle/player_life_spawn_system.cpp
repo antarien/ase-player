@@ -127,24 +127,28 @@ ecs::Entity create_player_entity(
 
     registry.emplace<input::InputLocalTag>(entity);
 
-    auto& cam_pos = registry.emplace<camera::CameraStatePosComponent>(entity);
-    cam_pos.target = {x, ground_y + mov.eye_height, z};
-    cam_pos.position = {x, ground_y + mov.eye_height + 15.0f, z + 15.0f};
+    auto& cam_pos = registry.emplace<camera::CameraStPosComponent>(entity);
+    cam_pos.tgt_x = x;
+    cam_pos.tgt_y = ground_y + mov.eye_height;
+    cam_pos.tgt_z = z;
+    cam_pos.pos_x = x;
+    cam_pos.pos_y = ground_y + mov.eye_height + 15.0f;
+    cam_pos.pos_z = z + 15.0f;
 
     auto& cam_orient = registry.emplace<camera::CameraStOrtComponent>(entity);
     cam_orient.pitch = 0.4f;
 
     registry.emplace<camera::CameraStInpComponent>(entity);
 
-    auto& cam_orbit = registry.emplace<camera::CameraStateOrbitComponent>(entity);
+    auto& cam_orbit = registry.emplace<camera::CameraStOrbComponent>(entity);
     cam_orbit.distance = 15.0f;
     cam_orbit.target_distance = 15.0f;
 
-    auto& cam_target = registry.emplace<camera::CameraStateTgtComponent>(entity);
+    auto& cam_target = registry.emplace<camera::CameraStTgtComponent>(entity);
     cam_target.target_entity = static_cast<uint32_t>(entity);
 
     registry.emplace<camera::CameraTpTag>(entity);
-    registry.emplace<camera::CameraActiveTag>(entity);
+    registry.emplace<camera::CameraActTag>(entity);
 
     registry.emplace<PlayerSpawnedTag>(entity);
     registry.emplace<PlayerDirtyTag>(entity);
