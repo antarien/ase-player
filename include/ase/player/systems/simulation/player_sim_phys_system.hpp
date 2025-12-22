@@ -4,8 +4,8 @@
  *
  * ECS STATELESS: No private member state!
  *
- * Reads: PlayerStateVelComponent, terrain height (via PlayerStateCfgComponent singleton)
- * Writes: PlayerStatePosComponent, PlayerStatePhysComponent
+ * Reads: PlayerStVelComponent, terrain height (via ECS terrain components)
+ * Writes: PlayerStPosComponent, PlayerStPhysComponent
  */
 
 #include <ase/ecs/ecs.hpp>

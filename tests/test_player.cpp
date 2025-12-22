@@ -1,4 +1,5 @@
 #include <ase/player/player.hpp>
+#include <ase/terrain/terrain.hpp>
 #include <ase/ecs/ecs.hpp>
 #include <iostream>
 #include <cassert>
@@ -56,7 +57,7 @@ bool do_despawn_request(
 }
 
 ase::ecs::Entity do_find_player(ase::ecs::Registry& registry, const std::string& player_id) {
-    auto view = registry.view<PlayerStateIdComponent>();
+    auto view = registry.view<PlayerStIdComponent>();
     for (auto [entity, identity] : view.each()) {
         if (identity.player_id == player_id) {
             return entity;
@@ -67,11 +68,25 @@ ase::ecs::Entity do_find_player(ase::ecs::Registry& registry, const std::string&
 
 std::vector<std::pair<std::string, ase::ecs::Entity>> do_get_all_players(ase::ecs::Registry& registry) {
     std::vector<std::pair<std::string, ase::ecs::Entity>> result;
-    auto view = registry.view<PlayerStateIdComponent>();
+    auto view = registry.view<PlayerStIdComponent>();
     for (auto [entity, identity] : view.each()) {
         result.emplace_back(identity.player_id, entity);
     }
     return result;
+}
+
+void setup_terrain_chunk(ase::ecs::Registry& registry, int32_t chunk_x, int32_t chunk_y, float height) {
+    auto chunk = registry.create();
+    auto& crd = registry.emplace<terrain::TerrainStChkCrdComponent>(chunk);
+    crd.x = chunk_x;
+    crd.y = chunk_y;
+
+    auto& lyr = registry.emplace<terrain::TerrainStChkLyrComponent>(chunk);
+    auto* hgt = new float[terrain::MACRO_RESOLUTION * terrain::MACRO_RESOLUTION];
+    for (size_t i = 0; i < terrain::MACRO_RESOLUTION * terrain::MACRO_RESOLUTION; ++i) {
+        hgt[i] = height;
+    }
+    lyr.hgt_ptr = reinterpret_cast<uint64_t>(hgt);
 }
 
 }  // anonymous namespace
@@ -82,15 +97,15 @@ void test_player_components() {
     ase::ecs::Registry registry;
     auto entity = registry.create();
 
-    // Add PlayerStateIdComponent
-    auto& identity = registry.emplace<PlayerStateIdComponent>(entity);
+    // Add PlayerStIdComponent
+    auto& identity = registry.emplace<PlayerStIdComponent>(entity);
     identity.player_id = "test_player_1";
     identity.spawned_at = std::chrono::steady_clock::now();
     identity.last_input = identity.spawned_at;
     assert(identity.player_id == "test_player_1");
 
-    // Add PlayerStatePosComponent
-    auto& pos = registry.emplace<PlayerStatePosComponent>(entity);
+    // Add PlayerStPosComponent
+    auto& pos = registry.emplace<PlayerStPosComponent>(entity);
     pos.x = 10.0f;
     pos.y = 5.0f;
     pos.z = 20.0f;
@@ -99,28 +114,28 @@ void test_player_components() {
     assert(pos.y == 5.0f);
     assert(pos.z == 20.0f);
 
-    // Add PlayerStateVelComponent
-    auto& vel = registry.emplace<PlayerStateVelComponent>(entity);
+    // Add PlayerStVelComponent
+    auto& vel = registry.emplace<PlayerStVelComponent>(entity);
     vel.vx = 1.0f;
     vel.vy = -9.8f;
     vel.vz = 0.5f;
     assert(vel.vx == 1.0f);
     assert(vel.vy == -9.8f);
 
-    // Add PlayerStatePhysComponent
-    auto& physics = registry.emplace<PlayerStatePhysComponent>(entity);
+    // Add PlayerStPhysComponent
+    auto& physics = registry.emplace<PlayerStPhysComponent>(entity);
     physics.on_ground = false;
     physics.gravity_enabled = true;
     assert(!physics.on_ground);
     assert(physics.gravity_enabled);
 
-    // Add PlayerStateStatusComponent
-    auto& state = registry.emplace<PlayerStateStatusComponent>(entity);
-    state.state = PlayerState::Running;
-    assert(state.state == PlayerState::Running);
+    // Add PlayerStStsComponent
+    auto& state = registry.emplace<PlayerStStsComponent>(entity);
+    state.state = PLAYER_STATE_RUNNING;
+    assert(state.state == PLAYER_STATE_RUNNING);
 
-    // Add PlayerStateChunkComponent
-    auto& chunk = registry.emplace<PlayerStateChunkComponent>(entity);
+    // Add PlayerStChkComponent
+    auto& chunk = registry.emplace<PlayerStChkComponent>(entity);
     chunk.chunk_x = 2;
     chunk.chunk_y = 3;
     assert(chunk.chunk_x == 2);
@@ -129,28 +144,27 @@ void test_player_components() {
     std::cout << "  Player Components: OK" << std::endl;
 }
 
-void test_movement_config() {
-    std::cout << "Testing MovementConfig..." << std::endl;
+void test_movement_defaults() {
+    std::cout << "Testing Movement Defaults..." << std::endl;
 
-    MovementConfig config;
-    assert(config.walk_speed > 0.0f);
-    assert(config.run_speed > config.walk_speed);
-    assert(config.gravity > 0.0f);
-    assert(config.jump_impulse > 0.0f);
+    assert(MOVEMENT_DEFAULT_WALK_SPEED > 0.0f);
+    assert(MOVEMENT_DEFAULT_RUN_SPEED > MOVEMENT_DEFAULT_WALK_SPEED);
+    assert(MOVEMENT_DEFAULT_GRAVITY > 0.0f);
+    assert(MOVEMENT_DEFAULT_JUMP_IMPULSE > 0.0f);
 
-    std::cout << "  MovementConfig: OK" << std::endl;
+    std::cout << "  Movement Defaults: OK" << std::endl;
 }
 
-void test_player_state_enum() {
-    std::cout << "Testing PlayerState enum..." << std::endl;
+void test_player_state_constants() {
+    std::cout << "Testing PlayerState constants..." << std::endl;
 
-    assert(static_cast<int>(PlayerState::Idle) == 0);
-    assert(static_cast<int>(PlayerState::Walking) == 1);
-    assert(static_cast<int>(PlayerState::Running) == 2);
-    assert(static_cast<int>(PlayerState::Jumping) == 3);
-    assert(static_cast<int>(PlayerState::Falling) == 4);
+    assert(PLAYER_STATE_IDLE == 0);
+    assert(PLAYER_STATE_WALKING == 1);
+    assert(PLAYER_STATE_RUNNING == 2);
+    assert(PLAYER_STATE_JUMPING == 3);
+    assert(PLAYER_STATE_FALLING == 4);
 
-    std::cout << "  PlayerState: OK" << std::endl;
+    std::cout << "  PlayerState constants: OK" << std::endl;
 }
 
 void test_spawn_via_lifecycle_system() {
@@ -159,10 +173,18 @@ void test_spawn_via_lifecycle_system() {
     ase::ecs::Registry registry;
     PlayerLifeSpawnSystem lifecycle;
 
-    // Create PlayerStateCfgComponent singleton (needed for spawn)
-    auto config_entity = registry.create();
-    auto& config = registry.emplace<PlayerStateCfgComponent>(config_entity);
-    config.height_query = [](float, float) { return 10.0f; };
+    // Setup terrain chunk at (0,0) with height 10.0
+    setup_terrain_chunk(registry, 0, 0, 10.0f);
+    // Setup terrain chunk for position (100, 200) -> chunk (6, 12)
+    setup_terrain_chunk(registry, 6, 12, 10.0f);
+
+    // Create PlayerStMovComponent singleton (needed for spawn)
+    auto mov_entity = registry.create();
+    auto& mov = registry.emplace<PlayerStMovComponent>(mov_entity);
+    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
+    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
+    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
+    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
 
     // Spawn player via lifecycle system
     auto entity = do_spawn_request(registry, lifecycle, "spawn_test", 100.0f, 200.0f);
@@ -173,17 +195,17 @@ void test_spawn_via_lifecycle_system() {
     assert(found == entity);
 
     // Verify components
-    auto* identity = registry.try_get<PlayerStateIdComponent>(entity);
+    auto* identity = registry.try_get<PlayerStIdComponent>(entity);
     assert(identity != nullptr);
     assert(identity->player_id == "spawn_test");
 
-    auto* pos = registry.try_get<PlayerStatePosComponent>(entity);
+    auto* pos = registry.try_get<PlayerStPosComponent>(entity);
     assert(pos != nullptr);
     assert(pos->x == 100.0f);
-    assert(pos->y == 10.0f);  // From height_query
+    assert(pos->y == 10.0f);  // From terrain height
     assert(pos->z == 200.0f);
 
-    auto* physics = registry.try_get<PlayerStatePhysComponent>(entity);
+    auto* physics = registry.try_get<PlayerStPhysComponent>(entity);
     assert(physics != nullptr);
     assert(physics->on_ground == true);
 
@@ -204,10 +226,12 @@ void test_despawn_via_lifecycle_system() {
     ase::ecs::Registry registry;
     PlayerLifeSpawnSystem lifecycle;
 
-    // Create PlayerStateCfgComponent singleton
-    auto config_entity = registry.create();
-    auto& config = registry.emplace<PlayerStateCfgComponent>(config_entity);
-    config.height_query = [](float, float) { return 0.0f; };
+    // Setup terrain chunk at (0,0) with height 0.0
+    setup_terrain_chunk(registry, 0, 0, 0.0f);
+
+    // Create PlayerStMovComponent singleton
+    auto mov_entity = registry.create();
+    registry.emplace<PlayerStMovComponent>(mov_entity);
 
     // Spawn and despawn
     do_spawn_request(registry, lifecycle, "despawn_test", 0.0f, 0.0f);
@@ -230,10 +254,15 @@ void test_get_all_players() {
     ase::ecs::Registry registry;
     PlayerLifeSpawnSystem lifecycle;
 
-    // Create PlayerStateCfgComponent singleton
-    auto config_entity = registry.create();
-    auto& config = registry.emplace<PlayerStateCfgComponent>(config_entity);
-    config.height_query = [](float, float) { return 0.0f; };
+    // Setup terrain chunk at (0,0)
+    setup_terrain_chunk(registry, 0, 0, 0.0f);
+    // Setup terrain chunks for other positions
+    setup_terrain_chunk(registry, 0, 0, 0.0f);
+    setup_terrain_chunk(registry, 1, 1, 0.0f);
+
+    // Create PlayerStMovComponent singleton
+    auto mov_entity = registry.create();
+    registry.emplace<PlayerStMovComponent>(mov_entity);
 
     // Spawn multiple players
     do_spawn_request(registry, lifecycle, "player_a", 0.0f, 0.0f);
@@ -250,8 +279,8 @@ int main() {
     std::cout << "=== ASE Player Module Tests (ECS) ===" << std::endl;
 
     test_player_components();
-    test_movement_config();
-    test_player_state_enum();
+    test_movement_defaults();
+    test_player_state_constants();
     test_spawn_via_lifecycle_system();
     test_despawn_via_lifecycle_system();
     test_get_all_players();

@@ -4,8 +4,8 @@
  *
  * ECS STATELESS: No private member state!
  *
- * Reads: PlayerStatePosComponent
- * Writes: PlayerStateChunkComponent, PlayerChunkChangedTag
+ * Reads: PlayerStPosComponent
+ * Writes: PlayerStChkComponent, PlayerChunkChangedTag
  */
 
 #include <ase/ecs/ecs.hpp>

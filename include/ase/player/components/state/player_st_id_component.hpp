@@ -1,9 +1,8 @@
 #pragma once
 /**
- * PlayerStateIdComponent - Player identity data
+ * PlayerStIdComponent - Player identity data
  *
  * Contains player identification and session timestamps.
- * Single responsibility: WHO is this player.
  */
 
 #include <string>
@@ -11,7 +10,7 @@
 
 namespace ase::player {
 
-struct PlayerStateIdComponent {
+struct PlayerStIdComponent {
     std::string player_id;
     std::chrono::steady_clock::time_point spawned_at;
     std::chrono::steady_clock::time_point last_input;

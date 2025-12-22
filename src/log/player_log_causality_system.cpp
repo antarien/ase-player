@@ -2,8 +2,8 @@
 #include <ase/player/components/cache/player_cache_obs_component.hpp>
 #include <ase/player/types.hpp>
 #include <ase/player/components/tag/player_tag_mgr_component.hpp>
-#include <ase/player/components/state/player_state_id_component.hpp>
-#include <ase/player/components/state/player_state_status_component.hpp>
+#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_st_sts_component.hpp>
 #include <ase/player/components/tag/player_tag_spawned_component.hpp>
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 #include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
@@ -27,14 +27,14 @@ void PlayerLogCausalitySystem::tick(ecs::Registry& registry, float dt) {
 
         // Count players
         uint32_t player_count = 0;
-        auto player_view = registry.view<PlayerStateIdComponent>();
+        auto player_view = registry.view<PlayerStIdComponent>();
         for (auto e : player_view) { (void)e; ++player_count; }
 
         // Count moving players (not idle)
         uint32_t moving_count = 0;
-        auto status_view = registry.view<PlayerStateStatusComponent>();
+        auto status_view = registry.view<PlayerStStsComponent>();
         for (auto [e, status] : status_view.each()) {
-            if (status.state != PlayerState::Idle) {
+            if (status.state != PLAYER_STATE_IDLE) {
                 ++moving_count;
             }
         }
@@ -45,7 +45,7 @@ void PlayerLogCausalitySystem::tick(ecs::Registry& registry, float dt) {
             moving_count != cache.last_moving_count;
 
         // Log on interval or significant change
-        if (cache.log_interval_timer >= LogDefaults::INTERVAL || significant_change) {
+        if (cache.log_interval_timer >= LOG_DEFAULT_INTERVAL || significant_change) {
             cache.log_interval_timer = 0.0f;
             cache.last_player_count = player_count;
             cache.last_moving_count = moving_count;
@@ -59,11 +59,12 @@ void PlayerLogCausalitySystem::tick(ecs::Registry& registry, float dt) {
 
             for (auto [e, status] : status_view.each()) {
                 switch (status.state) {
-                    case PlayerState::Idle:    ++idle_count; break;
-                    case PlayerState::Walking: ++walking_count; break;
-                    case PlayerState::Running: ++running_count; break;
-                    case PlayerState::Jumping: ++jumping_count; break;
-                    case PlayerState::Falling: ++falling_count; break;
+                    case PLAYER_STATE_IDLE:    ++idle_count; break;
+                    case PLAYER_STATE_WALKING: ++walking_count; break;
+                    case PLAYER_STATE_RUNNING: ++running_count; break;
+                    case PLAYER_STATE_JUMPING: ++jumping_count; break;
+                    case PLAYER_STATE_FALLING: ++falling_count; break;
+                    default: break;
                 }
             }
 

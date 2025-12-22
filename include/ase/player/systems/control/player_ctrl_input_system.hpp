@@ -1,11 +1,11 @@
 #pragma once
 /**
- * PlayerCtrlInputSystem - Process player input from InputMovementComponent
+ * PlayerCtrlInputSystem - Process player input from InputStateMoveComponent
  *
  * ECS STATELESS: No private member state!
  *
- * Reads: InputMovementComponent (from ase-input)
- * Writes: PlayerStatePosComponent (yaw rotation towards movement)
+ * Reads: InputStateMoveComponent (from ase-input)
+ * Writes: PlayerStPosComponent (yaw rotation towards movement)
  */
 
 #include <ase/ecs/ecs.hpp>

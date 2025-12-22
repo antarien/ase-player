@@ -1,17 +1,16 @@
 #pragma once
 /**
- * PlayerStateChunkComponent - Player chunk presence
+ * PlayerStChkComponent - Player chunk presence
  *
  * Tracks which chunk the player is currently in.
  * Used for chunk loading/unloading around player.
- * Single responsibility: WHERE in chunk grid.
  */
 
 #include <cstdint>
 
 namespace ase::player {
 
-struct PlayerStateChunkComponent {
+struct PlayerStChkComponent {
     int32_t chunk_x = 0;
     int32_t chunk_y = 0;
 };

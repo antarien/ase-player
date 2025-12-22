@@ -1,8 +1,8 @@
 #pragma once
 /**
- * PlayerMgrTag - Marker for the player manager/config entity
+ * PlayerMgrTag - Marker for the player manager entity
  *
- * Used to identify the singleton entity that holds PlayerStateCfgComponent.
+ * Used to identify the singleton entity that holds PlayerStMovComponent.
  * Created by PlayerLifeSpawnSystem::on_start.
  */
 

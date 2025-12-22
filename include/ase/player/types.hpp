@@ -1,76 +1,62 @@
 #pragma once
 
 /**
- * ASE Player Types
+ * ASE Player Types - SSOT for constants
  *
- * Player-specific types. Uses ase-math for Vec3 and ase-input for input types.
- *
- * SSOT: All player-related constants are defined here in MovementConfig.
- * Systems must NOT have file-level static/constexpr (per INST_ASE_ECS_RULES.md).
+ * RULES:
+ * - NO enum class! Only constexpr uint8_t for enumeration values
+ * - NO structs! Structs belong in Components
+ * - ONLY: constexpr, using (simple type aliases like uint32_t)
  */
 
-#include <ase/math/vec3.hpp>
-#include <ase/input/components/state/input_state_move_component.hpp>
 #include <cstdint>
 
 namespace ase::player {
 
-// Use ase::math::Vec3 for all vector operations
-using Vec3 = ase::math::Vec3;
+// =============================================================================
+// PLAYER STATE (constexpr, NOT enum class!)
+// =============================================================================
 
-// Use ase::input::InputStateMoveComponent for player movement input
-using MovementInput = ase::input::InputStateMoveComponent;
+constexpr uint8_t PLAYER_STATE_IDLE = 0;
+constexpr uint8_t PLAYER_STATE_WALKING = 1;
+constexpr uint8_t PLAYER_STATE_RUNNING = 2;
+constexpr uint8_t PLAYER_STATE_JUMPING = 3;
+constexpr uint8_t PLAYER_STATE_FALLING = 4;
+constexpr uint8_t PLAYER_STATE_SWIMMING = 5;
+constexpr uint8_t PLAYER_STATE_DEAD = 6;
 
-/**
- * Player state flags
- */
-enum class PlayerState : uint8_t {
-    Idle = 0,
-    Walking = 1,
-    Running = 2,
-    Jumping = 3,
-    Falling = 4,
-    Swimming = 5,
-    Dead = 6
-};
+// =============================================================================
+// LOG DEFAULTS
+// =============================================================================
 
-/**
- * Logging defaults
- */
-namespace LogDefaults {
-    constexpr float INTERVAL = 5.0f;  // Seconds between causality logs
-}
+constexpr float LOG_DEFAULT_INTERVAL = 5.0f;
 
-/**
- * Movement constants - SSOT for all player systems
- *
- * All player-related magic numbers MUST be here.
- * Systems read from PlayerConfigComponent which contains this config.
- */
-struct MovementConfig {
-    // Movement speeds
-    float walk_speed = 4.0f;         // m/s
-    float run_speed = 8.0f;          // m/s
-    float jump_impulse = 5.0f;       // m/s initial jump velocity
+// =============================================================================
+// MOVEMENT DEFAULTS (used to initialize PlayerStMovComponent)
+// =============================================================================
 
-    // Physics
-    float gravity = 9.81f;           // m/s^2
-    float ground_friction = 10.0f;   // Deceleration factor
-    float air_control = 0.3f;        // Air movement multiplier (0-1)
-    float ground_snap_dist = 0.1f;   // Distance to snap to ground
+// Movement speeds
+constexpr float MOVEMENT_DEFAULT_WALK_SPEED = 4.0f;
+constexpr float MOVEMENT_DEFAULT_RUN_SPEED = 8.0f;
+constexpr float MOVEMENT_DEFAULT_JUMP_IMPULSE = 5.0f;
 
-    // Rotation
-    float turn_speed = 10.0f;        // Radians per second (body rotation)
+// Physics
+constexpr float MOVEMENT_DEFAULT_GRAVITY = 9.81f;
+constexpr float MOVEMENT_DEFAULT_GROUND_FRICTION = 10.0f;
+constexpr float MOVEMENT_DEFAULT_AIR_CONTROL = 0.3f;
+constexpr float MOVEMENT_DEFAULT_GROUND_SNAP_DIST = 0.1f;
 
-    // Thresholds
-    float min_speed_threshold = 0.1f; // Min speed to count as "moving"
-    float velocity_epsilon = 0.01f;   // Velocity below this is zero
+// Rotation
+constexpr float MOVEMENT_DEFAULT_TURN_SPEED = 10.0f;
 
-    // Camera/View
-    float eye_height = 1.0f;         // Height offset for camera target
+// Thresholds
+constexpr float MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD = 0.1f;
+constexpr float MOVEMENT_DEFAULT_VELOCITY_EPSILON = 0.01f;
 
-    // Chunk (from terrain, but default here for spawn)
-    float chunk_size = 32.0f;        // Meters per chunk
-};
+// Camera/View
+constexpr float MOVEMENT_DEFAULT_EYE_HEIGHT = 1.0f;
+
+// Chunk (from terrain, but default here for spawn)
+constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;
 
 }  // namespace ase::player

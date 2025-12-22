@@ -8,8 +8,8 @@
  *
  * Reads:
  *   - PlayerMgrTag (manager entity)
- *   - PlayerStateIdComponent (all players)
- *   - PlayerStateStatusComponent (player states)
+ *   - PlayerStIdComponent (all players)
+ *   - PlayerStStsComponent (player states)
  *   - PlayerSpawnedTag (just spawned)
  *   - PlayerDirtyTag (position changed)
  *   - PlayerChunkChangedTag (chunk changed)

@@ -4,8 +4,8 @@
  *
  * ECS STATELESS: No private member state!
  *
- * Reads: PlayerStateVelComponent, PlayerStatePhysComponent, InputMovementComponent
- * Writes: PlayerStateStatusComponent
+ * Reads: PlayerStVelComponent, PlayerStPhysComponent, InputStateMoveComponent
+ * Writes: PlayerStStsComponent
  */
 
 #include <ase/ecs/ecs.hpp>

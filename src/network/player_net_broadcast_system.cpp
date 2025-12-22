@@ -1,8 +1,7 @@
 #include <ase/player/systems/network/player_net_broadcast_system.hpp>
-#include <ase/player/components/state/player_state_id_component.hpp>
-#include <ase/player/components/state/player_state_pos_component.hpp>
-#include <ase/player/components/state/player_state_status_component.hpp>
-#include <ase/player/components/state/player_state_cfg_component.hpp>
+#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_st_pos_component.hpp>
+#include <ase/player/components/state/player_st_sts_component.hpp>
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 #include <ase/player/components/tag/player_tag_spawned_component.hpp>
 #include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
@@ -67,8 +66,8 @@ void PlayerNetBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {
     // Broadcast just-spawned players
     {
         auto view = registry.view<
-            PlayerStateIdComponent,
-            PlayerStatePosComponent,
+            PlayerStIdComponent,
+            PlayerStPosComponent,
             PlayerSpawnedTag
         >();
 
@@ -90,9 +89,9 @@ void PlayerNetBroadcastSystem::tick(ecs::Registry& registry, float /*dt*/) {
     // Broadcast dirty players (position updates)
     {
         auto view = registry.view<
-            PlayerStateIdComponent,
-            PlayerStatePosComponent,
-            PlayerStateStatusComponent,
+            PlayerStIdComponent,
+            PlayerStPosComponent,
+            PlayerStStsComponent,
             PlayerDirtyTag
         >();
 

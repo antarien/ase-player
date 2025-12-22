@@ -5,13 +5,13 @@
  * Provides player entity management using focused ECS components.
  *
  * Components (state/):
- *   - PlayerStateIdComponent: Player ID and session timestamps
- *   - PlayerStatePosComponent: World position and rotation
- *   - PlayerStateVelComponent: Current velocity vector
- *   - PlayerStatePhysComponent: Ground contact and physics flags
- *   - PlayerStateStatusComponent: State machine (Idle, Walking, Running...)
- *   - PlayerStateChunkComponent: Current chunk position
- *   - PlayerStateCfgComponent: Singleton with height query callback
+ *   - PlayerStIdComponent: Player ID and session timestamps
+ *   - PlayerStPosComponent: World position and rotation
+ *   - PlayerStVelComponent: Current velocity vector
+ *   - PlayerStPhysComponent: Ground contact and physics flags
+ *   - PlayerStStsComponent: State machine
+ *   - PlayerStChkComponent: Current chunk position
+ *   - PlayerStMovComponent: Movement settings
  *
  * Components (tag/):
  *   - PlayerMgrTag: Manager entity marker (holds config)
@@ -44,13 +44,13 @@
 #include <ase/player/types.hpp>
 
 // Components - State (runtime state)
-#include <ase/player/components/state/player_state_id_component.hpp>
-#include <ase/player/components/state/player_state_pos_component.hpp>
-#include <ase/player/components/state/player_state_vel_component.hpp>
-#include <ase/player/components/state/player_state_phys_component.hpp>
-#include <ase/player/components/state/player_state_status_component.hpp>
-#include <ase/player/components/state/player_state_chunk_component.hpp>
-#include <ase/player/components/state/player_state_cfg_component.hpp>
+#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_st_pos_component.hpp>
+#include <ase/player/components/state/player_st_vel_component.hpp>
+#include <ase/player/components/state/player_st_phys_component.hpp>
+#include <ase/player/components/state/player_st_sts_component.hpp>
+#include <ase/player/components/state/player_st_chk_component.hpp>
+#include <ase/player/components/state/player_st_mov_component.hpp>
 
 // Components - Tags (empty structs for ECS filtering)
 #include <ase/player/components/tag/player_tag_mgr_component.hpp>

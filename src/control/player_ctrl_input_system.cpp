@@ -1,7 +1,8 @@
 #include <ase/player/systems/control/player_ctrl_input_system.hpp>
-#include <ase/player/components/state/player_state_id_component.hpp>
-#include <ase/player/components/state/player_state_pos_component.hpp>
-#include <ase/player/components/state/player_state_cfg_component.hpp>
+#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_st_pos_component.hpp>
+#include <ase/player/components/state/player_st_mov_component.hpp>
+#include <ase/player/types.hpp>
 #include <ase/input/input.hpp>
 #include <ase/camera/camera.hpp>
 #include <ase/network/components/player/state/network_plr_state_input_component.hpp>
@@ -19,7 +20,7 @@ using math::TWO_PI;
 namespace {
 
 ecs::Entity find_player_by_id(ecs::Registry& registry, const std::string& player_id) {
-    auto view = registry.view<PlayerStateIdComponent>();
+    auto view = registry.view<PlayerStIdComponent>();
     for (auto [entity, identity] : view.each()) {
         if (identity.player_id == player_id) {
             return entity;
@@ -58,7 +59,7 @@ void process_network_input(ecs::Registry& registry) {
             inp_cam->mode_toggle = net_input.camera_mode_toggle;
         }
 
-        auto* cam_input = registry.try_get<camera::CameraStateInputComponent>(player_entity);
+        auto* cam_input = registry.try_get<camera::CameraStInpComponent>(player_entity);
         if (cam_input) {
             cam_input->orbit_mode = net_input.camera_orbit_only;
         }
@@ -88,7 +89,6 @@ void PlayerCtrlInputSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerCtrlInputSystem::on_stop(ecs::Registry& registry) {
-    // Cleanup pending network input entities
     auto view = registry.view<network::NetworkPlrStateInputComponent>();
     std::vector<ecs::Entity> to_destroy;
 
@@ -108,22 +108,23 @@ void PlayerCtrlInputSystem::on_stop(ecs::Registry& registry) {
 void PlayerCtrlInputSystem::tick(ecs::Registry& registry, float dt) {
     process_network_input(registry);
 
-    MovementConfig config;
-    auto config_view = registry.view<PlayerStateCfgComponent>();
-    for (auto [config_entity, cfg] : config_view.each()) {
-        config = cfg.movement;
+    float turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
+
+    auto mov_view = registry.view<PlayerStMovComponent>();
+    for (auto [e, mov] : mov_view.each()) {
+        turn_speed = mov.turn_speed;
         break;
     }
 
     auto view = registry.view<
-        PlayerStateIdComponent,
-        PlayerStatePosComponent,
+        PlayerStIdComponent,
+        PlayerStPosComponent,
         input::InputStateMoveComponent
     >();
 
     for (auto [entity, identity, pos, movement] : view.each()) {
-        auto* cam_orient = registry.try_get<camera::CameraStateOrientComponent>(entity);
-        auto* cam_input = registry.try_get<camera::CameraStateInputComponent>(entity);
+        auto* cam_orient = registry.try_get<camera::CameraStOrtComponent>(entity);
+        auto* cam_input = registry.try_get<camera::CameraStInpComponent>(entity);
 
         float movement_yaw = cam_orient ? cam_orient->movement_yaw : pos.yaw;
         bool is_moving = movement.forward != 0.0f || movement.strafe != 0.0f;
@@ -134,7 +135,7 @@ void PlayerCtrlInputSystem::tick(ecs::Registry& registry, float dt) {
             while (delta > PI) delta -= TWO_PI;
             while (delta < -PI) delta += TWO_PI;
 
-            float max_turn = config.turn_speed * dt;
+            float max_turn = turn_speed * dt;
             if (std::abs(delta) < max_turn) {
                 pos.yaw = movement_yaw;
             } else {
