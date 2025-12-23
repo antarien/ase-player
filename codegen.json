@@ -1,0 +1,44 @@
+{
+  "$schema": "https://ase.dev/schemas/codegen.json",
+  "module": "ase-player",
+  "description": "Player state and movement - shared for client prediction, server-authoritative simulation",
+  "client_relevance": true,
+  "components": {
+    "shared": [
+      "PlayerStIdComponent",
+      "PlayerStPosComponent",
+      "PlayerStVelComponent",
+      "PlayerStPhysComponent",
+      "PlayerStStsComponent",
+      "PlayerStChkComponent",
+      "PlayerStMovComponent",
+      "PlayerSpawnedTag",
+      "PlayerLocalTag",
+      "PlayerDirtyTag",
+      "PlayerChunkChangedTag",
+      "PlayerMgrTag",
+      "PlayerInitTag"
+    ],
+    "server_only": [
+      "PlayerCacheObsComponent",
+      "PlayerReqSpawnComponent",
+      "PlayerReqDespComponent",
+      "PlayerReqSpawnResComponent",
+      "PlayerReqDespResComponent"
+    ]
+  },
+  "systems": {
+    "shared": [
+      "PlayerStateStatusSystem",
+      "PlayerCtrlInputSystem",
+      "PlayerCtrlMoveSystem"
+    ],
+    "server_only": [
+      "PlayerLifeSpawnSystem",
+      "PlayerSimPhysSystem",
+      "PlayerSpatialChunkSystem",
+      "PlayerLogCausalitySystem",
+      "PlayerNetBroadcastSystem"
+    ]
+  }
+}
