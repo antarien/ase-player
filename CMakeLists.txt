@@ -21,7 +21,7 @@ add_library(ase-player STATIC
     src/simulation/player_sim_phys_system.cpp
     src/state/player_state_status_system.cpp
     src/spatial/player_spatial_chunk_system.cpp
-    src/network/player_net_broadcast_system.cpp
+    src/network/player_net_bct_system.cpp
     src/log/player_log_causality_system.cpp
 )
 add_library(ase::player ALIAS ase-player)

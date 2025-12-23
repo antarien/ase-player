@@ -38,7 +38,7 @@
       "PlayerSimPhysSystem",
       "PlayerSpatialChunkSystem",
       "PlayerLogCausalitySystem",
-      "PlayerNetBroadcastSystem"
+      "PlayerNetBctSystem"
     ]
   }
 }
