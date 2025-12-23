@@ -3,6 +3,18 @@
   "module": "ase-player",
   "description": "Player state and movement - shared for client prediction, server-authoritative simulation",
   "client_relevance": true,
+  "channels": [
+    {
+      "name": "player_spawn",
+      "reliability": "reliable",
+      "components": ["PlayerStIdComponent", "PlayerStPosComponent"]
+    },
+    {
+      "name": "player_state",
+      "reliability": "unreliable",
+      "components": ["PlayerStIdComponent", "PlayerStPosComponent", "PlayerStVelComponent", "PlayerStStsComponent"]
+    }
+  ],
   "components": {
     "shared": [
       "PlayerStIdComponent",
