@@ -7,12 +7,20 @@
     {
       "name": "player_spawn",
       "reliability": "reliable",
+      "type": "create",
       "components": ["PlayerStIdComponent", "PlayerStPosComponent"]
     },
     {
       "name": "player_state",
       "reliability": "unreliable",
+      "type": "update",
       "components": ["PlayerStIdComponent", "PlayerStPosComponent", "PlayerStVelComponent", "PlayerStStsComponent"]
+    },
+    {
+      "name": "player_despawn",
+      "reliability": "reliable",
+      "type": "delete",
+      "components": ["PlayerStIdComponent"]
     }
   ],
   "components": {
