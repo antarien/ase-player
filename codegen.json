@@ -47,8 +47,10 @@
       "PlayerReqDespResComponent",
       "PlayerBufBctSpnComponent",
       "PlayerBufBctStaComponent",
+      "PlayerBufPstComponent",
       "PlayerBctSpnPndTag",
-      "PlayerBctStaPndTag"
+      "PlayerBctStaPndTag",
+      "PlayerPstDtyTag"
     ]
   },
   "systems": {
@@ -63,7 +65,8 @@
       "PlayerSpatialChunkSystem",
       "PlayerLogCausalitySystem",
       "PlayerNetBctReqSystem",
-      "PlayerNetBctSndSystem"
+      "PlayerNetBctSndSystem",
+      "PlayerPstSerSystem"
     ]
   }
 }
