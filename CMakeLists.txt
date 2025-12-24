@@ -23,6 +23,7 @@ add_library(ase-player STATIC
     src/spatial/player_spatial_chunk_system.cpp
     src/network/player_net_bct_req_system.cpp
     src/network/player_net_bct_snd_system.cpp
+    src/persistence/player_pst_ser_system.cpp  # Persistence via Replication Layer
     src/log/player_log_causality_system.cpp
 )
 add_library(ase::player ALIAS ase-player)

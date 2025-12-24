@@ -14,6 +14,10 @@
  * Replication schedule:
  *   PlayerNetBctSndSystem (reads serialization results, creates broadcasts)
  *
+ * Persistence (Star Citizen Replication Layer Pattern):
+ *   PlayerPstSerSystem (serializes + sets ReplicationDtyTag)
+ *      └─ ReplicationPstSystem (handles MongoDB via ase-replication)
+ *
  * Last (Debug/Logging):
  *   PlayerLogCausalitySystem (→ all systems)
  */
@@ -27,6 +31,7 @@
 #include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
 #include <ase/player/systems/network/player_net_bct_req_system.hpp>
 #include <ase/player/systems/network/player_net_bct_snd_system.hpp>
+#include <ase/player/systems/persistence/player_pst_ser_system.hpp>
 #include <ase/player/systems/log/player_log_causality_system.hpp>
 
 namespace ase::player {
@@ -58,6 +63,9 @@ struct PlayerModule {
 
         // Send system: reads results, creates broadcasts (Replication)
         app.add_system<PlayerNetBctSndSystem>(ecs::Schedule::Replication);
+
+        // Persistence (Star Citizen Replication Layer Pattern)
+        app.add_system<PlayerPstSerSystem>(ecs::Schedule::Persistence);
 
         // Last (Debug/Logging) - runs after all other schedules (no .run_after needed)
         app.add_system<PlayerLogCausalitySystem>(ecs::Schedule::Last);
