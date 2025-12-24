@@ -57,6 +57,7 @@ void process_network_input(ecs::Registry& registry) {
             inp_cam->zoom_delta = net_input.camera_zoom_delta;
             inp_cam->orbit_mode = net_input.camera_orbit_only;
             inp_cam->mode_toggle = net_input.camera_mode_toggle;
+            inp_cam->target_cycle = net_input.camera_target_cycle;
         }
 
         auto* cam_input = registry.try_get<camera::CameraStInpComponent>(player_entity);
@@ -69,7 +70,8 @@ void process_network_input(ecs::Registry& registry) {
             inp_meta->camera_changed = (net_input.camera_yaw_delta != 0.0f ||
                                         net_input.camera_pitch_delta != 0.0f ||
                                         net_input.camera_zoom_delta != 0.0f ||
-                                        net_input.camera_mode_toggle);
+                                        net_input.camera_mode_toggle ||
+                                        net_input.camera_target_cycle);
             inp_meta->movement_changed = (net_input.forward != 0.0f ||
                                           net_input.strafe != 0.0f);
             inp_meta->last_update = std::chrono::steady_clock::now();

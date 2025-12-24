@@ -10,8 +10,16 @@
  */
 
 #include <cstdint>
+#include <ase/serial/types.hpp>
 
 namespace ase::player {
+
+// =============================================================================
+// SERIAL TYPE IDs (Layer 3: 1-999)
+// =============================================================================
+
+constexpr serial::TypId SERIAL_TYP_PLR_SPN = 1;   // Player spawn (id + pos)
+constexpr serial::TypId SERIAL_TYP_PLR_STA = 2;   // Player state (id + pos + vel + sts)
 
 // =============================================================================
 // PLAYER STATE (constexpr, NOT enum class!)

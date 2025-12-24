@@ -30,7 +30,8 @@
  *   - PlayerSimPhysSystem: Apply gravity, terrain collision
  *   - PlayerStateStatusSystem: Update state machine
  *   - PlayerSpatialChunkSystem: Detect chunk changes
- *   - PlayerNetBctSystem: Broadcast dirty entities via ECS message pattern
+ *   - PlayerNetBctReqSystem: Create serialization requests (FixedUpdate)
+ *   - PlayerNetBctSndSystem: Send broadcasts from serialized data (Replication)
  *
  * Dependencies:
  *   - ase-input: InputComponent for buffered client input
@@ -73,4 +74,5 @@
 #include <ase/player/systems/simulation/player_sim_phys_system.hpp>
 #include <ase/player/systems/state/player_state_status_system.hpp>
 #include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
-#include <ase/player/systems/network/player_net_bct_system.hpp>
+#include <ase/player/systems/network/player_net_bct_req_system.hpp>
+#include <ase/player/systems/network/player_net_bct_snd_system.hpp>

@@ -44,7 +44,11 @@
       "PlayerReqSpawnComponent",
       "PlayerReqDespComponent",
       "PlayerReqSpawnResComponent",
-      "PlayerReqDespResComponent"
+      "PlayerReqDespResComponent",
+      "PlayerBufBctSpnComponent",
+      "PlayerBufBctStaComponent",
+      "PlayerBctSpnPndTag",
+      "PlayerBctStaPndTag"
     ]
   },
   "systems": {
@@ -58,7 +62,8 @@
       "PlayerSimPhysSystem",
       "PlayerSpatialChunkSystem",
       "PlayerLogCausalitySystem",
-      "PlayerNetBctSystem"
+      "PlayerNetBctReqSystem",
+      "PlayerNetBctSndSystem"
     ]
   }
 }

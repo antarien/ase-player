@@ -9,7 +9,10 @@
  *         └─ PlayerSimPhysSystem
  *            └─ PlayerStateStatusSystem
  *               └─ PlayerSpatialChunkSystem
- *                  └─ PlayerNetBctSystem
+ *                  └─ PlayerNetBctReqSystem (creates serialization requests)
+ *
+ * Replication schedule:
+ *   PlayerNetBctSndSystem (reads serialization results, creates broadcasts)
  *
  * Last (Debug/Logging):
  *   PlayerLogCausalitySystem (→ all systems)
@@ -22,7 +25,8 @@
 #include <ase/player/systems/simulation/player_sim_phys_system.hpp>
 #include <ase/player/systems/state/player_state_status_system.hpp>
 #include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
-#include <ase/player/systems/network/player_net_bct_system.hpp>
+#include <ase/player/systems/network/player_net_bct_req_system.hpp>
+#include <ase/player/systems/network/player_net_bct_snd_system.hpp>
 #include <ase/player/systems/log/player_log_causality_system.hpp>
 
 namespace ase::player {
@@ -48,12 +52,15 @@ struct PlayerModule {
         app.add_system_with<PlayerSpatialChunkSystem>(ecs::Schedule::FixedUpdate)
             .run_after("PlayerStateStatusSystem");
 
-        app.add_system_with<PlayerNetBctSystem>(ecs::Schedule::FixedUpdate)
+        // Request system: creates serialization requests (FixedUpdate)
+        app.add_system_with<PlayerNetBctReqSystem>(ecs::Schedule::FixedUpdate)
             .run_after("PlayerSpatialChunkSystem");
 
-        // Last (Debug/Logging) - runs after all other systems
-        app.add_system_with<PlayerLogCausalitySystem>(ecs::Schedule::Last)
-            .run_after("PlayerNetBctSystem");
+        // Send system: reads results, creates broadcasts (Replication)
+        app.add_system<PlayerNetBctSndSystem>(ecs::Schedule::Replication);
+
+        // Last (Debug/Logging) - runs after all other schedules (no .run_after needed)
+        app.add_system<PlayerLogCausalitySystem>(ecs::Schedule::Last);
     }
 };
 
