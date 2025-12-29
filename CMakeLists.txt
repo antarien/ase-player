@@ -21,8 +21,9 @@ add_library(ase-player STATIC
     src/simulation/player_sim_phys_system.cpp
     src/state/player_state_status_system.cpp
     src/spatial/player_spatial_chunk_system.cpp
-    src/network/player_net_bct_req_system.cpp
-    src/network/player_net_bct_snd_system.cpp
+    # Network (Pure ECS 4-System Pattern)
+    src/network/player_bct_req_system.cpp    # AUSGEHEND Step 1
+    src/network/player_bct_snd_system.cpp    # AUSGEHEND Step 3
     src/persistence/player_pst_ser_system.cpp  # Persistence via Replication Layer
     src/log/player_log_causality_system.cpp
 )
@@ -49,10 +50,10 @@ target_link_libraries(ase-player
         ase::math     # Vec3, math utilities
         ase::camera   # CameraComponent for spawn_player
         ase::network  # ECS communication via network components
-        ase::serial   # ECS-compliant serialization (Layer 1)
     PRIVATE
-        ase::replication  # ECS message pattern for broadcasting
-        nlohmann_json::nlohmann_json
+        # Network (Only ase::replication - re-exports serial components!)
+        ase::replication
+        # VERBOTEN: ase::serial, nlohmann_json
 )
 
 # ------------------------------------------------------------------------------

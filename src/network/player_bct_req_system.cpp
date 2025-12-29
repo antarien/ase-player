@@ -1,4 +1,4 @@
-#include <ase/player/systems/network/player_net_bct_req_system.hpp>
+#include <ase/player/systems/network/player_bct_req_system.hpp>
 #include <ase/player/components/state/player_st_id_component.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_vel_component.hpp>
@@ -14,29 +14,26 @@
 
 #include <ase/replication/replication.hpp>
 #include <ase/log/log.hpp>
-
 #include <chrono>
 #include <cstring>
+#include <vector>
 
 namespace ase::player {
 
-void PlayerNetBctReqSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerNetBctReqSystem] Started");
+void PlayerBctReqSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerBctReqSystem] Started (Pure ECS Pattern)");
 }
 
-void PlayerNetBctReqSystem::on_stop(ecs::Registry& /*registry*/) {
+void PlayerBctReqSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerBctReqSystem] Stopped");
 }
 
-void PlayerNetBctReqSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerBctReqSystem::tick(ecs::Registry& registry, float /*dt*/) {
     using namespace std::chrono;
 
     // 1. CREATE SPAWN BROADCAST REQUESTS
     {
-        auto view = registry.view<
-            PlayerStIdComponent,
-            PlayerStPosComponent,
-            PlayerSpawnedTag
-        >();
+        auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent, PlayerSpawnedTag>();
 
         std::vector<ecs::Entity> to_remove;
         for (auto [entity, id, pos] : view.each()) {
@@ -60,24 +57,19 @@ void PlayerNetBctReqSystem::tick(ecs::Registry& registry, float /*dt*/) {
             registry.emplace<serial::SerialJsnPndTag>(ser);
             registry.emplace<PlayerBctSpnPndTag>(ser);
 
-            log::debug("[PlayerNetBctReqSystem] Created spawn request for player {}", id.player_id.data());
+            log::debug("[PlayerBctReqSystem] Created spawn request for player {}", id.player_id.data());
             to_remove.push_back(entity);
         }
 
-        for (auto entity : to_remove) {
-            registry.remove<PlayerSpawnedTag>(entity);
+        for (auto e : to_remove) {
+            registry.remove<PlayerSpawnedTag>(e);
         }
     }
 
-    // 2. CREATE STATE BROADCAST REQUESTS
+    // 2. CREATE STATE BROADCAST REQUESTS (dirty players)
     {
-        auto view = registry.view<
-            PlayerStIdComponent,
-            PlayerStPosComponent,
-            PlayerStVelComponent,
-            PlayerStStsComponent,
-            PlayerDirtyTag
-        >();
+        auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent,
+                                  PlayerStVelComponent, PlayerStStsComponent, PlayerDirtyTag>();
 
         std::vector<ecs::Entity> to_remove;
         for (auto [entity, id, pos, vel, sts] : view.each()) {
@@ -108,8 +100,8 @@ void PlayerNetBctReqSystem::tick(ecs::Registry& registry, float /*dt*/) {
             to_remove.push_back(entity);
         }
 
-        for (auto entity : to_remove) {
-            registry.remove<PlayerDirtyTag>(entity);
+        for (auto e : to_remove) {
+            registry.remove<PlayerDirtyTag>(e);
         }
     }
 
@@ -120,8 +112,8 @@ void PlayerNetBctReqSystem::tick(ecs::Registry& registry, float /*dt*/) {
         for (auto entity : view) {
             to_remove.push_back(entity);
         }
-        for (auto entity : to_remove) {
-            registry.remove<PlayerChunkChangedTag>(entity);
+        for (auto e : to_remove) {
+            registry.remove<PlayerChunkChangedTag>(e);
         }
     }
 }

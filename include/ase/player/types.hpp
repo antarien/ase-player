@@ -10,7 +10,7 @@
  */
 
 #include <cstdint>
-#include <ase/serial/types.hpp>
+#include <ase/replication/types.hpp>
 
 namespace ase::player {
 
@@ -18,8 +18,15 @@ namespace ase::player {
 // SERIAL TYPE IDs (Layer 3: 1-999)
 // =============================================================================
 
-constexpr serial::TypId SERIAL_TYP_PLR_SPN = 1;   // Player spawn (id + pos)
-constexpr serial::TypId SERIAL_TYP_PLR_STA = 2;   // Player state (id + pos + vel + sts)
+constexpr replication::TypId SERIAL_TYP_PLR_SPN = 1;   // Player spawn (id + pos)
+constexpr replication::TypId SERIAL_TYP_PLR_STA = 2;   // Player state (id + pos + vel + sts)
+
+// =============================================================================
+// BROADCAST CHANNELS
+// =============================================================================
+
+constexpr const char* CHANNEL_PLR_SPN = "player_spawn";
+constexpr const char* CHANNEL_PLR_STA = "player_state";
 
 // =============================================================================
 // PLAYER STATE (constexpr, NOT enum class!)

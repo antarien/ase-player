@@ -74,5 +74,6 @@
 #include <ase/player/systems/simulation/player_sim_phys_system.hpp>
 #include <ase/player/systems/state/player_state_status_system.hpp>
 #include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
-#include <ase/player/systems/network/player_net_bct_req_system.hpp>
-#include <ase/player/systems/network/player_net_bct_snd_system.hpp>
+// Network (Pure ECS 4-System Pattern)
+#include <ase/player/systems/network/player_bct_req_system.hpp>
+#include <ase/player/systems/network/player_bct_snd_system.hpp>

@@ -29,8 +29,8 @@
 #include <ase/player/systems/simulation/player_sim_phys_system.hpp>
 #include <ase/player/systems/state/player_state_status_system.hpp>
 #include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
-#include <ase/player/systems/network/player_net_bct_req_system.hpp>
-#include <ase/player/systems/network/player_net_bct_snd_system.hpp>
+#include <ase/player/systems/network/player_bct_req_system.hpp>
+#include <ase/player/systems/network/player_bct_snd_system.hpp>
 #include <ase/player/systems/persistence/player_pst_ser_system.hpp>
 #include <ase/player/systems/log/player_log_causality_system.hpp>
 
@@ -57,12 +57,13 @@ struct PlayerModule {
         app.add_system_with<PlayerSpatialChunkSystem>(ecs::Schedule::FixedUpdate)
             .run_after("PlayerStateStatusSystem");
 
-        // Request system: creates serialization requests (FixedUpdate)
-        app.add_system_with<PlayerNetBctReqSystem>(ecs::Schedule::FixedUpdate)
+        // =====================================================================
+        // NETWORK: AUSGEHEND (Broadcast to Network)
+        // Pure ECS 4-System Pattern
+        // =====================================================================
+        app.add_system_with<PlayerBctReqSystem>(ecs::Schedule::FixedUpdate) // Step 1
             .run_after("PlayerSpatialChunkSystem");
-
-        // Send system: reads results, creates broadcasts (Replication)
-        app.add_system<PlayerNetBctSndSystem>(ecs::Schedule::Replication);
+        app.add_system<PlayerBctSndSystem>(ecs::Schedule::Replication);     // Step 3
 
         // Persistence (Star Citizen Replication Layer Pattern)
         app.add_system<PlayerPstSerSystem>(ecs::Schedule::Persistence);

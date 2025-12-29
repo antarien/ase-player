@@ -3,7 +3,6 @@
 #include <ase/player/components/buffer/player_buf_bct_sta_component.hpp>
 #include <ase/player/components/tag/player_tag_bct_spn_pnd_component.hpp>
 #include <ase/player/components/tag/player_tag_bct_sta_pnd_component.hpp>
-#include <ase/serial/serial.hpp>
 #include <ase/replication/replication.hpp>
 #include <ase/log/log.hpp>
 
