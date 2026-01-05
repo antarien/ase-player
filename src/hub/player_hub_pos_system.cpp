@@ -8,7 +8,6 @@
 #include <ase/player/systems/hub/player_hub_pos_system.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/tag/player_tag_component.hpp>
 #include <ase/hub/hub.hpp>
 
 namespace ase::player {
@@ -18,9 +17,10 @@ void PlayerHubPosSystem::on_start(ecs::Registry& /*registry*/) {}
 void PlayerHubPosSystem::on_stop(ecs::Registry& /*registry*/) {}
 
 void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
-    auto view = registry.view<PlayerTag, PlayerStPosComponent, PlayerStIdComponent>();
+    // PlayerStIdComponent identifies player entities
+    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent>();
 
-    for (auto [entity, pos, id] : view.each()) {
+    for (auto [entity, id, pos] : view.each()) {
         uint32_t owner = static_cast<uint32_t>(entity);
 
         // Write position to hub (create or update)
