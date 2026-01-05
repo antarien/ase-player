@@ -74,6 +74,8 @@
 #include <ase/player/systems/simulation/player_sim_phys_system.hpp>
 #include <ase/player/systems/state/player_state_status_system.hpp>
 #include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
+// Hub (PLAN_ASE_SDK_V2: Write positions for L4 plugins)
+#include <ase/player/systems/hub/player_hub_pos_system.hpp>
 // Network (Pure ECS 4-System Pattern)
 #include <ase/player/systems/network/player_bct_req_system.hpp>
 #include <ase/player/systems/network/player_bct_snd_system.hpp>

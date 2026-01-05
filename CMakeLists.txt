@@ -21,6 +21,8 @@ add_library(ase-player STATIC
     src/simulation/player_sim_phys_system.cpp
     src/state/player_state_status_system.cpp
     src/spatial/player_spatial_chunk_system.cpp
+    # Hub (PLAN_ASE_SDK_V2: Write positions for L4 plugins)
+    src/hub/player_hub_pos_system.cpp
     # Network (Pure ECS 4-System Pattern)
     src/network/player_bct_req_system.cpp    # AUSGEHEND Step 1
     src/network/player_bct_snd_system.cpp    # AUSGEHEND Step 3
@@ -50,6 +52,7 @@ target_link_libraries(ase-player
         ase::math     # Vec3, math utilities
         ase::camera   # CameraComponent for spawn_player
         ase::network  # ECS communication via network components
+        ase::hub      # Star Topology - write positions for L4 plugins
     PRIVATE
         # Network (Only ase::replication - re-exports serial components!)
         ase::replication

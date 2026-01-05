@@ -57,12 +57,16 @@ struct PlayerModule {
         app.add_system_with<PlayerSpatialChunkSystem>(ecs::Schedule::FixedUpdate)
             .run_after("PlayerStateStatusSystem");
 
+        // Hub: Write positions for L4 plugins (PLAN_ASE_SDK_V2)
+        app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::FixedUpdate)
+            .run_after("PlayerSpatialChunkSystem");
+
         // =====================================================================
         // NETWORK: AUSGEHEND (Broadcast to Network)
         // Pure ECS 4-System Pattern
         // =====================================================================
         app.add_system_with<PlayerBctReqSystem>(ecs::Schedule::FixedUpdate) // Step 1
-            .run_after("PlayerSpatialChunkSystem");
+            .run_after("PlayerHubPosSystem");
         app.add_system<PlayerBctSndSystem>(ecs::Schedule::Replication);     // Step 3
 
         // Persistence (Star Citizen Replication Layer Pattern)
