@@ -19,7 +19,7 @@
  *   players:3 → idle:1 → walking:1 → running:1 → jumping:0 → dirty:2 → spawned:0
  */
 
-#include <ase/ecs/ecs.hpp>
+#include <ase/ecs/system.hpp>
 
 namespace ase::player {
 

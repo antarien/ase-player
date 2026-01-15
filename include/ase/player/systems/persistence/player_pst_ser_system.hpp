@@ -17,7 +17,7 @@
  * Naming: Player + Pst(Persist) + Ser(Serialize) + System
  */
 
-#include <ase/ecs/ecs.hpp>
+#include <ase/ecs/system.hpp>
 
 namespace ase::player {
 

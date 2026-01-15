@@ -1,6 +1,6 @@
 #include <ase/player/player.hpp>
 #include <ase/terrain/terrain.hpp>
-#include <ase/ecs/ecs.hpp>
+#include <ase/ecs/system.hpp>
 #include <iostream>
 #include <cassert>
 #include <cmath>

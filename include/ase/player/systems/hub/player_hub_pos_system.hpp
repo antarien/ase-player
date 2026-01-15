@@ -8,7 +8,7 @@
  * Writes: PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_ENTITY_ID per player
  */
 
-#include <ase/ecs/ecs.hpp>
+#include <ase/ecs/system.hpp>
 
 namespace ase::player {
 

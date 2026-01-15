@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ase/ecs/ecs.hpp>
+#include <ase/ecs/system.hpp>
 
 namespace ase::player {
 

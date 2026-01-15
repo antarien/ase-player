@@ -11,7 +11,7 @@
  *   REST Handler → reads result from PlayerReqSpawnResComponent
  */
 
-#include <ase/ecs/ecs.hpp>
+#include <ase/ecs/system.hpp>
 
 namespace ase::player {
 
