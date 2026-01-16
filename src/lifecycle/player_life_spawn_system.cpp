@@ -32,65 +32,62 @@ namespace ase::player {
 
 namespace {
 
-ecs::Entity find_player_by_id(ecs::Registry& registry, const std::string& player_id) {
-    auto view = registry.view<PlayerStIdComponent>();
-    for (auto [entity, identity] : view.each()) {
-        if (identity.player_id == player_id) {
-            return entity;
-        }
-    }
-    return ecs::NullEntity;
-}
-
-float get_terrain_height(ecs::Registry& registry, float world_x, float world_z) {
-    int32_t chunk_x = static_cast<int32_t>(std::floor(world_x / terrain::CHUNK_SIZE));
-    int32_t chunk_y = static_cast<int32_t>(std::floor(world_z / terrain::CHUNK_SIZE));
-
-    auto view = registry.view<terrain::TerrainStChkCrdComponent, terrain::TerrainStChkLyrComponent>();
-    for (auto [entity, crd, lyr] : view.each()) {
-        if (crd.x == chunk_x && crd.y == chunk_y && lyr.hgt_ptr != 0) {
-            float local_x = world_x - (chunk_x * terrain::CHUNK_SIZE);
-            float local_z = world_z - (chunk_y * terrain::CHUNK_SIZE);
-            size_t ix = static_cast<size_t>(local_x);
-            size_t iy = static_cast<size_t>(local_z);
-            if (ix < terrain::MACRO_RESOLUTION && iy < terrain::MACRO_RESOLUTION) {
-                auto* hgt = reinterpret_cast<float*>(lyr.hgt_ptr);
-                return hgt[iy * terrain::MACRO_RESOLUTION + ix];
-            }
-        }
-    }
-    return 0.0f;
-}
-
-PlayerStMovComponent get_movement_settings(ecs::Registry& registry) {
-    auto view = registry.view<PlayerStMovComponent>();
-    for (auto [entity, mov] : view.each()) {
-        return mov;
-    }
-    // Return defaults from types.hpp
-    PlayerStMovComponent defaults;
-    defaults.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
-    defaults.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
-    defaults.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
-    defaults.gravity = MOVEMENT_DEFAULT_GRAVITY;
-    defaults.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
-    defaults.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
-    defaults.ground_snap_dist = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
-    defaults.turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
-    defaults.min_speed_threshold = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
-    defaults.velocity_epsilon = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
-    defaults.eye_height = MOVEMENT_DEFAULT_EYE_HEIGHT;
-    defaults.chunk_size = MOVEMENT_DEFAULT_CHUNK_SIZE;
-    return defaults;
-}
+// OOP ANTI-PATTERN REMOVED:
+// find_player_by_id(), get_terrain_height(), get_movement_settings()
+// helpers with View iteration are FORBIDDEN!
+// See INST_ASE_ECS_SER_TAGS.md
+//
+// INLINED: View iteration now happens directly in calling functions.
+// Views created once per function, then iterated inline.
 
 ecs::Entity create_player_entity(
     ecs::Registry& registry,
     const std::string& player_id,
     float x, float z
 ) {
-    float ground_y = get_terrain_height(registry, x, z);
-    PlayerStMovComponent mov = get_movement_settings(registry);
+    // INLINED: get_terrain_height() - no helper with View!
+    float ground_y = 0.0f;
+    {
+        int32_t chunk_x = static_cast<int32_t>(std::floor(x / terrain::CHUNK_SIZE));
+        int32_t chunk_y = static_cast<int32_t>(std::floor(z / terrain::CHUNK_SIZE));
+        auto terrain_view = registry.view<terrain::TerrainStChkCrdComponent, terrain::TerrainStChkLyrComponent>();
+        for (auto [te, crd, lyr] : terrain_view.each()) {
+            if (crd.x == chunk_x && crd.y == chunk_y && lyr.hgt_ptr != 0) {
+                float local_x = x - (chunk_x * terrain::CHUNK_SIZE);
+                float local_z = z - (chunk_y * terrain::CHUNK_SIZE);
+                size_t ix = static_cast<size_t>(local_x);
+                size_t iy = static_cast<size_t>(local_z);
+                if (ix < terrain::MACRO_RESOLUTION && iy < terrain::MACRO_RESOLUTION) {
+                    auto* hgt = reinterpret_cast<float*>(lyr.hgt_ptr);
+                    ground_y = hgt[iy * terrain::MACRO_RESOLUTION + ix];
+                }
+                break;  // Found the chunk
+            }
+        }
+    }
+
+    // INLINED: get_movement_settings() - no helper with View!
+    PlayerStMovComponent mov;
+    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
+    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
+    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
+    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
+    mov.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
+    mov.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
+    mov.ground_snap_dist = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
+    mov.turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
+    mov.min_speed_threshold = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
+    mov.velocity_epsilon = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
+    mov.eye_height = MOVEMENT_DEFAULT_EYE_HEIGHT;
+    mov.chunk_size = MOVEMENT_DEFAULT_CHUNK_SIZE;
+    // Override with existing settings if any player has them
+    {
+        auto mov_view = registry.view<PlayerStMovComponent>();
+        for (auto [me, existing_mov] : mov_view.each()) {
+            mov = existing_mov;
+            break;  // Use first found
+        }
+    }
 
     auto entity = registry.create();
 
@@ -164,12 +161,22 @@ ecs::Entity create_player_entity(
 
 void process_spawn_requests(ecs::Registry& registry) {
     auto view = registry.view<PlayerReqSpawnComponent>();
+    auto player_view = registry.view<PlayerStIdComponent>();  // View created once
 
     for (auto [request_entity, request] : view.each()) {
         ecs::Entity result_entity = ecs::NullEntity;
         bool success = false;
 
-        if (find_player_by_id(registry, request.player_id) == ecs::NullEntity) {
+        // INLINED: find_player_by_id() - no helper with View!
+        ecs::Entity existing_player = ecs::NullEntity;
+        for (auto [pe, identity] : player_view.each()) {
+            if (identity.player_id == request.player_id) {
+                existing_player = pe;
+                break;
+            }
+        }
+
+        if (existing_player == ecs::NullEntity) {
             result_entity = create_player_entity(
                 registry, request.player_id, request.x, request.z
             );
@@ -189,12 +196,21 @@ void process_spawn_requests(ecs::Registry& registry) {
 
 void process_despawn_requests(ecs::Registry& registry) {
     auto view = registry.view<PlayerReqDespComponent>();
+    auto player_view = registry.view<PlayerStIdComponent>();  // View created once
     std::vector<ecs::Entity> to_destroy;
 
     for (auto [request_entity, request] : view.each()) {
         bool success = false;
 
-        auto player_entity = find_player_by_id(registry, request.player_id);
+        // INLINED: find_player_by_id() - no helper with View!
+        ecs::Entity player_entity = ecs::NullEntity;
+        for (auto [pe, identity] : player_view.each()) {
+            if (identity.player_id == request.player_id) {
+                player_entity = pe;
+                break;
+            }
+        }
+
         if (player_entity != ecs::NullEntity && registry.valid(player_entity)) {
             to_destroy.push_back(player_entity);
             success = true;
@@ -216,12 +232,22 @@ void process_despawn_requests(ecs::Registry& registry) {
 
 void process_network_spawn_requests(ecs::Registry& registry) {
     auto view = registry.view<network::NetworkPlrReqSpawnComponent>();
+    auto player_view = registry.view<PlayerStIdComponent>();  // View created once
     std::vector<ecs::Entity> to_destroy;
 
     for (auto [request_entity, req] : view.each()) {
         std::string player_id(req.player_id.data());
 
-        if (find_player_by_id(registry, player_id) == ecs::NullEntity) {
+        // INLINED: find_player_by_id() - no helper with View!
+        ecs::Entity existing_player = ecs::NullEntity;
+        for (auto [pe, identity] : player_view.each()) {
+            if (identity.player_id == player_id) {
+                existing_player = pe;
+                break;
+            }
+        }
+
+        if (existing_player == ecs::NullEntity) {
             create_player_entity(registry, player_id, req.x, req.z);
             log::info("[PlayerLifeSpawnSystem] Spawned player from network: {} at ({}, {})",
                      player_id, req.x, req.z);
@@ -239,13 +265,22 @@ void process_network_spawn_requests(ecs::Registry& registry) {
 
 void process_network_despawn_requests(ecs::Registry& registry) {
     auto view = registry.view<network::NetworkPlrReqDespawnComponent>();
+    auto player_view = registry.view<PlayerStIdComponent>();  // View created once
     std::vector<ecs::Entity> to_destroy_requests;
     std::vector<ecs::Entity> to_destroy_players;
 
     for (auto [request_entity, req] : view.each()) {
         std::string player_id(req.player_id.data());
 
-        auto player_entity = find_player_by_id(registry, player_id);
+        // INLINED: find_player_by_id() - no helper with View!
+        ecs::Entity player_entity = ecs::NullEntity;
+        for (auto [pe, identity] : player_view.each()) {
+            if (identity.player_id == player_id) {
+                player_entity = pe;
+                break;
+            }
+        }
+
         if (player_entity != ecs::NullEntity && registry.valid(player_entity)) {
             to_destroy_players.push_back(player_entity);
             log::info("[PlayerLifeSpawnSystem] Despawned player from network: {}", player_id);

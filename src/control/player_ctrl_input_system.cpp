@@ -19,23 +19,27 @@ using math::TWO_PI;
 
 namespace {
 
-ecs::Entity find_player_by_id(ecs::Registry& registry, const std::string& player_id) {
-    auto view = registry.view<PlayerStIdComponent>();
-    for (auto [entity, identity] : view.each()) {
-        if (identity.player_id == player_id) {
-            return entity;
-        }
-    }
-    return ecs::NullEntity;
-}
+// OOP ANTI-PATTERN REMOVED:
+// find_player_by_id() helper with View iteration is FORBIDDEN!
+// View iteration must be INLINED in the calling function.
+// See INST_ASE_ECS_SER_TAGS.md
 
 void process_network_input(ecs::Registry& registry) {
-    auto view = registry.view<network::NetworkPlrStateInputComponent>();
+    auto input_view = registry.view<network::NetworkPlrStateInputComponent>();
+    auto player_view = registry.view<PlayerStIdComponent>();
     std::vector<ecs::Entity> to_destroy;
 
-    for (auto [input_entity, net_input] : view.each()) {
+    for (auto [input_entity, net_input] : input_view.each()) {
         std::string player_id(net_input.player_id.data());
-        auto player_entity = find_player_by_id(registry, player_id);
+
+        // INLINED: find player by player_id (no helper function!)
+        ecs::Entity player_entity = ecs::NullEntity;
+        for (auto [entity, identity] : player_view.each()) {
+            if (identity.player_id == player_id) {
+                player_entity = entity;
+                break;  // Found, stop searching
+            }
+        }
 
         if (player_entity == ecs::NullEntity) {
             to_destroy.push_back(input_entity);

@@ -41,40 +41,40 @@ struct PlayerModule {
     static constexpr const char* name() { return "ase-player"; }
 
     void build(ecs::App& app) {
-        app.add_system<PlayerLifeSpawnSystem>(ecs::Schedule::FixedUpdate);
+        app.add_system<PlayerLifeSpawnSystem>(ecs::Schedule::Dynamics);
 
-        app.add_system_with<PlayerCtrlInputSystem>(ecs::Schedule::FixedUpdate)
+        app.add_system_with<PlayerCtrlInputSystem>(ecs::Schedule::Dynamics)
             .run_after("TerrainChunkSystem");
 
-        app.add_system_with<PlayerCtrlMoveSystem>(ecs::Schedule::FixedUpdate)
+        app.add_system_with<PlayerCtrlMoveSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlInputSystem");
 
-        app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::FixedUpdate)
+        app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlMoveSystem");
 
-        app.add_system_with<PlayerStateStatusSystem>(ecs::Schedule::FixedUpdate)
+        app.add_system_with<PlayerStateStatusSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimPhysSystem");
 
-        app.add_system_with<PlayerSpatialChunkSystem>(ecs::Schedule::FixedUpdate)
+        app.add_system_with<PlayerSpatialChunkSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerStateStatusSystem");
 
         // Hub: Write positions for L4 plugins (PLAN_ASE_SDK_V2)
-        app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::FixedUpdate)
+        app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSpatialChunkSystem");
 
         // =====================================================================
         // NETWORK: AUSGEHEND (Broadcast to Network)
         // Pure ECS 4-System Pattern
         // =====================================================================
-        app.add_system_with<PlayerBctReqSystem>(ecs::Schedule::FixedUpdate) // Step 1
+        app.add_system_with<PlayerBctReqSystem>(ecs::Schedule::Dynamics) // Step 1
             .run_after("PlayerHubPosSystem");
-        app.add_system<PlayerBctSndSystem>(ecs::Schedule::Replication);     // Step 3
+        app.add_system<PlayerBctSndSystem>(ecs::Schedule::Transmission);     // Step 3
 
         // Persistence (Star Citizen Replication Layer Pattern)
-        app.add_system<PlayerPstSerSystem>(ecs::Schedule::Persistence);
+        app.add_system<PlayerPstSerSystem>(ecs::Schedule::Preservation);
 
         // Last (Debug/Logging) - runs after all other schedules (no .run_after needed)
-        app.add_system<PlayerLogCausalitySystem>(ecs::Schedule::Last);
+        app.add_system<PlayerLogCausalitySystem>(ecs::Schedule::Conclusion);
     }
 };
 
