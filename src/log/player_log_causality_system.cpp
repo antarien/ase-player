@@ -8,9 +8,25 @@
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 #include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
 #include <ase/player/types.hpp>
+#include <ase/hub/hub.hpp>
 #include <ase/log/log.hpp>
 
 namespace ase::player {
+using namespace entt::literals;
+
+namespace {
+
+// Helper: Read LOG_CONST_DEFAULT_INTERVAL from hub (SSOT: hub_constants.json)
+float get_log_interval(ecs::Registry& registry) {
+    float val = hub::get_hub_value(registry, hub::GLOBAL_OWNER, "LOG_CONST_DEFAULT_INTERVAL"_hs);
+    if (val == hub::VALUE_NOT_FOUND) {
+        log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerLogCausalitySystem", "LOG_CONST_DEFAULT_INTERVAL");
+        return 5.0f;  // Fallback
+    }
+    return val;
+}
+
+}  // namespace
 
 void PlayerLogCausalitySystem::on_start(ecs::Registry& /*registry*/) {
     // Cache component is added on first tick if needed
@@ -45,7 +61,7 @@ void PlayerLogCausalitySystem::tick(ecs::Registry& registry, float dt) {
             moving_count != cache.last_moving_count;
 
         // Log on interval or significant change
-        if (cache.log_interval_timer >= LOG_DEFAULT_INTERVAL || significant_change) {
+        if (cache.log_interval_timer >= get_log_interval(registry) || significant_change) {
             cache.log_interval_timer = 0.0f;
             cache.last_player_count = player_count;
             cache.last_moving_count = moving_count;
