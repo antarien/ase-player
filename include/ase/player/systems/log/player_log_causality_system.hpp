@@ -1,12 +1,24 @@
 #pragma once
+
 /**
- * PlayerLogCausalitySystem - Logs player causality chain
+ * ASE ECS SYSTEM HEADER
  *
- * Consistent with SkyLogCausalitySystem and TerrainLogCausalitySystem.
+ * @file        player_log_causality_system.hpp
+ * @brief       PlayerLogCausalitySystem - Logs player causality chain
+ * @description Consistent with SkyLogCausalitySystem and TerrainLogCausalitySystem.
+ *              ECS STATELESS: Uses PlayerCacheObsComponent for tracking.
  *
- * ECS STATELESS: Uses PlayerCacheObsComponent for tracking.
+ * @module      ase-player
+ * @layer       3 (Modules)
+ * @category    log
+ * @schedule    Dissemination
+ * @created     2026-01-22
+ * @modified    2026-01-22
+ * @version     1.0.0
  *
- * Reads:
+ * ARCHITECTURE:
+ *
+ *   Reads:
  *   - PlayerMgrTag (manager entity)
  *   - PlayerStIdComponent (all players)
  *   - PlayerStStsComponent (player states)
@@ -14,19 +26,40 @@
  *   - PlayerDirtyTag (position changed)
  *   - PlayerChunkChangedTag (chunk changed)
  *
- * Example output:
+ *   Example output:
  *   [ase-player] [PlayerLogCausalitySystem]
- *   players:3 → idle:1 → walking:1 → running:1 → jumping:0 → dirty:2 → spawned:0
+ *   players:3 -> idle:1 -> walking:1 -> running:1 -> jumping:0 -> dirty:2 -> spawned:0
+ *
+ * ECS SYSTEM HEADER COMPLIANCE
+ *
+ * [ ] STATELESS - No member variables
+ * [ ] Views created on demand, not stored
+ * [ ] NO direct calls to other systems
+ * [ ] Communication only via Components
+ * [ ] Helpers in anonymous namespace (in .cpp, NOT static functions!)
+ * [ ] Math functions from ase-math (Layer 0)
+ * [ ] NO file-level static/constexpr (constants -> types.hpp)
+ * [ ] Registered in Module with correct Schedule
+ * [ ] Filename matches convention
+ * [ ] Class name derived from filename
+ * [ ] ALL THREE METHODS DECLARED: on_start, tick, on_stop
  */
 
 #include <ase/ecs/system.hpp>
 
 namespace ase::player {
 
+/**
+ * @brief Logs player causality chain
+ *
+ * @schedule Dissemination - logs at end of frame
+ * @reads    PlayerMgrTag, PlayerStIdComponent, PlayerStStsComponent, PlayerSpawnedTag,
+ *           PlayerDirtyTag, PlayerChunkChangedTag
+ * @writes   Log output
+ */
 class PlayerLogCausalitySystem : public ecs::System {
 public:
     const char* name() const override { return "PlayerLogCausalitySystem"; }
-
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

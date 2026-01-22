@@ -2,7 +2,7 @@
 
 /**
  * =============================================================================
- * ASE ECS COMPONENT
+ * ASE ECS COMPONENT (TAG)
  * =============================================================================
  *
  * @file        player_tag_dirty_component.hpp
@@ -21,23 +21,33 @@
  * @author      Jan Ohlmann (ADG/ASE/AOW)
  *
  * -----------------------------------------------------------------------------
- * ECS COMPONENT COMPLIANCE (15 Checkpoints)
+ * ECS TAG COMPLIANCE
  * -----------------------------------------------------------------------------
- * [x] DATA fields ONLY - No methods
- * [x] NO .cpp file - Header-only
- * [x] ONLY zero-initialization (= 0, = 0.0f, = false, = {})
- * [x] No magic numbers in defaults
- * [x] Entity references use InvalidEntityId (not 0)
- * [x] Single responsibility (one data category)
- * [x] No God-Component (unrelated fields)
- * [x] Large data uses pointer pattern (uint64_t ptr = 0)
- * [x] Tag structs end with Tag suffix
- * [x] Filename: prefix/suffix NOT abbreviated, words between = 3-4 chars
- * [x] Struct name derived from filename (snake_case to PascalCase)
- * [x] 1 File = 1 Component
- * [x] Folder in components/[category]/
- * [x] SHARED components listed in codegen.json components.shared
- * [x] Pointer components in codegen.json components.server_only
+ * [ ] DATA fields ONLY - No methods (empty struct for tags)
+ * [ ] NO .cpp file - Header-only
+ * [ ] ONLY zero-initialization - N/A (no fields)
+ * [ ] No magic numbers in defaults - N/A (no fields)
+ * [ ] Entity references - N/A (no fields)
+ * [ ] Single responsibility - N/A (marker only)
+ * [ ] No God-Component - N/A (no fields)
+ * [ ] Large data uses pointer pattern - N/A (no data)
+ * [ ] Tag structs end with Tag suffix
+ * [ ] Filename: prefix/suffix NOT abbreviated, words between = 3-4 chars
+ * [ ] Struct name: Remove tag_ from middle, add Tag suffix
+ * [ ] 1 File = 1 Component
+ * [ ] File in tag/ subfolder (with optional deeper hierarchy)
+ * [ ] Per-entity runtime values use state/ components (NOT types.hpp!)
+ * [ ] SHARED components listed in codegen.json components.shared
+ * [ ] Pointer components in codegen.json components.server_only
+ * [ ] Tag replaces `bool is_*` or `bool has_*` field in Component
+ * [ ] Tag replaces `uint8_t *_type` field with if-chain dispatch
+ * [ ] Systems use View filter instead of if-else inside loop
+ * [ ] INCLUDE: registry.view<Component, ThisTag>()
+ * [ ] EXCLUDE: registry.view<Component>(entt::exclude<ThisTag>)
+ * [ ] NO if (entity.has<Tag>) inside loop - use filtered View!
+ * [ ] NO switch/case on type - use separate View per Tag!
+ * [ ] Each state = separate Tag + separate View in System
+ * [ ] N-item support via Entity-per-Item + Tags
  *
  * =============================================================================
  */
