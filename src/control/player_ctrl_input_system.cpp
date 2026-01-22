@@ -159,6 +159,7 @@
 #include <chrono>
 
 namespace ase::player {
+using namespace entt::literals;  // For "_hs hashed strings
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
@@ -195,35 +196,19 @@ void PlayerCtrlInputSystem::tick(ecs::Registry& registry, float dt) {
     }
 
     /**
-     * STEP 2: Process each player entity
+     * STEP 2: Process each player entity with input data (SYN Pattern)
+     * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent>();
+    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent, PlayerInpExtComponent>();
 
-    for (auto [entity, identity, pos] : view.each()) {
-        uint32_t owner = static_cast<uint32_t>(entity);
-
+    for (auto [entity, identity, pos, inp] : view.each()) {
         /**
-         * STEP 3: Read input values from Hub (HUB Pattern - READS)
+         * STEP 3: Read input values from PlayerInpExtComponent (SYN Pattern)
          */
-        float forward = hub::get_hub_value(registry, owner, "PLR_INP_FWD"_hs);
-        if (forward == hub::VALUE_NOT_FOUND) {
-            forward = 0.0f;
-        }
-
-        float strafe = hub::get_hub_value(registry, owner, "PLR_INP_STR"_hs);
-        if (strafe == hub::VALUE_NOT_FOUND) {
-            strafe = 0.0f;
-        }
-
-        float cam_yaw = hub::get_hub_value(registry, owner, "PLR_CAM_YAW"_hs);
-        if (cam_yaw == hub::VALUE_NOT_FOUND) {
-            cam_yaw = pos.yaw;
-        }
-
-        float orbit_mode = hub::get_hub_value(registry, owner, "PLR_CAM_ORB"_hs);
-        if (orbit_mode == hub::VALUE_NOT_FOUND) {
-            orbit_mode = 0.0f;
-        }
+        float forward = inp.inp_fwd;
+        float strafe = inp.inp_str;
+        float cam_yaw = inp.cam_yaw;
+        float orbit_mode = inp.cam_orb;
 
         bool is_moving = (forward != 0.0f || strafe != 0.0f);
         bool is_orbit = (orbit_mode > 0.5f);

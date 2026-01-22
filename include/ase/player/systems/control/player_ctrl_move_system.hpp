@@ -5,20 +5,20 @@
  *
  * @file        player_ctrl_move_system.hpp
  * @brief       PlayerCtrlMoveSystem - Calculate velocity from input
- * @description Converts input state to player velocity based on physics properties.
- *              ECS STATELESS: No private member state!
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Converts input state to player velocity based on physics properties.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    control
- * @schedule    Reception
+ * @schedule    Kinematics
  * @created     2026-01-22
  * @modified    2026-01-22
  * @version     1.0.0
  *
- * ARCHITECTURE:
+ * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   InputStateMoveComponent ───┐
+ *   PlayerInpExtComponent ─────┐
  *   PlayerStPosComponent ──────┼──> PlayerCtrlMoveSystem ──> PlayerStVelComponent
  *   PlayerStPhysComponent ─────┘   (calculates velocity)
  *
@@ -42,10 +42,10 @@
 namespace ase::player {
 
 /**
- * @brief Calculate velocity from input
+ * @brief Calculate velocity from input (SHARED)
  *
- * @schedule Reception - processes input at start of frame
- * @reads    InputStateMoveComponent, PlayerStPosComponent, PlayerStPhysComponent
+ * @schedule Kinematics - calculates velocity from input
+ * @reads    PlayerInpExtComponent, PlayerStPosComponent, PlayerStPhysComponent
  * @writes   PlayerStVelComponent
  */
 class PlayerCtrlMoveSystem : public ecs::System {
