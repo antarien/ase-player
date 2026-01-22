@@ -3,6 +3,8 @@
  *
  * @file        player_ctrl_input_system.cpp
  * @brief       PlayerCtrlInputSystem - Process player input and update facing direction
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -14,23 +16,21 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_CTRL_INP: Player Input Processing)
  *
- *   [Hub Input Values from ase-input]
+ *   [PlayerInpExtComponent from PlayerSyncInpSystem]
  *          │
- *          │ input values via Hub (HUB Pattern)
+ *          │ input values from Component (SYN Pattern)
  *          ▼
  *   ┌─────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerCtrlInputSystem         │
+ *   │  (SHARED - no Hub access)                   │
  *   │                                             │
- *   │  READS:                                     │
+ *   │  READS (from Components):                   │
+ *   │    - PlayerInpExtComponent (input bridge)   │
  *   │    - PlayerStIdComponent (identity)         │
  *   │    - PlayerStPosComponent (position/yaw)    │
  *   │    - PlayerStMovComponent (turn speed)      │
- *   │    - "PLR_INP_FWD"_hs (Hub - forward)       │
- *   │    - "PLR_INP_STR"_hs (Hub - strafe)        │
- *   │    - "PLR_CAM_YAW"_hs (Hub - camera yaw)    │
- *   │    - "PLR_CAM_ORB"_hs (Hub - orbit mode)    │
  *   │                                             │
- *   │  WRITES:                                    │
+ *   │  WRITES (to Components):                    │
  *   │    - PlayerStPosComponent (yaw)             │
  *   │    - PlayerStIdComponent (last_input_ms)    │
  *   │    - PlayerDirtyTag (if changed)            │
@@ -40,16 +40,16 @@
  *          ▼
  *   PlayerCtrlMoveSystem (uses facing for movement)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * SYN Pattern (SHARED Calc System)
  *
- * READS (from ase-input via Hub):
- *   "PLR_INP_FWD"_hs → Forward input (-1 to 1)
- *   "PLR_INP_STR"_hs → Strafe input (-1 to 1)
- *   "PLR_CAM_YAW"_hs → Camera movement yaw
- *   "PLR_CAM_ORB"_hs → Camera orbit mode (1.0 = orbit)
+ * READS (from PlayerInpExtComponent - filled by PlayerSyncInpSystem):
+ *   inp_fwd   → Forward input (-1 to 1)
+ *   inp_str   → Strafe input (-1 to 1)
+ *   cam_yaw   → Camera yaw (radians)
+ *   cam_orb   → Orbit mode flag (0 or 1)
  *
- * WRITES (to Hub for other modules):
- *   (none - writes to Components directly)
+ * WRITES (to Components only - no Hub writes):
+ *   (none)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -144,14 +144,13 @@
 // Own header FIRST
 #include <ase/player/systems/control/player_ctrl_input_system.hpp>
 // Components from same module ONLY
+#include <ase/player/components/input/player_inp_ext_component.hpp>
 #include <ase/player/components/state/player_st_id_component.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Hub for HUB Pattern
-#include <ase/hub/hub.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
@@ -160,7 +159,6 @@
 #include <chrono>
 
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings (Hub)
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
