@@ -1,51 +1,54 @@
 #pragma once
+
 /**
- * ASE Player Module
+ * ASE MODULE INCLUDE HEADER (SSOT)
  *
- * Provides player entity management using focused ECS components.
+ * @file        player.hpp
+ * @brief       Single entry point for ase-player
+ * @description Include this header to use the module.
+ *              Exports ALL components, ALL systems, and types.
  *
- * Components (state/):
- *   - PlayerStIdComponent: Player ID and session timestamps
- *   - PlayerStPosComponent: World position and rotation
- *   - PlayerStVelComponent: Current velocity vector
- *   - PlayerStPhysComponent: Ground contact and physics flags
- *   - PlayerStStsComponent: State machine
- *   - PlayerStChkComponent: Current chunk position
- *   - PlayerStMovComponent: Movement settings
+ * @module      ase-player
+ * @layer       3 (Modules)
+ * @created     2025-12-01
+ * @modified    2026-01-22
+ * @version     2.0.0
  *
- * Components (tag/):
- *   - PlayerMgrTag: Manager entity marker (holds config)
- *   - PlayerDirtyTag, PlayerSpawnedTag, PlayerLocalTag, etc.
+ * DESIGN REFERENCE: DESIGN_PLAYER (Player Entity Management)
  *
- * Components (request/):
- *   - PlayerReqSpawnComponent: Request to spawn a player
- *   - PlayerReqDespComponent: Request to despawn a player
- *   - PlayerReqSpawnResComponent: Result of spawn request
- *   - PlayerReqDespResComponent: Result of despawn request
+ * USAGE:
+ *   #include <ase/player/player.hpp>
+ *   app.add_module<ase::player::PlayerModule>();
  *
- * Systems:
- *   - PlayerLifeSpawnSystem: Process spawn/despawn requests
- *   - PlayerCtrlInputSystem: Process WebRTC input
- *   - PlayerCtrlMoveSystem: Calculate velocity from input
- *   - PlayerSimPhysSystem: Apply gravity, terrain collision
- *   - PlayerStateStatusSystem: Update state machine
- *   - PlayerSpatialChunkSystem: Detect chunk changes
- *   - PlayerNetBctReqSystem: Create serialization requests (FixedUpdate)
- *   - PlayerNetBctSndSystem: Send broadcasts from serialized data (Replication)
+ * ECS MODULE/PLUGIN INCLUDE COMPLIANCE
  *
- * Dependencies:
- *   - ase-input: InputComponent for buffered client input
- *   - ase-camera: CameraComponent for camera state
- *   - ase-math: Vec3 for vector operations
- *   - ase-ecs: ECS registry and system base
- *   - ase-terrain: Terrain height queries
+ * [ ] types.hpp included FIRST (SSOT for constants)
+ * [ ] Module/Plugin definition included ({Module}Module or {Plugin}Plugin)
+ * [ ] ALL data components exported
+ * [ ] ALL state components exported
+ * [ ] ALL tag components exported
+ * [ ] ALL input components exported (L4 plugins: Hub sync targets)
+ * [ ] ALL systems exported
+ * [ ] Components grouped by category with section comments
+ * [ ] Systems grouped by category with section comments
+ * [ ] No circular dependencies
+ * [ ] No duplicate includes
  */
 
-// Types
+/**
+ * TYPES AND MODULE DEFINITION (MUST BE FIRST!)
+ */
 #include <ase/player/types.hpp>
+#include <ase/player/player_module.hpp>
 
-// Components - State (runtime state)
+/**
+ * STATE COMPONENTS - Identity (1)
+ */
 #include <ase/player/components/state/player_st_id_component.hpp>
+
+/**
+ * STATE COMPONENTS - Position/Movement (6)
+ */
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_vel_component.hpp>
 #include <ase/player/components/state/player_st_phys_component.hpp>
@@ -53,7 +56,9 @@
 #include <ase/player/components/state/player_st_chk_component.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
 
-// Components - Tags (empty structs for ECS filtering)
+/**
+ * TAG COMPONENTS - Markers (6)
+ */
 #include <ase/player/components/tag/player_tag_mgr_component.hpp>
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 #include <ase/player/components/tag/player_tag_spawned_component.hpp>
@@ -61,21 +66,47 @@
 #include <ase/player/components/tag/player_tag_init_component.hpp>
 #include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
 
-// Components - Request/Result (ECS-based spawn/despawn)
+/**
+ * REQUEST COMPONENTS - Spawn/Despawn (4)
+ */
 #include <ase/player/components/request/player_req_spawn_component.hpp>
 #include <ase/player/components/request/player_req_desp_component.hpp>
 #include <ase/player/components/request/player_req_spawn_res_component.hpp>
 #include <ase/player/components/request/player_req_desp_res_component.hpp>
 
-// Systems (focused, single responsibility)
+/**
+ * SYSTEMS - Lifecycle (1)
+ */
 #include <ase/player/systems/lifecycle/player_life_spawn_system.hpp>
+
+/**
+ * SYSTEMS - Control (2)
+ */
 #include <ase/player/systems/control/player_ctrl_input_system.hpp>
 #include <ase/player/systems/control/player_ctrl_move_system.hpp>
+
+/**
+ * SYSTEMS - Simulation (1)
+ */
 #include <ase/player/systems/simulation/player_sim_phys_system.hpp>
+
+/**
+ * SYSTEMS - State (1)
+ */
 #include <ase/player/systems/state/player_state_status_system.hpp>
+
+/**
+ * SYSTEMS - Spatial (1)
+ */
 #include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
-// Hub (PLAN_ASE_SDK_V2: Write positions for L4 plugins)
+
+/**
+ * SYSTEMS - Hub (1)
+ */
 #include <ase/player/systems/hub/player_hub_pos_system.hpp>
-// Network (Pure ECS 4-System Pattern)
+
+/**
+ * SYSTEMS - Network (2)
+ */
 #include <ase/player/systems/network/player_bct_req_system.hpp>
 #include <ase/player/systems/network/player_bct_snd_system.hpp>

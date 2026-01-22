@@ -1,25 +1,30 @@
 #pragma once
+
 /**
- * PlayerModule - Bevy-style module for player systems
+ * ASE MODULE DEFINITION
  *
- * Dependency chain (FixedUpdate):
- *   PlayerLifeSpawnSystem (no deps)
- *   └─ PlayerCtrlInputSystem (→ TerrainChunkSystem - cross-module)
- *      └─ PlayerCtrlMoveSystem
- *         └─ PlayerSimPhysSystem
- *            └─ PlayerStateStatusSystem
- *               └─ PlayerSpatialChunkSystem
- *                  └─ PlayerNetBctReqSystem (creates serialization requests)
+ * @file        player_module.hpp
+ * @brief       Module registration for ase-player
+ * @description Registers all systems with the App scheduler (Bevy-style).
  *
- * Replication schedule:
- *   PlayerNetBctSndSystem (reads serialization results, creates broadcasts)
+ * @module      ase-player
+ * @layer       3 (Modules)
+ * @created     2025-12-01
+ * @modified    2026-01-22
+ * @version     2.0.0
  *
- * Persistence (Star Citizen Replication Layer Pattern):
- *   PlayerPstSerSystem (serializes + sets ReplicationDtyTag)
- *      └─ ReplicationPstSystem (handles MongoDB via ase-replication)
+ * ECS MODULE/PLUGIN DEFINITION COMPLIANCE
  *
- * Last (Debug/Logging):
- *   PlayerLogCausalitySystem (→ all systems)
+ * [ ] name() returns correct name (ase-{module} or ase-pl-{plugin})
+ * [ ] build() registers all systems in correct schedules
+ * [ ] Startup systems registered first (run once at start)
+ * [ ] Initialization systems registered (entity creation)
+ * [ ] Integration/FixedUpdate systems registered with run_after() ordering
+ * [ ] Replication/Transmission systems registered (network sync)
+ * [ ] Persistence systems registered (database writes)
+ * [ ] Shutdown systems registered (cleanup)
+ * [ ] All system includes present
+ * [ ] No circular dependencies
  */
 
 #include <ase/ecs/app.hpp>
@@ -37,10 +42,24 @@
 
 namespace ase::player {
 
+/**
+ * @brief PlayerModule - Player entity management module
+ * DESIGN_PLAYER: Handles player lifecycle, movement, physics, state, and network sync.
+ *
+ * Systems: 11 total
+ * Dependencies: ase-input, ase-camera, ase-terrain (via Hub)
+ */
 struct PlayerModule {
+
     static constexpr const char* name() { return "ase-player"; }
 
     void build(ecs::App& app) {
+
+        /**
+         * DYNAMICS (Schedule::Dynamics, 30Hz)
+         * Physics, movement, game logic systems.
+         * Order matters - use run_after() for dependencies.
+         */
         app.add_system<PlayerLifeSpawnSystem>(ecs::Schedule::Dynamics);
 
         app.add_system_with<PlayerCtrlInputSystem>(ecs::Schedule::Dynamics)
@@ -58,22 +77,28 @@ struct PlayerModule {
         app.add_system_with<PlayerSpatialChunkSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerStateStatusSystem");
 
-        // Hub: Write positions for L4 plugins (PLAN_ASE_SDK_V2)
         app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSpatialChunkSystem");
 
-        // =====================================================================
-        // NETWORK: AUSGEHEND (Broadcast to Network)
-        // Pure ECS 4-System Pattern
-        // =====================================================================
-        app.add_system_with<PlayerBctReqSystem>(ecs::Schedule::Dynamics) // Step 1
+        app.add_system_with<PlayerBctReqSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerHubPosSystem");
-        app.add_system<PlayerBctSndSystem>(ecs::Schedule::Transmission);     // Step 3
 
-        // Persistence (Star Citizen Replication Layer Pattern)
+        /**
+         * TRANSMISSION (Schedule::Transmission, 20Hz)
+         * Broadcast state changes to clients.
+         */
+        app.add_system<PlayerBctSndSystem>(ecs::Schedule::Transmission);
+
+        /**
+         * PRESERVATION (Schedule::Preservation, 1Hz)
+         * Save state to MongoDB.
+         */
         app.add_system<PlayerPstSerSystem>(ecs::Schedule::Preservation);
 
-        // Last (Debug/Logging) - runs after all other schedules (no .run_after needed)
+        /**
+         * CONCLUSION (Schedule::Conclusion)
+         * Debug/logging runs after all other schedules.
+         */
         app.add_system<PlayerLogCausalitySystem>(ecs::Schedule::Conclusion);
     }
 };

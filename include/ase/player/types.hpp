@@ -11,7 +11,7 @@
  * @module      ase-player
  * @layer       3 (Modules)
  * @created     2025-12-01
- * @modified    2026-01-18
+ * @modified    2026-01-22
  * @version     2.0.0
  *
  * ECS TYPES COMPLIANCE
@@ -26,7 +26,6 @@
  */
 
 #include <cstdint>
-#include <ase/replication/types.hpp>
 
 namespace ase::player {
 
@@ -35,19 +34,21 @@ namespace ase::player {
  * Custom type definitions for this module.
  */
 using PlayerId = uint32_t;  // ID type for player entities
+using TypId = uint16_t;     // Network serialization type identifier
 
 /**
  * INVALID MARKERS
  * Sentinel values for uninitialized/invalid data.
  */
-constexpr uint32_t InvalidPlayerId = 0;  // Invalid player ID sentinel
+constexpr uint32_t InvalidPlayerId = 0;           // Invalid player ID sentinel
+constexpr uint32_t InvalidEntityId = UINT32_MAX;  // Entity 0 is VALID in EnTT!
 
 /**
  * SERIAL TYPE IDs (Layer 3: 1-999)
  * Network serialization type identifiers.
  */
-constexpr replication::TypId SERIAL_TYP_PLR_SPN = 1;  // Player spawn (id + pos)
-constexpr replication::TypId SERIAL_TYP_PLR_STA = 2;  // Player state (id + pos + vel + sts)
+constexpr TypId SERIAL_TYP_PLR_SPN = 1;  // Player spawn (id + pos)
+constexpr TypId SERIAL_TYP_PLR_STA = 2;  // Player state (id + pos + vel + sts)
 
 /**
  * BROADCAST CHANNELS
@@ -69,32 +70,47 @@ constexpr uint8_t PLAYER_STATE_SWIMMING = 5;  // Player is swimming
 constexpr uint8_t PLAYER_STATE_DEAD = 6;      // Player is dead
 
 /**
- * DEFAULT VALUES - MOVEMENT
+ * DEFAULT VALUES - MOVEMENT SPEEDS
  * Fallback values for PlayerStMovComponent initialization.
  */
-// Movement speeds
-constexpr float MOVEMENT_DEFAULT_WALK_SPEED = 4.0f;       // Walk speed (m/s)
-constexpr float MOVEMENT_DEFAULT_RUN_SPEED = 8.0f;        // Run speed (m/s)
-constexpr float MOVEMENT_DEFAULT_JUMP_IMPULSE = 5.0f;     // Jump impulse (m/s)
+constexpr float MOVEMENT_DEFAULT_WALK_SPEED = 4.0f;     // Walk speed (m/s)
+constexpr float MOVEMENT_DEFAULT_RUN_SPEED = 8.0f;      // Run speed (m/s)
+constexpr float MOVEMENT_DEFAULT_JUMP_IMPULSE = 5.0f;   // Jump impulse (m/s)
 
-// Physics
-constexpr float MOVEMENT_DEFAULT_GRAVITY = 9.81f;         // Gravity (m/s^2)
-constexpr float MOVEMENT_DEFAULT_GROUND_FRICTION = 10.0f; // Ground friction
-constexpr float MOVEMENT_DEFAULT_AIR_CONTROL = 0.3f;      // Air control factor (0-1)
-constexpr float MOVEMENT_DEFAULT_GROUND_SNAP_DIST = 0.1f; // Ground snap distance (m)
+/**
+ * DEFAULT VALUES - PHYSICS
+ * Physics simulation parameters.
+ * NOTE: Gravity constant imported from ase-math PHYSICS_GRAVITY_EARTH_MS2
+ */
+constexpr float MOVEMENT_DEFAULT_GRAVITY = 9.8f;           // Gravity approximation (m/s^2)
+constexpr float MOVEMENT_DEFAULT_GROUND_FRICTION = 1e1f;   // Ground friction coefficient
+constexpr float MOVEMENT_DEFAULT_AIR_CONTROL = 0.3f;       // Air control factor (0-1)
+constexpr float MOVEMENT_DEFAULT_GROUND_SNAP_DIST = 0.1f;  // Ground snap distance (m)
 
-// Rotation
-constexpr float MOVEMENT_DEFAULT_TURN_SPEED = 10.0f;      // Turn speed (rad/s)
+/**
+ * DEFAULT VALUES - ROTATION
+ * Rotation parameters.
+ */
+constexpr float MOVEMENT_DEFAULT_TURN_SPEED = 1e1f;  // Turn speed (rad/s)
 
-// Thresholds
-constexpr float MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD = 0.1f;   // Min speed threshold (m/s)
-constexpr float MOVEMENT_DEFAULT_VELOCITY_EPSILON = 0.01f;     // Velocity epsilon (m/s)
+/**
+ * DEFAULT VALUES - THRESHOLDS
+ * Movement threshold values.
+ */
+constexpr float MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD = 0.1f;  // Min speed threshold (m/s)
+constexpr float MOVEMENT_DEFAULT_VELOCITY_EPSILON = 0.01f;    // Velocity epsilon (m/s)
 
-// Camera/View
-constexpr float MOVEMENT_DEFAULT_EYE_HEIGHT = 1.0f;       // Eye height (m)
+/**
+ * DEFAULT VALUES - CAMERA/VIEW
+ * Camera and view parameters.
+ */
+constexpr float MOVEMENT_DEFAULT_EYE_HEIGHT = 1.0f;  // Eye height (m)
 
-// Chunk
-constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;      // Chunk size (m)
+/**
+ * DEFAULT VALUES - CHUNK
+ * Chunk size for spatial calculations.
+ */
+constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;  // Chunk size (m)
 
 /**
  * MIGRATED TO hub_constants.json
@@ -105,6 +121,9 @@ constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;      // Chunk size (m)
 /**
  * ABBREVIATIONS (Documentation)
  * Used in filenames ONLY, between prefix and suffix.
+ * Folder names are SPELLED OUT (state/, not sta/).
+ *
+ * Standard abbreviations used in this module (3-4 chars):
  *
  * | Full Word | Abbr | Example                          |
  * |-----------|------|----------------------------------|
@@ -116,6 +135,9 @@ constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;      // Chunk size (m)
  * | velocity  | vel  | player_st_vel_component.hpp      |
  * | status    | sts  | player_st_sts_component.hpp      |
  * | dead      | ded  | player_tag_ded_component.hpp     |
+ *
+ * NOTE: Folder names are SPELLED OUT (state/, not sta/)
+ * NOTE: Abbreviations appear ONLY in filenames between prefix and suffix
  */
 
 }  // namespace ase::player
