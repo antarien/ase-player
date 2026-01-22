@@ -3,16 +3,18 @@
 /**
  * ASE ECS COMPONENT (STATE)
  *
- * @file        player_st_sts_component.hpp
- * @brief       PlayerStStsComponent - Player state machine
- * @description Current player state (idle, walking, running, etc.)
+ * @file        player_st_inp_cam_component.hpp
+ * @brief       PlayerStInpCamComponent - Player camera input state
+ * @description Local player component for camera input data.
+ *              Replaces cross-module dependency on ase-input/ase-camera.
+ *              Written by player input system from network data.
  *
  * @module      ase-player
- * @layer       3 (Module)
+ * @layer       3 (Modules)
  * @category    state
- * @created     2025-12-25
+ * @created     2026-01-22
  * @modified    2026-01-22
- * @version     1.1.0
+ * @version     1.0.0
  *
  * ECS COMPONENT COMPLIANCE
  *
@@ -43,12 +45,26 @@
  * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
  */
 
-#include <cstdint>
-
 namespace ase::player {
 
-struct PlayerStStsComponent {
-    uint8_t sts = 0;  // Player state value (see PLAYER_STATE_* in types.hpp)
+/**
+ * Field documentation:
+ * yaw_delta     = Camera yaw rotation delta
+ * pitch_delta   = Camera pitch rotation delta
+ * zoom_delta    = Camera zoom delta
+ * orbit_mode    = Orbit camera mode active
+ * mode_toggle   = Camera mode toggle requested
+ * target_cycle  = Camera target cycle requested
+ * camera_changed = Any camera input changed this frame
+ */
+struct PlayerStInpCamComponent {
+    float yaw_delta = 0.0f;
+    float pitch_delta = 0.0f;
+    float zoom_delta = 0.0f;
+    bool orbit_mode = false;
+    bool mode_toggle = false;
+    bool target_cycle = false;
+    bool camera_changed = false;
 };
 
 }  // namespace ase::player

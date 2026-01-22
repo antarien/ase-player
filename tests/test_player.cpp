@@ -131,8 +131,8 @@ void test_player_components() {
 
     // Add PlayerStStsComponent
     auto& state = registry.emplace<PlayerStStsComponent>(entity);
-    state.state = PLAYER_STATE_RUNNING;
-    assert(state.state == PLAYER_STATE_RUNNING);
+    state.sts = PLAYER_STATE_RUNNING;
+    assert(state.sts == PLAYER_STATE_RUNNING);
 
     // Add PlayerStChkComponent
     auto& chunk = registry.emplace<PlayerStChkComponent>(entity);

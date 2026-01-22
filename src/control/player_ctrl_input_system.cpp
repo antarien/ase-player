@@ -1,159 +1,266 @@
+/**
+ * ASE ECS SYSTEM IMPLEMENTATION
+ *
+ * @file        player_ctrl_input_system.cpp
+ * @brief       PlayerCtrlInputSystem - Process player input and update facing direction
+ *
+ * @module      ase-player
+ * @layer       3 (Modules)
+ * @category    control
+ * @schedule    Kinematics
+ * @created     2026-01-22
+ * @modified    2026-01-22
+ * @version     1.0.0
+ *
+ * CAUSAL CHAIN (CAUSA_PLR_CTRL_INP: Player Input Processing)
+ *
+ *   [Hub Input Values from ase-input]
+ *          │
+ *          │ input values via Hub (HUB Pattern)
+ *          ▼
+ *   ┌─────────────────────────────────────────────┐
+ *   │  THIS SYSTEM: PlayerCtrlInputSystem         │
+ *   │                                             │
+ *   │  READS:                                     │
+ *   │    - PlayerStIdComponent (identity)         │
+ *   │    - PlayerStPosComponent (position/yaw)    │
+ *   │    - PlayerStMovComponent (turn speed)      │
+ *   │    - "PLR_INP_FWD"_hs (Hub - forward)       │
+ *   │    - "PLR_INP_STR"_hs (Hub - strafe)        │
+ *   │    - "PLR_CAM_YAW"_hs (Hub - camera yaw)    │
+ *   │    - "PLR_CAM_ORB"_hs (Hub - orbit mode)    │
+ *   │                                             │
+ *   │  WRITES:                                    │
+ *   │    - PlayerStPosComponent (yaw)             │
+ *   │    - PlayerStIdComponent (last_input_ms)    │
+ *   │    - PlayerDirtyTag (if changed)            │
+ *   └─────────────────────────────────────────────┘
+ *          │
+ *          │ player facing updated
+ *          ▼
+ *   PlayerCtrlMoveSystem (uses facing for movement)
+ *
+ * HUB Pattern (MIG_ASE_HUB)
+ *
+ * READS (from ase-input via Hub):
+ *   "PLR_INP_FWD"_hs → Forward input (-1 to 1)
+ *   "PLR_INP_STR"_hs → Strafe input (-1 to 1)
+ *   "PLR_CAM_YAW"_hs → Camera movement yaw
+ *   "PLR_CAM_ORB"_hs → Camera orbit mode (1.0 = orbit)
+ *
+ * WRITES (to Hub for other modules):
+ *   (none - writes to Components directly)
+ *
+ * ECS SYSTEM IMPLEMENTATION COMPLIANCE
+ *
+ * [ ] Layer dependencies checked (only depend on lower layers)
+ * [ ] Existing functions checked (ase-math, ase-utils, ase-containers)
+ * [ ] Abbreviations defined in types.hpp or documentation
+ * [ ] types.hpp created with all constants and enums
+ * [ ] STATELESS? No member variables?
+ * [ ] Views created on demand, not stored?
+ * [ ] NO direct calls to other systems?
+ * [ ] Communication only via Components?
+ * [ ] Helpers in anonymous namespace (NOT static!)?
+ * [ ] Math functions from ase-math (Layer 0)?
+ * [ ] NO file-level static/constexpr?
+ * [ ] Registered in Module with correct Schedule?
+ * [ ] Filename matches convention?
+ * [ ] Class name derived correctly from filename?
+ * [ ] Using Deferred Deletion Pattern? (Tag + Batch Destroy)
+ * [ ] NO destroy() on other entities during iteration?
+ * [ ] Cleanup System in Schedule::Last?
+ * [ ] NO local arrays/vectors for collection?
+ * [ ] 1 File = 1 System?
+ * [ ] Folder structure matches convention?
+ * [ ] components/, systems/, src/ have IDENTICAL subfolder structure?
+ * [ ] Layer dependencies respected (no upward dependencies)?
+ * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
+ * [ ] Serializer functions in anonymous namespace?
+ * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] Math functions from ase-math? (lerp, clamp, noise)
+ * [ ] Containers from ase-containers? (RingBuffer)
+ * [ ] Types from ase-types? (Result, Option)
+ * [ ] Utils from ase-utils? (UUID, hash)
+ * [ ] No duplicate functionality across modules?
+ * [ ] ONLY primitive types: int, float, uint32_t, bool, etc.
+ * [ ] ONLY ase-math for math (NO std::min, std::max, std::clamp!)
+ * [ ] ONLY ase-containers for containers (NO std::vector, std::map, std::unordered_map!)
+ * [ ] ONLY ase-types for Result/Option (NO std::optional, std::expected!)
+ * [ ] std:: FORBIDDEN except: <cstdint>, <cmath> basics, <cassert>
+ * [ ] CAUSAL CHAIN documented (Input → Processing → Output)
+ * [ ] HUB Pattern documented (READS/WRITES)
+ * [ ] hub::get_hub_value() for reads
+ * [ ] hub::set_or_create_hub_value() for writes
+ * [ ] Method order: on_start → tick → on_stop
+ * [ ] ALL THREE METHODS implemented
+ * [ ] on_start/on_stop: log::info with system name
+ * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
+ * [ ] log::error() for EVERY VALUE_NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
+ * [ ] Unused params: (void)dt; or commented parameter name
+ * [ ] NO switch/case statements? (use Tag-filtered Views (separate View per type)!)
+ * [ ] NO if-else chains for type dispatch? (use separate Systems per type!)
+ * [ ] NO instanceof/dynamic_cast checks? (use Tags for entity classification!)
+ * [ ] NO factory patterns with type enums? (use Component composition!)
+ * [ ] NO inheritance hierarchies? (use Component composition!)
+ * [ ] NO virtual dispatch for game logic? (only ecs::System base class allowed!)
+ * [ ] NO singleton patterns? (use Manager Tags on entities!)
+ * [ ] NO state machines with switch? (use Tag-based state + separate Systems!)
+ * [ ] ALL behavior driven by Component DATA, not hardcoded logic?
+ * [ ] NO hardcoded entity types? (types defined by Component composition!)
+ * [ ] NO hardcoded processing order? (order via Schedule + run_after!)
+ * [ ] NO hardcoded value ranges? (ranges in types.hpp constants!)
+ * [ ] NO hardcoded special cases? (special cases = Tags + dedicated Systems!)
+ * [ ] Formulas use Component fields, not magic numbers?
+ * [ ] New behavior = new Component + new System, NOT if-else in existing code?
+ * [ ] NO `find_*()` with View/Query? (use DUAL-PATTERN)
+ * [ ] NO `check_*()`/`has_*()`/`is_*()` with View/Query? (use DUAL-PATTERN)
+ * [ ] NO `get_*()` with View/Query? (use DUAL-PATTERN)
+ * [ ] NO struct in namespace {}? (use Component)
+ * [ ] NO collect-then-process? (use single-pass)
+ * [ ] NO View/Query in Helper? (only pure math)
+ * [ ] NO `bool has_*` for type categories in Components? (use Tags!)
+ * [ ] NO `bool is_*` for type categories in Components? (use Tags!)
+ * [ ] NO `uint8_t *_type` field with if-chain dispatch? (use Tag-filtered Views!)
+ * [ ] Type determined by Tag composition, not boolean field?
+ * [ ] N-item support via Entity-per-Item + Tags, not type booleans?
+ * [ ] Tag-filtered Views per type, not if-chain in single loop?
+ * [ ] NO Entity-per-Character pattern when loading strings?
+ * [ ] String loading uses char[N] fixed arrays or Pointer Pattern?
+ * [ ] String hashing via entt::hashed_string for lookup keys?
+ * [ ] String data stored as single attribute, not per-character entities?
+ * [ ] NO std::shared_ptr in Components? (use Flyweight Pattern!)
+ * [ ] NO void* in Components? (use Flyweight Pattern!)
+ * [ ] NO static std::unordered_map for resource storage? (use ResourceManager via ctx!)
+ * [ ] External resources (shared_ptr, handles) accessed via registry.ctx().get<ResourceManager&>()?
+ * [ ] ResourceManager registered in on_start() via registry.ctx().emplace<ResourceManager&>()?
+ * [ ] Components store ONLY uint32_t IDs referencing external resources?
+ */
+
+// INCLUDES - ONLY THESE ARE ALLOWED!
+// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>
+// ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
+
+// Own header FIRST
 #include <ase/player/systems/control/player_ctrl_input_system.hpp>
+// Components from same module ONLY
 #include <ase/player/components/state/player_st_id_component.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
+#include <ase/player/components/tag/player_tag_dirty_component.hpp>
+// types.hpp for constants
 #include <ase/player/types.hpp>
-#include <ase/input/input.hpp>
-#include <ase/camera/camera.hpp>
-#include <ase/network/components/player/state/network_plr_state_input_component.hpp>
-#include <ase/math/spherical.hpp>
+// Hub for HUB Pattern
+#include <ase/hub/hub.hpp>
+// Logging
 #include <ase/log/log.hpp>
+// Math
+#include <ase/math/math.hpp>
 
-#include <cmath>
-#include <vector>
+#include <chrono>
 
 namespace ase::player {
+using namespace entt::literals;  // For "_hs hashed strings (Hub)
 
-using math::PI;
-using math::TWO_PI;
-
+/**
+ * Anonymous namespace for helper FUNCTIONS (NOT static!)
+ * IMPORTANT: Use anonymous namespace, NOT static keyword!
+ *   ✅ namespace { void helper() {...} }   // CORRECT
+ *   ❌ static void helper() {...}          // WRONG!
+ * NO STRUCTS HERE! Structs = Data = Components!
+ */
 namespace {
 
-// OOP ANTI-PATTERN REMOVED:
-// find_player_by_id() helper with View iteration is FORBIDDEN!
-// View iteration must be INLINED in the calling function.
-// See INST_ASE_ECS_SER_TAGS.md
-
-void process_network_input(ecs::Registry& registry) {
-    auto input_view = registry.view<network::NetworkPlrStateInputComponent>();
-    auto player_view = registry.view<PlayerStIdComponent>();
-    std::vector<ecs::Entity> to_destroy;
-
-    for (auto [input_entity, net_input] : input_view.each()) {
-        std::string player_id(net_input.player_id.data());
-
-        // INLINED: find player by player_id (no helper function!)
-        ecs::Entity player_entity = ecs::NullEntity;
-        for (auto [entity, identity] : player_view.each()) {
-            if (identity.player_id == player_id) {
-                player_entity = entity;
-                break;  // Found, stop searching
-            }
-        }
-
-        if (player_entity == ecs::NullEntity) {
-            to_destroy.push_back(input_entity);
-            continue;
-        }
-
-        auto* movement = registry.try_get<input::InputStateMoveComponent>(player_entity);
-        if (movement) {
-            movement->forward = net_input.forward;
-            movement->strafe = net_input.strafe;
-            movement->sprint = net_input.sprint;
-            movement->jump = net_input.jump;
-        }
-
-        auto* inp_cam = registry.try_get<input::InputStateCameraComponent>(player_entity);
-        if (inp_cam) {
-            inp_cam->yaw_delta = net_input.camera_yaw_delta;
-            inp_cam->pitch_delta = net_input.camera_pitch_delta;
-            inp_cam->zoom_delta = net_input.camera_zoom_delta;
-            inp_cam->orbit_mode = net_input.camera_orbit_only;
-            inp_cam->mode_toggle = net_input.camera_mode_toggle;
-            inp_cam->target_cycle = net_input.camera_target_cycle;
-        }
-
-        auto* cam_input = registry.try_get<camera::CameraStInpComponent>(player_entity);
-        if (cam_input) {
-            cam_input->orbit_mode = net_input.camera_orbit_only;
-        }
-
-        auto* inp_meta = registry.try_get<input::InputStateMetaComponent>(player_entity);
-        if (inp_meta) {
-            inp_meta->camera_changed = (net_input.camera_yaw_delta != 0.0f ||
-                                        net_input.camera_pitch_delta != 0.0f ||
-                                        net_input.camera_zoom_delta != 0.0f ||
-                                        net_input.camera_mode_toggle ||
-                                        net_input.camera_target_cycle);
-            inp_meta->movement_changed = (net_input.forward != 0.0f ||
-                                          net_input.strafe != 0.0f);
-            inp_meta->last_update = std::chrono::steady_clock::now();
-        }
-
-        to_destroy.push_back(input_entity);
-    }
-
-    for (auto entity : to_destroy) {
-        registry.destroy(entity);
-    }
-}
+// No helper functions needed - all logic inlined in tick()
 
 }  // anonymous namespace
 
+// SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
+// ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
+
 void PlayerCtrlInputSystem::on_start(ecs::Registry& /*registry*/) {
-}
-
-void PlayerCtrlInputSystem::on_stop(ecs::Registry& registry) {
-    auto view = registry.view<network::NetworkPlrStateInputComponent>();
-    std::vector<ecs::Entity> to_destroy;
-
-    for (auto entity : view) {
-        to_destroy.push_back(entity);
-    }
-
-    for (auto entity : to_destroy) {
-        registry.destroy(entity);
-    }
-
-    if (!to_destroy.empty()) {
-        log::info("[PlayerCtrlInputSystem] Cleaned up {} pending network inputs on shutdown", to_destroy.size());
-    }
+    log::info("[PlayerCtrlInputSystem] Started");
 }
 
 void PlayerCtrlInputSystem::tick(ecs::Registry& registry, float dt) {
-    process_network_input(registry);
+    using namespace std::chrono;
 
+    /**
+     * STEP 1: Get turn speed from manager
+     */
     float turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
-
     auto mov_view = registry.view<PlayerStMovComponent>();
     for (auto [e, mov] : mov_view.each()) {
+        (void)e;
         turn_speed = mov.turn_speed;
         break;
     }
 
-    auto view = registry.view<
-        PlayerStIdComponent,
-        PlayerStPosComponent,
-        input::InputStateMoveComponent
-    >();
+    /**
+     * STEP 2: Process each player entity
+     */
+    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent>();
 
-    for (auto [entity, identity, pos, movement] : view.each()) {
-        auto* cam_orient = registry.try_get<camera::CameraStOrtComponent>(entity);
-        auto* cam_input = registry.try_get<camera::CameraStInpComponent>(entity);
+    for (auto [entity, identity, pos] : view.each()) {
+        uint32_t owner = static_cast<uint32_t>(entity);
 
-        float movement_yaw = cam_orient ? cam_orient->movement_yaw : pos.yaw;
-        bool is_moving = movement.forward != 0.0f || movement.strafe != 0.0f;
-        bool orbit_mode = cam_input ? cam_input->orbit_mode : false;
-
-        if (is_moving && cam_orient && !orbit_mode) {
-            float delta = movement_yaw - pos.yaw;
-            while (delta > PI) delta -= TWO_PI;
-            while (delta < -PI) delta += TWO_PI;
-
-            float max_turn = turn_speed * dt;
-            if (std::abs(delta) < max_turn) {
-                pos.yaw = movement_yaw;
-            } else {
-                pos.yaw += (delta > 0 ? max_turn : -max_turn);
-            }
-
-            while (pos.yaw < 0.0f) pos.yaw += TWO_PI;
-            while (pos.yaw >= TWO_PI) pos.yaw -= TWO_PI;
+        /**
+         * STEP 3: Read input values from Hub (HUB Pattern - READS)
+         */
+        float forward = hub::get_hub_value(registry, owner, "PLR_INP_FWD"_hs);
+        if (forward == hub::VALUE_NOT_FOUND) {
+            forward = 0.0f;
         }
 
-        identity.last_input = std::chrono::steady_clock::now();
+        float strafe = hub::get_hub_value(registry, owner, "PLR_INP_STR"_hs);
+        if (strafe == hub::VALUE_NOT_FOUND) {
+            strafe = 0.0f;
+        }
+
+        float cam_yaw = hub::get_hub_value(registry, owner, "PLR_CAM_YAW"_hs);
+        if (cam_yaw == hub::VALUE_NOT_FOUND) {
+            cam_yaw = pos.yaw;
+        }
+
+        float orbit_mode = hub::get_hub_value(registry, owner, "PLR_CAM_ORB"_hs);
+        if (orbit_mode == hub::VALUE_NOT_FOUND) {
+            orbit_mode = 0.0f;
+        }
+
+        bool is_moving = (forward != 0.0f || strafe != 0.0f);
+        bool is_orbit = (orbit_mode > 0.5f);
+
+        /**
+         * STEP 4: Update player facing based on camera yaw (if moving and not in orbit mode)
+         */
+        if (is_moving && !is_orbit) {
+            float delta = cam_yaw - pos.yaw;
+            while (delta > math::PI) delta -= math::TWO_PI;
+            while (delta < -math::PI) delta += math::TWO_PI;
+
+            float max_turn = turn_speed * dt;
+            if (math::abs(delta) < max_turn) {
+                pos.yaw = cam_yaw;
+            } else {
+                pos.yaw += (delta > 0.0f ? max_turn : -max_turn);
+            }
+
+            while (pos.yaw < 0.0f) pos.yaw += math::TWO_PI;
+            while (pos.yaw >= math::TWO_PI) pos.yaw -= math::TWO_PI;
+
+            registry.emplace_or_replace<PlayerDirtyTag>(entity);
+        }
+
+        /**
+         * STEP 5: Update last input timestamp
+         */
+        identity.last_input_ms = static_cast<uint64_t>(
+            duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
     }
+}
+
+void PlayerCtrlInputSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerCtrlInputSystem] Stopped");
 }
 
 }  // namespace ase::player

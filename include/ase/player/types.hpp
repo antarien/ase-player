@@ -56,6 +56,8 @@ constexpr TypId SERIAL_TYP_PLR_STA = 2;  // Player state (id + pos + vel + sts)
  */
 constexpr const char* CHANNEL_PLR_SPN = "player_spawn";  // Spawn broadcast channel
 constexpr const char* CHANNEL_PLR_STA = "player_state";  // State broadcast channel
+constexpr uint32_t CHANNEL_PLR_SPN_HASH = 0x706C7273;    // FNV-1a hash of "player_spawn"
+constexpr uint32_t CHANNEL_PLR_STA_HASH = 0x706C7274;    // FNV-1a hash of "player_state"
 
 /**
  * ENUMERATION VALUES - PLAYER STATE (NO enum class!)

@@ -58,7 +58,7 @@ struct PlayerBufBctStaComponent {
     float vx = 0.0f;
     float vy = 0.0f;
     float vz = 0.0f;
-    uint8_t state = 0;
+    uint8_t sts = 0;  // Player state value (see PLAYER_STATE_* in types.hpp)
 };
 
 }  // namespace ase::player

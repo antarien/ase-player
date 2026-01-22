@@ -3,16 +3,18 @@
 /**
  * ASE ECS COMPONENT (STATE)
  *
- * @file        player_st_sts_component.hpp
- * @brief       PlayerStStsComponent - Player state machine
- * @description Current player state (idle, walking, running, etc.)
+ * @file        player_st_inp_mov_component.hpp
+ * @brief       PlayerStInpMovComponent - Player movement input state
+ * @description Local player component for movement input data.
+ *              Replaces cross-module dependency on ase-input.
+ *              Written by player input system from network data.
  *
  * @module      ase-player
- * @layer       3 (Module)
+ * @layer       3 (Modules)
  * @category    state
- * @created     2025-12-25
+ * @created     2026-01-22
  * @modified    2026-01-22
- * @version     1.1.0
+ * @version     1.0.0
  *
  * ECS COMPONENT COMPLIANCE
  *
@@ -43,12 +45,20 @@
  * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
  */
 
-#include <cstdint>
-
 namespace ase::player {
 
-struct PlayerStStsComponent {
-    uint8_t sts = 0;  // Player state value (see PLAYER_STATE_* in types.hpp)
+/**
+ * Field documentation:
+ * forward = Forward/backward movement input (-1 to 1)
+ * strafe  = Left/right strafe input (-1 to 1)
+ * sprint  = Sprint modifier active
+ * jump    = Jump input active
+ */
+struct PlayerStInpMovComponent {
+    float forward = 0.0f;
+    float strafe = 0.0f;
+    bool sprint = false;
+    bool jump = false;
 };
 
 }  // namespace ase::player

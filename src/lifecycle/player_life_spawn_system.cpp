@@ -1,4 +1,154 @@
+/**
+ * ASE ECS SYSTEM IMPLEMENTATION
+ *
+ * @file        player_life_spawn_system.cpp
+ * @brief       PlayerLifeSpawnSystem - Process player spawn and despawn requests
+ *
+ * @module      ase-player
+ * @layer       3 (Modules)
+ * @category    lifecycle
+ * @schedule    Dynamics
+ * @created     2026-01-22
+ * @modified    2026-01-22
+ * @version     1.0.0
+ *
+ * CAUSAL CHAIN (CAUSA_PLR_LIFE_SPAWN: Player Lifecycle Management)
+ *
+ *   [PlayerReqSpawnComponent / PlayerReqDespComponent]
+ *          │
+ *          │ spawn/despawn requests from Integration Layer
+ *          ▼
+ *   ┌─────────────────────────────────────────────┐
+ *   │  THIS SYSTEM: PlayerLifeSpawnSystem         │
+ *   │                                             │
+ *   │  READS:                                     │
+ *   │    - PlayerReqSpawnComponent (requests)     │
+ *   │    - PlayerReqDespComponent (requests)      │
+ *   │    - PlayerStIdComponent (existing check)   │
+ *   │    - "TRN_HGT_AT_POS"_hs (Hub - height)     │
+ *   │                                             │
+ *   │  WRITES:                                    │
+ *   │    - PlayerStIdComponent (create)           │
+ *   │    - PlayerStPosComponent (create)          │
+ *   │    - PlayerStVelComponent (create)          │
+ *   │    - PlayerStPhysComponent (create)         │
+ *   │    - PlayerStStsComponent (create)          │
+ *   │    - PlayerStChkComponent (create)          │
+ *   │    - PlayerSpawnedTag (create)              │
+ *   │    - PlayerDirtyTag (create)                │
+ *   │    - PlayerReqSpawnResComponent (result)    │
+ *   │    - PlayerReqDespResComponent (result)     │
+ *   └─────────────────────────────────────────────┘
+ *          │
+ *          │ player entities created with PlayerSpawnedTag
+ *          ▼
+ *   Observer systems in other modules add their components
+ *   (InputSpawnObserver, CameraSpawnObserver, etc.)
+ *
+ * HUB Pattern (MIG_ASE_HUB)
+ *
+ * READS (from Hub):
+ *   "TRN_HGT_AT_POS"_hs → Terrain height at position (set by terrain module)
+ *
+ * WRITES (to Hub for other modules):
+ *   (none - observer systems read PlayerSpawnedTag directly)
+ *
+ * NOTE: This system ONLY creates player components. Other modules observe
+ * PlayerSpawnedTag and add their own components (input, camera, terrain streaming).
+ *
+ * ECS SYSTEM IMPLEMENTATION COMPLIANCE
+ *
+ * [ ] Layer dependencies checked (only depend on lower layers)
+ * [ ] Existing functions checked (ase-math, ase-utils, ase-containers)
+ * [ ] Abbreviations defined in types.hpp or documentation
+ * [ ] types.hpp created with all constants and enums
+ * [ ] STATELESS? No member variables?
+ * [ ] Views created on demand, not stored?
+ * [ ] NO direct calls to other systems?
+ * [ ] Communication only via Components?
+ * [ ] Helpers in anonymous namespace (NOT static!)?
+ * [ ] Math functions from ase-math (Layer 0)?
+ * [ ] NO file-level static/constexpr?
+ * [ ] Registered in Module with correct Schedule?
+ * [ ] Filename matches convention?
+ * [ ] Class name derived correctly from filename?
+ * [ ] Using Deferred Deletion Pattern? (Tag + Batch Destroy)
+ * [ ] NO destroy() on other entities during iteration?
+ * [ ] Cleanup System in Schedule::Last?
+ * [ ] NO local arrays/vectors for collection?
+ * [ ] 1 File = 1 System?
+ * [ ] Folder structure matches convention?
+ * [ ] components/, systems/, src/ have IDENTICAL subfolder structure?
+ * [ ] Layer dependencies respected (no upward dependencies)?
+ * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
+ * [ ] Serializer functions in anonymous namespace?
+ * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] Math functions from ase-math? (lerp, clamp, noise)
+ * [ ] Containers from ase-containers? (RingBuffer)
+ * [ ] Types from ase-types? (Result, Option)
+ * [ ] Utils from ase-utils? (UUID, hash)
+ * [ ] No duplicate functionality across modules?
+ * [ ] ONLY primitive types: int, float, uint32_t, bool, etc.
+ * [ ] ONLY ase-math for math (NO std::min, std::max, std::clamp!)
+ * [ ] ONLY ase-containers for containers (NO std::vector, std::map, std::unordered_map!)
+ * [ ] ONLY ase-types for Result/Option (NO std::optional, std::expected!)
+ * [ ] std:: FORBIDDEN except: <cstdint>, <cmath> basics, <cassert>
+ * [ ] CAUSAL CHAIN documented (Input → Processing → Output)
+ * [ ] HUB Pattern documented (READS/WRITES)
+ * [ ] hub::get_hub_value() for reads
+ * [ ] hub::set_or_create_hub_value() for writes
+ * [ ] Method order: on_start → tick → on_stop
+ * [ ] ALL THREE METHODS implemented
+ * [ ] on_start/on_stop: log::info with system name
+ * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
+ * [ ] log::error() for EVERY VALUE_NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
+ * [ ] Unused params: (void)dt; or commented parameter name
+ * [ ] NO switch/case statements? (use Tag-filtered Views (separate View per type)!)
+ * [ ] NO if-else chains for type dispatch? (use separate Systems per type!)
+ * [ ] NO instanceof/dynamic_cast checks? (use Tags for entity classification!)
+ * [ ] NO factory patterns with type enums? (use Component composition!)
+ * [ ] NO inheritance hierarchies? (use Component composition!)
+ * [ ] NO virtual dispatch for game logic? (only ecs::System base class allowed!)
+ * [ ] NO singleton patterns? (use Manager Tags on entities!)
+ * [ ] NO state machines with switch? (use Tag-based state + separate Systems!)
+ * [ ] ALL behavior driven by Component DATA, not hardcoded logic?
+ * [ ] NO hardcoded entity types? (types defined by Component composition!)
+ * [ ] NO hardcoded processing order? (order via Schedule + run_after!)
+ * [ ] NO hardcoded value ranges? (ranges in types.hpp constants!)
+ * [ ] NO hardcoded special cases? (special cases = Tags + dedicated Systems!)
+ * [ ] Formulas use Component fields, not magic numbers?
+ * [ ] New behavior = new Component + new System, NOT if-else in existing code?
+ * [ ] NO `find_*()` with View/Query? (use DUAL-PATTERN)
+ * [ ] NO `check_*()`/`has_*()`/`is_*()` with View/Query? (use DUAL-PATTERN)
+ * [ ] NO `get_*()` with View/Query? (use DUAL-PATTERN)
+ * [ ] NO struct in namespace {}? (use Component)
+ * [ ] NO collect-then-process? (use single-pass)
+ * [ ] NO View/Query in Helper? (only pure math)
+ * [ ] NO `bool has_*` for type categories in Components? (use Tags!)
+ * [ ] NO `bool is_*` for type categories in Components? (use Tags!)
+ * [ ] NO `uint8_t *_type` field with if-chain dispatch? (use Tag-filtered Views!)
+ * [ ] Type determined by Tag composition, not boolean field?
+ * [ ] N-item support via Entity-per-Item + Tags, not type booleans?
+ * [ ] Tag-filtered Views per type, not if-chain in single loop?
+ * [ ] NO Entity-per-Character pattern when loading strings?
+ * [ ] String loading uses char[N] fixed arrays or Pointer Pattern?
+ * [ ] String hashing via entt::hashed_string for lookup keys?
+ * [ ] String data stored as single attribute, not per-character entities?
+ * [ ] NO std::shared_ptr in Components? (use Flyweight Pattern!)
+ * [ ] NO void* in Components? (use Flyweight Pattern!)
+ * [ ] NO static std::unordered_map for resource storage? (use ResourceManager via ctx!)
+ * [ ] External resources (shared_ptr, handles) accessed via registry.ctx().get<ResourceManager&>()?
+ * [ ] ResourceManager registered in on_start() via registry.ctx().emplace<ResourceManager&>()?
+ * [ ] Components store ONLY uint32_t IDs referencing external resources?
+ */
+
+// INCLUDES - ONLY THESE ARE ALLOWED!
+// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>
+// ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
+
+// Own header FIRST
 #include <ase/player/systems/lifecycle/player_life_spawn_system.hpp>
+// Components from same module ONLY
 #include <ase/player/components/request/player_req_spawn_component.hpp>
 #include <ase/player/components/request/player_req_desp_component.hpp>
 #include <ase/player/components/request/player_req_spawn_res_component.hpp>
@@ -13,297 +163,50 @@
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 #include <ase/player/components/tag/player_tag_spawned_component.hpp>
 #include <ase/player/components/tag/player_tag_mgr_component.hpp>
+#include <ase/player/components/tag/player_tag_desp_pnd_component.hpp>
+// types.hpp for constants
 #include <ase/player/types.hpp>
-#include <ase/input/input.hpp>
-#include <ase/camera/camera.hpp>
-#include <ase/terrain/components/tag/terrain_tag_strm_obs_component.hpp>
-#include <ase/terrain/components/state/terrain_st_chk_crd_component.hpp>
-#include <ase/terrain/components/state/terrain_st_chk_lyr_component.hpp>
-#include <ase/terrain/types.hpp>
-#include <ase/network/components/player/req/network_plr_req_spawn_component.hpp>
-#include <ase/network/components/player/req/network_plr_req_despawn_component.hpp>
-#include <ase/network/components/player/state/network_plr_state_input_component.hpp>
+// Hub for HUB Pattern (cross-module reads)
+#include <ase/hub/hub.hpp>
+// Logging
 #include <ase/log/log.hpp>
+// Math
+#include <ase/math/math.hpp>
 
-#include <cmath>
-#include <vector>
+#include <chrono>
+#include <cstring>
 
 namespace ase::player {
+using namespace entt::literals;  // For "_hs hashed strings (Hub)
 
+/**
+ * Anonymous namespace for helper FUNCTIONS (NOT static!)
+ * IMPORTANT: Use anonymous namespace, NOT static keyword!
+ *   ✅ namespace { void helper() {...} }   // CORRECT
+ *   ❌ static void helper() {...}          // WRONG!
+ * NO STRUCTS HERE! Structs = Data = Components!
+ */
 namespace {
 
-// OOP ANTI-PATTERN REMOVED:
-// find_player_by_id(), get_terrain_height(), get_movement_settings()
-// helpers with View iteration are FORBIDDEN!
-// See INST_ASE_ECS_SER_TAGS.md
-//
-// INLINED: View iteration now happens directly in calling functions.
-// Views created once per function, then iterated inline.
-
-ecs::Entity create_player_entity(
-    ecs::Registry& registry,
-    const std::string& player_id,
-    float x, float z
-) {
-    // INLINED: get_terrain_height() - no helper with View!
-    float ground_y = 0.0f;
-    {
-        int32_t chunk_x = static_cast<int32_t>(std::floor(x / terrain::CHUNK_SIZE));
-        int32_t chunk_y = static_cast<int32_t>(std::floor(z / terrain::CHUNK_SIZE));
-        auto terrain_view = registry.view<terrain::TerrainStChkCrdComponent, terrain::TerrainStChkLyrComponent>();
-        for (auto [te, crd, lyr] : terrain_view.each()) {
-            if (crd.x == chunk_x && crd.y == chunk_y && lyr.hgt_ptr != 0) {
-                float local_x = x - (chunk_x * terrain::CHUNK_SIZE);
-                float local_z = z - (chunk_y * terrain::CHUNK_SIZE);
-                size_t ix = static_cast<size_t>(local_x);
-                size_t iy = static_cast<size_t>(local_z);
-                if (ix < terrain::MACRO_RESOLUTION && iy < terrain::MACRO_RESOLUTION) {
-                    auto* hgt = reinterpret_cast<float*>(lyr.hgt_ptr);
-                    ground_y = hgt[iy * terrain::MACRO_RESOLUTION + ix];
-                }
-                break;  // Found the chunk
-            }
-        }
-    }
-
-    // INLINED: get_movement_settings() - no helper with View!
-    PlayerStMovComponent mov;
-    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
-    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
-    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
-    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
-    mov.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
-    mov.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
-    mov.ground_snap_dist = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
-    mov.turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
-    mov.min_speed_threshold = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
-    mov.velocity_epsilon = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
-    mov.eye_height = MOVEMENT_DEFAULT_EYE_HEIGHT;
-    mov.chunk_size = MOVEMENT_DEFAULT_CHUNK_SIZE;
-    // Override with existing settings if any player has them
-    {
-        auto mov_view = registry.view<PlayerStMovComponent>();
-        for (auto [me, existing_mov] : mov_view.each()) {
-            mov = existing_mov;
-            break;  // Use first found
-        }
-    }
-
-    auto entity = registry.create();
-
-    auto& identity = registry.emplace<PlayerStIdComponent>(entity);
-    identity.player_id = player_id;
-    identity.spawned_at = std::chrono::steady_clock::now();
-    identity.last_input = identity.spawned_at;
-
-    auto& pos = registry.emplace<PlayerStPosComponent>(entity);
-    pos.x = x;
-    pos.y = ground_y;
-    pos.z = z;
-    pos.yaw = 0.0f;
-
-    registry.emplace<PlayerStVelComponent>(entity);
-
-    auto& physics = registry.emplace<PlayerStPhysComponent>(entity);
-    physics.on_ground = true;
-    physics.gravity_enabled = true;
-
-    auto& state = registry.emplace<PlayerStStsComponent>(entity);
-    state.state = PLAYER_STATE_IDLE;
-
-    auto& chunk = registry.emplace<PlayerStChkComponent>(entity);
-    chunk.chunk_x = static_cast<int32_t>(std::floor(x / mov.chunk_size));
-    chunk.chunk_y = static_cast<int32_t>(std::floor(z / mov.chunk_size));
-
-    registry.emplace<input::InputStateMoveComponent>(entity);
-    registry.emplace<input::InputStateActionComponent>(entity);
-    registry.emplace<input::InputStateCameraComponent>(entity);
-    auto& input_meta = registry.emplace<input::InputStateMetaComponent>(entity);
-    input_meta.controller_id = player_id;
-    input_meta.last_update = std::chrono::steady_clock::now();
-
-    registry.emplace<input::InputLocalTag>(entity);
-
-    auto& cam_pos = registry.emplace<camera::CameraStPosComponent>(entity);
-    cam_pos.tgt_x = x;
-    cam_pos.tgt_y = ground_y + mov.eye_height;
-    cam_pos.tgt_z = z;
-    cam_pos.pos_x = x;
-    cam_pos.pos_y = ground_y + mov.eye_height + 15.0f;
-    cam_pos.pos_z = z + 15.0f;
-
-    auto& cam_orient = registry.emplace<camera::CameraStOrtComponent>(entity);
-    cam_orient.pitch = 0.4f;
-
-    registry.emplace<camera::CameraStInpComponent>(entity);
-
-    auto& cam_orbit = registry.emplace<camera::CameraStOrbComponent>(entity);
-    cam_orbit.distance = 15.0f;
-    cam_orbit.target_distance = 15.0f;
-
-    auto& cam_target = registry.emplace<camera::CameraStTgtComponent>(entity);
-    cam_target.target_entity = static_cast<uint32_t>(entity);
-
-    registry.emplace<camera::CameraTpTag>(entity);
-    registry.emplace<camera::CameraActTag>(entity);
-
-    registry.emplace<PlayerSpawnedTag>(entity);
-    registry.emplace<PlayerDirtyTag>(entity);
-
-    // Terrain streaming: player is an observer that needs chunks loaded
-    auto& strm_obs = registry.emplace<terrain::TerrainStrmObsComponent>(entity);
-    strm_obs.chunk_x = chunk.chunk_x;
-    strm_obs.chunk_y = chunk.chunk_y;
-    strm_obs.needs_update = true;  // Trigger initial chunk loading
-
-    return entity;
-}
-
-void process_spawn_requests(ecs::Registry& registry) {
-    auto view = registry.view<PlayerReqSpawnComponent>();
-    auto player_view = registry.view<PlayerStIdComponent>();  // View created once
-
-    for (auto [request_entity, request] : view.each()) {
-        ecs::Entity result_entity = ecs::NullEntity;
-        bool success = false;
-
-        // INLINED: find_player_by_id() - no helper with View!
-        ecs::Entity existing_player = ecs::NullEntity;
-        for (auto [pe, identity] : player_view.each()) {
-            if (identity.player_id == request.player_id) {
-                existing_player = pe;
-                break;
-            }
-        }
-
-        if (existing_player == ecs::NullEntity) {
-            result_entity = create_player_entity(
-                registry, request.player_id, request.x, request.z
-            );
-            success = true;
-            log::info("[PlayerLifeSpawnSystem] Spawned player: {}", request.player_id);
-        } else {
-            log::warn("[PlayerLifeSpawnSystem] Player already exists: {}", request.player_id);
-        }
-
-        auto& result = registry.emplace<PlayerReqSpawnResComponent>(request_entity);
-        result.spawned_entity = result_entity;
-        result.success = success;
-
-        registry.remove<PlayerReqSpawnComponent>(request_entity);
-    }
-}
-
-void process_despawn_requests(ecs::Registry& registry) {
-    auto view = registry.view<PlayerReqDespComponent>();
-    auto player_view = registry.view<PlayerStIdComponent>();  // View created once
-    std::vector<ecs::Entity> to_destroy;
-
-    for (auto [request_entity, request] : view.each()) {
-        bool success = false;
-
-        // INLINED: find_player_by_id() - no helper with View!
-        ecs::Entity player_entity = ecs::NullEntity;
-        for (auto [pe, identity] : player_view.each()) {
-            if (identity.player_id == request.player_id) {
-                player_entity = pe;
-                break;
-            }
-        }
-
-        if (player_entity != ecs::NullEntity && registry.valid(player_entity)) {
-            to_destroy.push_back(player_entity);
-            success = true;
-            log::info("[PlayerLifeSpawnSystem] Despawned player: {}", request.player_id);
-        } else {
-            log::warn("[PlayerLifeSpawnSystem] Player not found: {}", request.player_id);
-        }
-
-        auto& result = registry.emplace<PlayerReqDespResComponent>(request_entity);
-        result.success = success;
-
-        registry.remove<PlayerReqDespComponent>(request_entity);
-    }
-
-    for (auto entity : to_destroy) {
-        registry.destroy(entity);
-    }
-}
-
-void process_network_spawn_requests(ecs::Registry& registry) {
-    auto view = registry.view<network::NetworkPlrReqSpawnComponent>();
-    auto player_view = registry.view<PlayerStIdComponent>();  // View created once
-    std::vector<ecs::Entity> to_destroy;
-
-    for (auto [request_entity, req] : view.each()) {
-        std::string player_id(req.player_id.data());
-
-        // INLINED: find_player_by_id() - no helper with View!
-        ecs::Entity existing_player = ecs::NullEntity;
-        for (auto [pe, identity] : player_view.each()) {
-            if (identity.player_id == player_id) {
-                existing_player = pe;
-                break;
-            }
-        }
-
-        if (existing_player == ecs::NullEntity) {
-            create_player_entity(registry, player_id, req.x, req.z);
-            log::info("[PlayerLifeSpawnSystem] Spawned player from network: {} at ({}, {})",
-                     player_id, req.x, req.z);
-        } else {
-            log::warn("[PlayerLifeSpawnSystem] Player already exists: {}", player_id);
-        }
-
-        to_destroy.push_back(request_entity);
-    }
-
-    for (auto entity : to_destroy) {
-        registry.destroy(entity);
-    }
-}
-
-void process_network_despawn_requests(ecs::Registry& registry) {
-    auto view = registry.view<network::NetworkPlrReqDespawnComponent>();
-    auto player_view = registry.view<PlayerStIdComponent>();  // View created once
-    std::vector<ecs::Entity> to_destroy_requests;
-    std::vector<ecs::Entity> to_destroy_players;
-
-    for (auto [request_entity, req] : view.each()) {
-        std::string player_id(req.player_id.data());
-
-        // INLINED: find_player_by_id() - no helper with View!
-        ecs::Entity player_entity = ecs::NullEntity;
-        for (auto [pe, identity] : player_view.each()) {
-            if (identity.player_id == player_id) {
-                player_entity = pe;
-                break;
-            }
-        }
-
-        if (player_entity != ecs::NullEntity && registry.valid(player_entity)) {
-            to_destroy_players.push_back(player_entity);
-            log::info("[PlayerLifeSpawnSystem] Despawned player from network: {}", player_id);
-        } else {
-            log::warn("[PlayerLifeSpawnSystem] Player not found for despawn: {}", player_id);
-        }
-
-        to_destroy_requests.push_back(request_entity);
-    }
-
-    for (auto entity : to_destroy_players) {
-        registry.destroy(entity);
-    }
-    for (auto entity : to_destroy_requests) {
-        registry.destroy(entity);
-    }
-}
+// No helper functions needed - all logic inlined in system methods
 
 }  // anonymous namespace
 
+// SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
+// ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
+
 void PlayerLifeSpawnSystem::on_start(ecs::Registry& registry) {
+    log::info("[PlayerLifeSpawnSystem] Started");
+
     auto view = registry.view<PlayerMgrTag>();
-    if (view.empty()) {
+    bool mgr_exists = false;
+    for (auto e : view) {
+        (void)e;
+        mgr_exists = true;
+        break;
+    }
+
+    if (!mgr_exists) {
         auto mgr = registry.create();
         registry.emplace<PlayerMgrTag>(mgr);
 
@@ -325,28 +228,192 @@ void PlayerLifeSpawnSystem::on_start(ecs::Registry& registry) {
     }
 }
 
-void PlayerLifeSpawnSystem::on_stop(ecs::Registry& registry) {
-    // Despawn all players on shutdown
-    std::vector<ecs::Entity> to_destroy;
-    auto view = registry.view<PlayerStIdComponent>();
-    for (auto entity : view) {
-        to_destroy.push_back(entity);
+void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
+    using namespace std::chrono;
+
+    /**
+     * STEP 1: Get movement settings from manager
+     */
+    PlayerStMovComponent mov;
+    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
+    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
+    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
+    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
+    mov.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
+    mov.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
+    mov.ground_snap_dist = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
+    mov.turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
+    mov.min_speed_threshold = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
+    mov.velocity_epsilon = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
+    mov.eye_height = MOVEMENT_DEFAULT_EYE_HEIGHT;
+    mov.chunk_size = MOVEMENT_DEFAULT_CHUNK_SIZE;
+
+    auto mov_view = registry.view<PlayerStMovComponent>();
+    for (auto [e, existing_mov] : mov_view.each()) {
+        (void)e;
+        mov = existing_mov;
+        break;
     }
 
-    for (auto entity : to_destroy) {
+    /**
+     * STEP 2: Process local spawn requests (iterator pattern for entity creation)
+     */
+    auto spawn_view = registry.view<PlayerReqSpawnComponent>();
+    auto spawn_it = spawn_view.begin();
+    auto spawn_end = spawn_view.end();
+    while (spawn_it != spawn_end) {
+        auto request_entity = *spawn_it;
+        ++spawn_it;
+
+        auto& request = registry.get<PlayerReqSpawnComponent>(request_entity);
+        ecs::Entity result_entity = ecs::NullEntity;
+        bool success = false;
+
+        // Check if player already exists
+        bool player_exists = false;
+        auto player_view = registry.view<PlayerStIdComponent>();
+        for (auto [pe, identity] : player_view.each()) {
+            (void)pe;
+            if (std::strncmp(identity.player_id, request.player_id,
+                             sizeof(identity.player_id) - 1) == 0) {
+                player_exists = true;
+                break;
+            }
+        }
+
+        if (!player_exists) {
+            // Get terrain height via Hub (HUB Pattern - READS)
+            float ground_y = 0.0f;
+            uint32_t pos_hash = static_cast<uint32_t>(
+                static_cast<int32_t>(request.x) * 73856093 ^
+                static_cast<int32_t>(request.z) * 19349663);
+            float hub_height = hub::get_hub_value(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
+            if (hub_height != hub::VALUE_NOT_FOUND) {
+                ground_y = hub_height;
+            }
+            // Note: If terrain height not in Hub, spawn at y=0 (terrain module will update)
+
+            // Create player entity with ONLY player components
+            result_entity = registry.create();
+
+            auto& identity = registry.emplace<PlayerStIdComponent>(result_entity);
+            std::strncpy(identity.player_id, request.player_id, sizeof(identity.player_id) - 1);
+            identity.player_id[sizeof(identity.player_id) - 1] = '\0';
+            identity.spawned_at_ms = static_cast<uint64_t>(
+                duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+            identity.last_input_ms = identity.spawned_at_ms;
+
+            auto& pos = registry.emplace<PlayerStPosComponent>(result_entity);
+            pos.x = request.x;
+            pos.y = ground_y;
+            pos.z = request.z;
+            pos.yaw = 0.0f;
+
+            registry.emplace<PlayerStVelComponent>(result_entity);
+
+            auto& physics = registry.emplace<PlayerStPhysComponent>(result_entity);
+            physics.on_ground = true;
+            physics.gravity_enabled = true;
+
+            auto& sts = registry.emplace<PlayerStStsComponent>(result_entity);
+            sts.sts = PLAYER_STATE_IDLE;
+
+            auto& chunk = registry.emplace<PlayerStChkComponent>(result_entity);
+            chunk.chunk_x = static_cast<int32_t>(math::floor(request.x / mov.chunk_size));
+            chunk.chunk_y = static_cast<int32_t>(math::floor(request.z / mov.chunk_size));
+
+            // Lifecycle tags - observer systems in other modules will see these
+            // and add their own components (input, camera, terrain streaming)
+            registry.emplace<PlayerSpawnedTag>(result_entity);
+            registry.emplace<PlayerDirtyTag>(result_entity);
+
+            success = true;
+            log::debug("[PlayerLifeSpawnSystem] Spawned player");
+        } else {
+            log::debug("[PlayerLifeSpawnSystem] Player already exists");
+        }
+
+        auto& result = registry.emplace<PlayerReqSpawnResComponent>(request_entity);
+        result.spawned_entity = result_entity;
+        result.success = success;
+
+        registry.remove<PlayerReqSpawnComponent>(request_entity);
+    }
+
+    /**
+     * STEP 3: Process local despawn requests (use deferred deletion)
+     */
+    auto desp_view = registry.view<PlayerReqDespComponent>();
+    auto desp_it = desp_view.begin();
+    auto desp_end = desp_view.end();
+    while (desp_it != desp_end) {
+        auto request_entity = *desp_it;
+        ++desp_it;
+
+        auto& request = registry.get<PlayerReqDespComponent>(request_entity);
+        bool success = false;
+
+        // Find and mark player for deletion
+        auto player_view = registry.view<PlayerStIdComponent>();
+        for (auto [pe, identity] : player_view.each()) {
+            if (std::strncmp(identity.player_id, request.player_id,
+                             sizeof(identity.player_id) - 1) == 0) {
+                registry.emplace_or_replace<PlayerDespPndTag>(pe);
+                success = true;
+                log::debug("[PlayerLifeSpawnSystem] Marked player for despawn");
+                break;
+            }
+        }
+
+        if (!success) {
+            log::debug("[PlayerLifeSpawnSystem] Player not found for despawn");
+        }
+
+        auto& result = registry.emplace<PlayerReqDespResComponent>(request_entity);
+        result.success = success;
+
+        registry.remove<PlayerReqDespComponent>(request_entity);
+    }
+
+    /**
+     * STEP 4: Destroy entities tagged for despawn (deferred deletion)
+     */
+    auto pnd_view = registry.view<PlayerDespPndTag>();
+    auto pnd_it = pnd_view.begin();
+    auto pnd_end = pnd_view.end();
+    while (pnd_it != pnd_end) {
+        auto entity = *pnd_it;
+        ++pnd_it;
         registry.destroy(entity);
-    }
-
-    if (!to_destroy.empty()) {
-        log::info("[PlayerLifeSpawnSystem] Despawned {} players on shutdown", to_destroy.size());
     }
 }
 
-void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
-    process_spawn_requests(registry);
-    process_despawn_requests(registry);
-    process_network_spawn_requests(registry);
-    process_network_despawn_requests(registry);
+void PlayerLifeSpawnSystem::on_stop(ecs::Registry& registry) {
+    log::info("[PlayerLifeSpawnSystem] Stopping");
+
+    // Tag all players for despawn
+    auto view = registry.view<PlayerStIdComponent>();
+    uint32_t count = 0;
+    for (auto entity : view) {
+        registry.emplace_or_replace<PlayerDespPndTag>(entity);
+        ++count;
+    }
+
+    // Destroy all tagged entities
+    auto pnd_view = registry.view<PlayerDespPndTag>();
+    auto pnd_it = pnd_view.begin();
+    auto pnd_end = pnd_view.end();
+    while (pnd_it != pnd_end) {
+        auto entity = *pnd_it;
+        ++pnd_it;
+        registry.destroy(entity);
+    }
+
+    if (count > 0) {
+        log::info("[PlayerLifeSpawnSystem] Despawned {} players on shutdown", count);
+    }
+
+    log::info("[PlayerLifeSpawnSystem] Stopped");
 }
 
 }  // namespace ase::player

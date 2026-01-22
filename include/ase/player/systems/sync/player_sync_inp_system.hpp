@@ -3,23 +3,26 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_ctrl_input_system.hpp
- * @brief       PlayerCtrlInputSystem - Process player input and update facing direction
- * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Updates player yaw rotation towards movement direction.
+ * @file        player_sync_inp_system.hpp
+ * @brief       PlayerSyncInpSystem - Sync Hub input values to Input Component
+ * @description SYN PATTERN: Reads Hub values and writes to PlayerInpExtComponent.
+ *              Calculation systems read from PlayerInpExtComponent (no Hub access).
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    control
- * @schedule    Kinematics
+ * @category    sync
+ * @schedule    Synchronization
  * @created     2026-01-22
  * @modified    2026-01-22
  * @version     1.0.0
  *
- * ARCHITECTURE (SYN Pattern - SHARED Calc System):
+ * ARCHITECTURE:
  *
- *   PlayerInpExtComponent ──> PlayerCtrlInputSystem ──> PlayerStPosComponent
- *   (from PlayerSyncInpSystem)  (processes input)       (yaw rotation)
+ *   Hub Values ──> PlayerSyncInpSystem ──> PlayerInpExtComponent
+ *   PLR_INP_FWD     (reads Hub)             (bridge data)
+ *   PLR_INP_STR
+ *   PLR_CAM_YAW
+ *   TRN_HGT_AT_POS
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -41,16 +44,15 @@
 namespace ase::player {
 
 /**
- * @brief Process player input and update facing direction (SHARED)
+ * @brief Sync Hub input values to PlayerInpExtComponent
  *
- * @schedule Kinematics - processes input for movement
- * @reads    PlayerInpExtComponent (input bridge from SyncSystem)
- * @reads    PlayerStIdComponent, PlayerStPosComponent, PlayerStMovComponent
- * @writes   PlayerStPosComponent (yaw rotation towards movement)
+ * @schedule Synchronization - before calculation systems
+ * @reads    Hub values: PLR_INP_FWD, PLR_INP_STR, PLR_CAM_YAW, TRN_HGT_AT_POS
+ * @writes   PlayerInpExtComponent
  */
-class PlayerCtrlInputSystem : public ecs::System {
+class PlayerSyncInpSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerCtrlInputSystem"; }
+    const char* name() const override { return "PlayerSyncInpSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;
