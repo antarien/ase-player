@@ -5,23 +5,23 @@
  *
  * @file        player_state_status_system.hpp
  * @brief       PlayerStateStatusSystem - Update player state machine
- * @description Updates player state (idle, walking, running, jumping) based on
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Updates player state (idle, walking, running, jumping) based on
  *              velocity and physics state.
- *              ECS STATELESS: No private member state!
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    state
- * @schedule    Integration
+ * @schedule    Kinematics
  * @created     2026-01-22
  * @modified    2026-01-22
  * @version     1.0.0
  *
- * ARCHITECTURE:
+ * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
  *   PlayerStVelComponent ──────┐
  *   PlayerStPhysComponent ─────┼──> PlayerStateStatusSystem ──> PlayerStStsComponent
- *   InputStateMoveComponent ───┘    (state machine)
+ *   PlayerInpExtComponent ─────┘    (state machine)
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -43,10 +43,10 @@
 namespace ase::player {
 
 /**
- * @brief Update player state machine
+ * @brief Update player state machine (SHARED)
  *
- * @schedule Integration - after physics, before state-dependent systems
- * @reads    PlayerStVelComponent, PlayerStPhysComponent, InputStateMoveComponent
+ * @schedule Kinematics - after physics, before state-dependent systems
+ * @reads    PlayerStVelComponent, PlayerStPhysComponent, PlayerInpExtComponent
  * @writes   PlayerStStsComponent
  */
 class PlayerStateStatusSystem : public ecs::System {

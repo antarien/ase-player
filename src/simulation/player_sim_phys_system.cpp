@@ -3,6 +3,8 @@
  *
  * @file        player_sim_phys_system.cpp
  * @brief       PlayerSimPhysSystem - Apply physics simulation to player entities
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -20,15 +22,16 @@
  *          ▼
  *   ┌─────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerSimPhysSystem           │
+ *   │  (SHARED - no Hub access)                   │
  *   │                                             │
- *   │  READS:                                     │
+ *   │  READS (from Components):                   │
+ *   │    - PlayerInpExtComponent (trn_hgt)        │
  *   │    - PlayerStPosComponent (position)        │
  *   │    - PlayerStVelComponent (velocity)        │
  *   │    - PlayerStPhysComponent (physics state)  │
  *   │    - PlayerStMovComponent (settings)        │
- *   │    - "TRN_HGT_AT_POS"_hs (Hub - terrain)    │
  *   │                                             │
- *   │  WRITES:                                    │
+ *   │  WRITES (to Components):                    │
  *   │    - PlayerStPosComponent (x, y, z)         │
  *   │    - PlayerStVelComponent (vy on ground)    │
  *   │    - PlayerStPhysComponent (on_ground)      │
@@ -39,13 +42,13 @@
  *          ▼
  *   PlayerBctReqSystem (broadcasts state changes)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * SYN Pattern (SHARED Calc System)
  *
- * READS (from ase-terrain via Hub):
- *   "TRN_HGT_AT_POS"_hs → Ground height at position
+ * READS (from PlayerInpExtComponent - filled by PlayerSyncInpSystem):
+ *   trn_hgt → Ground height at position
  *
- * WRITES (to Hub for other modules):
- *   (none - writes to Components directly)
+ * WRITES (to Components only - no Hub writes):
+ *   (none)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -140,6 +143,7 @@
 // Own header FIRST
 #include <ase/player/systems/simulation/player_sim_phys_system.hpp>
 // Components from same module ONLY
+#include <ase/player/components/input/player_inp_ext_component.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_vel_component.hpp>
 #include <ase/player/components/state/player_st_phys_component.hpp>
@@ -147,15 +151,13 @@
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Hub for HUB Pattern
-#include <ase/hub/hub.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
 #include <ase/math/math.hpp>
 
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings (Hub)
+using namespace entt::literals;  // For "_hs hashed strings
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
@@ -193,15 +195,17 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
     }
 
     /**
-     * STEP 2: Process each player entity
+     * STEP 2: Process each player entity with input data (SYN Pattern)
+     * Reads terrain height from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
     auto view = registry.view<
+        PlayerInpExtComponent,
         PlayerStPosComponent,
         PlayerStVelComponent,
         PlayerStPhysComponent
     >();
 
-    for (auto [entity, pos, vel, physics] : view.each()) {
+    for (auto [entity, inp, pos, vel, physics] : view.each()) {
         /**
          * STEP 3: Apply velocity to position
          */
@@ -210,16 +214,10 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
         pos.z += vel.vz * dt;
 
         /**
-         * STEP 4: Get terrain height via Hub (HUB Pattern - READS)
-         * Uses position hash to query terrain height from ase-terrain module
+         * STEP 4: Get terrain height from PlayerInpExtComponent (SYN Pattern)
+         * Terrain height was synced from Hub by PlayerSyncInpSystem
          */
-        uint32_t pos_hash = static_cast<uint32_t>(
-            static_cast<int32_t>(pos.x) * 73856093 ^
-            static_cast<int32_t>(pos.z) * 19349663);
-        float ground_height = hub::get_hub_value(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
-        if (ground_height == hub::VALUE_NOT_FOUND) {
-            ground_height = 0.0f;
-        }
+        float ground_height = inp.trn_hgt;
 
         /**
          * STEP 5: Ground collision detection and response

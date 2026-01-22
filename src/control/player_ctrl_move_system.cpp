@@ -3,6 +3,8 @@
  *
  * @file        player_ctrl_move_system.cpp
  * @brief       PlayerCtrlMoveSystem - Calculate player velocity from input
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -14,25 +16,22 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_CTRL_MOV: Player Movement Calculation)
  *
- *   [Hub Input Values + PlayerStPosComponent]
+ *   [PlayerInpExtComponent from PlayerSyncInpSystem]
  *          │
- *          │ input and facing direction
+ *          │ input values from Component (SYN Pattern)
  *          ▼
  *   ┌─────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerCtrlMoveSystem          │
+ *   │  (SHARED - no Hub access)                   │
  *   │                                             │
- *   │  READS:                                     │
+ *   │  READS (from Components):                   │
+ *   │    - PlayerInpExtComponent (input bridge)   │
  *   │    - PlayerStPosComponent (yaw)             │
  *   │    - PlayerStVelComponent (current vel)     │
  *   │    - PlayerStPhysComponent (on_ground)      │
  *   │    - PlayerStMovComponent (speed settings)  │
- *   │    - "PLR_INP_FWD"_hs (Hub - forward)       │
- *   │    - "PLR_INP_STR"_hs (Hub - strafe)        │
- *   │    - "PLR_INP_SPRINT"_hs (Hub - sprint)     │
- *   │    - "PLR_INP_JUMP"_hs (Hub - jump)         │
- *   │    - "PLR_CAM_YAW"_hs (Hub - movement yaw)  │
  *   │                                             │
- *   │  WRITES:                                    │
+ *   │  WRITES (to Components):                    │
  *   │    - PlayerStVelComponent (vx, vy, vz)      │
  *   │    - PlayerStPhysComponent (on_ground)      │
  *   └─────────────────────────────────────────────┘
@@ -41,17 +40,17 @@
  *          ▼
  *   PlayerSimPhysSystem (applies velocity to position)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * SYN Pattern (SHARED Calc System)
  *
- * READS (from ase-input via Hub):
- *   "PLR_INP_FWD"_hs    → Forward input (-1 to 1)
- *   "PLR_INP_STR"_hs    → Strafe input (-1 to 1)
- *   "PLR_INP_SPRINT"_hs → Sprint input (0 or 1)
- *   "PLR_INP_JUMP"_hs   → Jump input (0 or 1)
- *   "PLR_CAM_YAW"_hs    → Camera movement yaw
+ * READS (from PlayerInpExtComponent - filled by PlayerSyncInpSystem):
+ *   inp_fwd     → Forward input (-1 to 1)
+ *   inp_str     → Strafe input (-1 to 1)
+ *   inp_sprint  → Sprint input (0 or 1)
+ *   inp_jump    → Jump input (0 or 1)
+ *   cam_yaw     → Camera yaw (radians)
  *
- * WRITES (to Hub for other modules):
- *   (none - writes to Components directly)
+ * WRITES (to Components only - no Hub writes):
+ *   (none)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -146,21 +145,20 @@
 // Own header FIRST
 #include <ase/player/systems/control/player_ctrl_move_system.hpp>
 // Components from same module ONLY
+#include <ase/player/components/input/player_inp_ext_component.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_vel_component.hpp>
 #include <ase/player/components/state/player_st_phys_component.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Hub for HUB Pattern
-#include <ase/hub/hub.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
 #include <ase/math/math.hpp>
 
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings (Hub)
+using namespace entt::literals;  // For "_hs hashed strings
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
@@ -202,46 +200,25 @@ void PlayerCtrlMoveSystem::tick(ecs::Registry& registry, float dt) {
     }
 
     /**
-     * STEP 2: Process each player entity
+     * STEP 2: Process each player entity with input data (SYN Pattern)
+     * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
     auto view = registry.view<
+        PlayerInpExtComponent,
         PlayerStPosComponent,
         PlayerStVelComponent,
         PlayerStPhysComponent
     >();
 
-    for (auto [entity, pos, vel, physics] : view.each()) {
-        uint32_t owner = static_cast<uint32_t>(entity);
-
+    for (auto [entity, inp, pos, vel, physics] : view.each()) {
         /**
-         * STEP 3: Read input values from Hub (HUB Pattern - READS)
+         * STEP 3: Read input values from PlayerInpExtComponent (SYN Pattern)
          */
-        float forward = hub::get_hub_value(registry, owner, "PLR_INP_FWD"_hs);
-        if (forward == hub::VALUE_NOT_FOUND) {
-            forward = 0.0f;
-        }
-
-        float strafe = hub::get_hub_value(registry, owner, "PLR_INP_STR"_hs);
-        if (strafe == hub::VALUE_NOT_FOUND) {
-            strafe = 0.0f;
-        }
-
-        float sprint_val = hub::get_hub_value(registry, owner, "PLR_INP_SPRINT"_hs);
-        if (sprint_val == hub::VALUE_NOT_FOUND) {
-            sprint_val = 0.0f;
-        }
-        bool sprint = (sprint_val > 0.5f);
-
-        float jump_val = hub::get_hub_value(registry, owner, "PLR_INP_JUMP"_hs);
-        if (jump_val == hub::VALUE_NOT_FOUND) {
-            jump_val = 0.0f;
-        }
-        bool jump = (jump_val > 0.5f);
-
-        float movement_yaw = hub::get_hub_value(registry, owner, "PLR_CAM_YAW"_hs);
-        if (movement_yaw == hub::VALUE_NOT_FOUND) {
-            movement_yaw = pos.yaw;
-        }
+        float forward = inp.inp_fwd;
+        float strafe = inp.inp_str;
+        bool sprint = (inp.inp_sprint > 0.5f);
+        bool jump = (inp.inp_jump > 0.5f);
+        float movement_yaw = inp.cam_yaw;
 
         /**
          * STEP 4: Calculate movement direction using ase-math
@@ -294,6 +271,9 @@ void PlayerCtrlMoveSystem::tick(ecs::Registry& registry, float dt) {
         if (!physics.on_ground && physics.gravity_enabled) {
             vel.vy -= mov.gravity * dt;
         }
+
+        (void)pos;  // Position read for potential future use
+        (void)entity;  // Entity available for potential tagging
     }
 }
 

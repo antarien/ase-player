@@ -3,6 +3,8 @@
  *
  * @file        player_state_status_system.cpp
  * @brief       PlayerStateStatusSystem - Determine player movement state from velocity and physics
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -20,14 +22,15 @@
  *          ▼
  *   ┌─────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerStateStatusSystem       │
+ *   │  (SHARED - no Hub access)                   │
  *   │                                             │
- *   │  READS:                                     │
+ *   │  READS (from Components):                   │
+ *   │    - PlayerInpExtComponent (inp_sprint)     │
  *   │    - PlayerStVelComponent (vx, vy, vz)      │
  *   │    - PlayerStPhysComponent (on_ground)      │
  *   │    - PlayerStMovComponent (min_speed)       │
- *   │    - "PLR_INP_SPRINT"_hs (Hub)              │
  *   │                                             │
- *   │  WRITES:                                    │
+ *   │  WRITES (to Components):                    │
  *   │    - PlayerStStsComponent (sts)             │
  *   └─────────────────────────────────────────────┘
  *          │
@@ -35,13 +38,13 @@
  *          ▼
  *   PlayerBctReqSystem (reads sts for broadcast)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * SYN Pattern (SHARED Calc System)
  *
- * READS (from ase-input via Hub):
- *   "PLR_INP_SPRINT"_hs → Whether player is sprinting (1.0f = sprint, 0.0f = walk)
+ * READS (from PlayerInpExtComponent - filled by PlayerSyncInpSystem):
+ *   inp_sprint → Whether player is sprinting (1.0f = sprint, 0.0f = walk)
  *
- * WRITES (to Hub for other modules):
- *   (none - writes to Component only)
+ * WRITES (to Components only - no Hub writes):
+ *   (none)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -136,6 +139,7 @@
 // Own header FIRST
 #include <ase/player/systems/state/player_state_status_system.hpp>
 // Components from same module
+#include <ase/player/components/input/player_inp_ext_component.hpp>
 #include <ase/player/components/state/player_st_vel_component.hpp>
 #include <ase/player/components/state/player_st_phys_component.hpp>
 #include <ase/player/components/state/player_st_sts_component.hpp>
@@ -143,15 +147,13 @@
 #include <ase/player/components/state/player_st_id_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Hub for HUB Pattern
-#include <ase/hub/hub.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
 #include <ase/math/math.hpp>
 
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings (Hub)
+using namespace entt::literals;  // For "_hs hashed strings
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
@@ -187,19 +189,20 @@ void PlayerStateStatusSystem::tick(ecs::Registry& registry, float /*dt*/) {
     }
 
     /**
-     * STEP 2: Create view for player entities with required components
-     * Views are created on demand, not stored as member variables.
+     * STEP 2: Create view for player entities with required components (SYN Pattern)
+     * Reads sprint input from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
     auto view = registry.view<
+        PlayerInpExtComponent,
         PlayerStIdComponent,
         PlayerStVelComponent,
         PlayerStPhysComponent,
         PlayerStStsComponent
     >();
 
-    for (auto [entity, id, vel, physics, state] : view.each()) {
+    for (auto [entity, inp, id, vel, physics, state] : view.each()) {
         (void)id;
-        uint32_t owner = static_cast<uint32_t>(entity);
+        (void)entity;
 
         /**
          * STEP 3: Calculate horizontal speed using ase-math
@@ -207,15 +210,10 @@ void PlayerStateStatusSystem::tick(ecs::Registry& registry, float /*dt*/) {
         float speed_xz = math::sqrt(vel.vx * vel.vx + vel.vz * vel.vz);
 
         /**
-         * STEP 4: Read sprint input from Hub (HUB Pattern - READS)
+         * STEP 4: Read sprint input from PlayerInpExtComponent (SYN Pattern)
          */
-        float sprint_val = hub::get_hub_value(registry, owner, "PLR_INP_SPRINT"_hs);
-        if (sprint_val == hub::VALUE_NOT_FOUND) {
-            log::error(log::ERR::CAT::HUB_NOT_FOUND, "PlayerStateStatusSystem", owner, "PLR_INP_SPRINT");
-            sprint_val = 0.0f;
-        }
+        float sprint_val = inp.inp_sprint;
         if (sprint_val < 0.0f || sprint_val > 1.0f) {
-            log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerStateStatusSystem", owner, "PLR_INP_SPRINT", sprint_val, 0.0f, 1.0f);
             sprint_val = math::clamp(sprint_val, 0.0f, 1.0f);
         }
 

@@ -5,9 +5,9 @@
  *
  * @file        player_sim_phys_system.hpp
  * @brief       PlayerSimPhysSystem - Apply gravity and terrain collision
- * @description Processes physics simulation for players including gravity and
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Processes physics simulation for players including gravity and
  *              terrain collision detection.
- *              ECS STATELESS: No private member state!
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -17,11 +17,11 @@
  * @modified    2026-01-22
  * @version     1.0.0
  *
- * ARCHITECTURE:
+ * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
  *   PlayerStVelComponent ─────┐
- *   Terrain height (ECS) ─────┼──> PlayerSimPhysSystem ──> PlayerStPosComponent
- *                             │    (physics sim)           PlayerStPhysComponent
+ *   PlayerInpExtComponent ────┼──> PlayerSimPhysSystem ──> PlayerStPosComponent
+ *   (terrain height)          │    (physics sim)           PlayerStPhysComponent
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -43,10 +43,10 @@
 namespace ase::player {
 
 /**
- * @brief Apply gravity and terrain collision
+ * @brief Apply gravity and terrain collision (SHARED)
  *
  * @schedule Dynamics - physics simulation
- * @reads    PlayerStVelComponent, terrain height (via ECS terrain components)
+ * @reads    PlayerStVelComponent, PlayerInpExtComponent (trn_hgt)
  * @writes   PlayerStPosComponent, PlayerStPhysComponent
  */
 class PlayerSimPhysSystem : public ecs::System {
