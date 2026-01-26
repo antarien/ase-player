@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cassert>
 #include <cmath>
+#include <cstring>
 
 using namespace ase;
 using namespace ase::player;
@@ -14,12 +15,13 @@ namespace {
 ase::ecs::Entity do_spawn_request(
     ase::ecs::Registry& registry,
     PlayerLifeSpawnSystem& lifecycle,
-    const std::string& player_id,
+    const char* player_id,
     float x, float z
 ) {
     auto request_entity = registry.create();
     auto& request = registry.emplace<PlayerReqSpawnComponent>(request_entity);
-    request.player_id = player_id;
+    std::strncpy(request.player_id, player_id, sizeof(request.player_id) - 1);
+    request.player_id[sizeof(request.player_id) - 1] = '\0';
     request.x = x;
     request.z = z;
 
@@ -38,11 +40,12 @@ ase::ecs::Entity do_spawn_request(
 bool do_despawn_request(
     ase::ecs::Registry& registry,
     PlayerLifeSpawnSystem& lifecycle,
-    const std::string& player_id
+    const char* player_id
 ) {
     auto request_entity = registry.create();
     auto& request = registry.emplace<PlayerReqDespComponent>(request_entity);
-    request.player_id = player_id;
+    std::strncpy(request.player_id, player_id, sizeof(request.player_id) - 1);
+    request.player_id[sizeof(request.player_id) - 1] = '\0';
 
     lifecycle.tick(registry, 0.0f);
 
@@ -56,10 +59,10 @@ bool do_despawn_request(
     return success;
 }
 
-ase::ecs::Entity do_find_player(ase::ecs::Registry& registry, const std::string& player_id) {
+ase::ecs::Entity do_find_player(ase::ecs::Registry& registry, const char* player_id) {
     auto view = registry.view<PlayerStIdComponent>();
     for (auto [entity, identity] : view.each()) {
-        if (identity.player_id == player_id) {
+        if (std::strcmp(identity.player_id, player_id) == 0) {
             return entity;
         }
     }
@@ -99,10 +102,11 @@ void test_player_components() {
 
     // Add PlayerStIdComponent
     auto& identity = registry.emplace<PlayerStIdComponent>(entity);
-    identity.player_id = "test_player_1";
-    identity.spawned_at = std::chrono::steady_clock::now();
-    identity.last_input = identity.spawned_at;
-    assert(identity.player_id == "test_player_1");
+    std::strncpy(identity.player_id, "test_player_1", sizeof(identity.player_id) - 1);
+    identity.player_id[sizeof(identity.player_id) - 1] = '\0';
+    identity.spawned_at_ms = 1000;
+    identity.last_input_ms = identity.spawned_at_ms;
+    assert(std::strcmp(identity.player_id, "test_player_1") == 0);
 
     // Add PlayerStPosComponent
     auto& pos = registry.emplace<PlayerStPosComponent>(entity);
@@ -197,7 +201,7 @@ void test_spawn_via_lifecycle_system() {
     // Verify components
     auto* identity = registry.try_get<PlayerStIdComponent>(entity);
     assert(identity != nullptr);
-    assert(identity->player_id == "spawn_test");
+    assert(std::strcmp(identity->player_id, "spawn_test") == 0);
 
     auto* pos = registry.try_get<PlayerStPosComponent>(entity);
     assert(pos != nullptr);
