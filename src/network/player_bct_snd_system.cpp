@@ -92,8 +92,8 @@
  * [ ] std:: FORBIDDEN except: <cstdint>, <cmath> basics, <cassert>
  * [ ] CAUSAL CHAIN documented (Input → Processing → Output)
  * [ ] HUB Pattern documented (READS/WRITES)
- * [ ] hub::get_hub_value() for reads
- * [ ] hub::set_or_create_hub_value() for writes
+ * [ ] hub::get() for reads
+ * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
  * [ ] on_start/on_stop: log::info with system name
@@ -208,11 +208,11 @@ void PlayerBctSndSystem::tick(ecs::Registry& registry, float /*dt*/) {
              * Write broadcast data to Hub (HUB Pattern - WRITES)
              * Replication module will read these values
              */
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_CHN"_hs, static_cast<float>(CHANNEL_PLR_SPN_HASH));
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_PTR_HI"_hs, static_cast<float>(jsn_buf.jsn_ptr >> 32));
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_PTR_LO"_hs, static_cast<float>(jsn_buf.jsn_ptr & 0xFFFFFFFF));
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_LEN"_hs, static_cast<float>(jsn_buf.jsn_len));
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_BCT"_hs, 1.0f);
+            hub::set(registry, owner, "REP_MSG_CHN"_hs, static_cast<float>(CHANNEL_PLR_SPN_HASH));
+            hub::set(registry, owner, "REP_MSG_PTR_HI"_hs, static_cast<float>(jsn_buf.jsn_ptr >> 32));
+            hub::set(registry, owner, "REP_MSG_PTR_LO"_hs, static_cast<float>(jsn_buf.jsn_ptr & 0xFFFFFFFF));
+            hub::set(registry, owner, "REP_MSG_LEN"_hs, static_cast<float>(jsn_buf.jsn_len));
+            hub::set(registry, owner, "REP_MSG_BCT"_hs, 1.0f);
 
             /**
              * Mark as sent (deferred - tags only, no remove during iteration)
@@ -244,11 +244,11 @@ void PlayerBctSndSystem::tick(ecs::Registry& registry, float /*dt*/) {
             /**
              * Write broadcast data to Hub (HUB Pattern - WRITES)
              */
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_CHN"_hs, static_cast<float>(CHANNEL_PLR_STA_HASH));
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_PTR_HI"_hs, static_cast<float>(jsn_buf.jsn_ptr >> 32));
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_PTR_LO"_hs, static_cast<float>(jsn_buf.jsn_ptr & 0xFFFFFFFF));
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_LEN"_hs, static_cast<float>(jsn_buf.jsn_len));
-            hub::set_or_create_hub_value(registry, owner, "REP_MSG_BCT"_hs, 1.0f);
+            hub::set(registry, owner, "REP_MSG_CHN"_hs, static_cast<float>(CHANNEL_PLR_STA_HASH));
+            hub::set(registry, owner, "REP_MSG_PTR_HI"_hs, static_cast<float>(jsn_buf.jsn_ptr >> 32));
+            hub::set(registry, owner, "REP_MSG_PTR_LO"_hs, static_cast<float>(jsn_buf.jsn_ptr & 0xFFFFFFFF));
+            hub::set(registry, owner, "REP_MSG_LEN"_hs, static_cast<float>(jsn_buf.jsn_len));
+            hub::set(registry, owner, "REP_MSG_BCT"_hs, 1.0f);
 
             /**
              * Mark as sent (deferred - tags only)

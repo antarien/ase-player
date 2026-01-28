@@ -95,8 +95,8 @@
  * [ ] std:: FORBIDDEN except: <cstdint>, <cmath> basics, <cassert>
  * [ ] CAUSAL CHAIN documented (Input → Processing → Output)
  * [ ] HUB Pattern documented (READS/WRITES)
- * [ ] hub::get_hub_value() for reads
- * [ ] hub::set_or_create_hub_value() for writes
+ * [ ] hub::get() for reads
+ * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
  * [ ] on_start/on_stop: log::info with system name
@@ -287,7 +287,7 @@ void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             uint32_t pos_hash = static_cast<uint32_t>(
                 static_cast<int32_t>(request.x) * 73856093 ^
                 static_cast<int32_t>(request.z) * 19349663);
-            float hub_height = hub::get_hub_value(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
+            float hub_height = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
             if (hub_height != hub::VALUE_NOT_FOUND) {
                 ground_y = hub_height;
             }

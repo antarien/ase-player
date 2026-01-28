@@ -91,8 +91,8 @@
  * [ ] std:: FORBIDDEN except: <cstdint>, <cmath> basics, <cassert>
  * [ ] CAUSAL CHAIN documented (Input → Processing → Output)
  * [ ] HUB Pattern documented (READS/WRITES)
- * [ ] hub::get_hub_value() for reads
- * [ ] hub::set_or_create_hub_value() for writes
+ * [ ] hub::get() for reads
+ * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
  * [ ] on_start/on_stop: log::info with system name
@@ -228,8 +228,8 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
          * Replication module reads these to perform persistence
          */
         uint32_t owner = static_cast<uint32_t>(entity);
-        hub::set_or_create_hub_value(registry, owner, "REP_PST_SER"_hs, static_cast<float>(ser));
-        hub::set_or_create_hub_value(registry, owner, "REP_PST_SYN"_hs, 1.0f);
+        hub::set(registry, owner, "REP_PST_SER"_hs, static_cast<float>(ser));
+        hub::set(registry, owner, "REP_PST_SYN"_hs, 1.0f);
 
         /**
          * STEP 4: Update persistence buffer with player_id pointer

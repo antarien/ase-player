@@ -35,7 +35,7 @@
  *          │
  *          │ position available via Hub
  *          ▼
- *   L4 Plugins (read via sdk::get_hub_value)
+ *   L4 Plugins (read via sdk::get)
  *
  * HUB Pattern (MIG_ASE_HUB)
  *
@@ -89,8 +89,8 @@
  * [ ] std:: FORBIDDEN except: <cstdint>, <cmath> basics, <cassert>
  * [ ] CAUSAL CHAIN documented (Input → Processing → Output)
  * [ ] HUB Pattern documented (READS/WRITES)
- * [ ] hub::get_hub_value() for reads
- * [ ] hub::set_or_create_hub_value() for writes
+ * [ ] hub::get() for reads
+ * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
  * [ ] on_start/on_stop: log::info with system name
@@ -186,14 +186,14 @@ void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
 
         /**
          * STEP 2: Write position to Hub (HUB Pattern - WRITES)
-         * Publish position data for L4 plugins to consume via sdk::get_hub_value().
+         * Publish position data for L4 plugins to consume via sdk::hub::get().
          * This enables loose coupling - plugins read from Hub, not direct components.
          */
-        hub::set_or_create_hub_value(registry, owner, "PLR_POS_X"_hs, pos.x);
-        hub::set_or_create_hub_value(registry, owner, "PLR_POS_Y"_hs, pos.y);
-        hub::set_or_create_hub_value(registry, owner, "PLR_POS_Z"_hs, pos.z);
-        hub::set_or_create_hub_value(registry, owner, "PLR_ENTITY_ID"_hs, static_cast<float>(owner));
-        hub::set_or_create_hub_value(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
+        hub::set(registry, owner, "PLR_POS_X"_hs, pos.x);
+        hub::set(registry, owner, "PLR_POS_Y"_hs, pos.y);
+        hub::set(registry, owner, "PLR_POS_Z"_hs, pos.z);
+        hub::set(registry, owner, "PLR_ENTITY_ID"_hs, static_cast<float>(owner));
+        hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
     }
 }
 

@@ -86,8 +86,8 @@
  * [ ] std:: FORBIDDEN except: <cstdint>, <cmath> basics, <cassert>
  * [ ] CAUSAL CHAIN documented (Input → Processing → Output)
  * [ ] HUB Pattern documented (READS/WRITES)
- * [ ] hub::get_hub_value() for reads
- * [ ] hub::set_or_create_hub_value() for writes
+ * [ ] hub::get() for reads
+ * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
  * [ ] on_start/on_stop: log::info with system name
@@ -234,7 +234,7 @@ void PlayerLogCausalitySystem::tick(ecs::Registry& registry, float dt) {
          * STEP 6: Read log interval from Hub (HUB Pattern - READS)
          * INLINED: No get_*() helper with Registry allowed
          */
-        float log_interval = hub::get_hub_value(registry, hub::GLOBAL_OWNER, "LOG_CONST_DEFAULT_INTERVAL"_hs);
+        float log_interval = hub::get(registry, hub::GLOBAL_OWNER, "LOG_CONST_DEFAULT_INTERVAL"_hs);
         if (log_interval == hub::VALUE_NOT_FOUND) {
             log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerLogCausalitySystem", "LOG_CONST_DEFAULT_INTERVAL");
             log_interval = 5.0f;  // Fallback from hub_constants.json default

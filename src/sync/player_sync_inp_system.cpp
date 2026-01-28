@@ -94,8 +94,8 @@
  * [ ] std:: FORBIDDEN except: <cstdint>, <cmath> basics, <cassert>
  * [ ] CAUSAL CHAIN documented (Input → Processing → Output)
  * [ ] HUB Pattern documented (READS/WRITES)
- * [ ] hub::get_hub_value() for reads
- * [ ] hub::set_or_create_hub_value() for writes
+ * [ ] hub::get() for reads
+ * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
  * [ ] on_start/on_stop: log::info with system name
@@ -193,32 +193,32 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
         /**
          * STEP 2: Read all input values from Hub (HUB Pattern - READS)
          */
-        float inp_fwd = hub::get_hub_value(registry, owner, "PLR_INP_FWD"_hs);
+        float inp_fwd = hub::get(registry, owner, "PLR_INP_FWD"_hs);
         if (inp_fwd == hub::VALUE_NOT_FOUND) {
             inp_fwd = 0.0f;
         }
 
-        float inp_str = hub::get_hub_value(registry, owner, "PLR_INP_STR"_hs);
+        float inp_str = hub::get(registry, owner, "PLR_INP_STR"_hs);
         if (inp_str == hub::VALUE_NOT_FOUND) {
             inp_str = 0.0f;
         }
 
-        float inp_sprint = hub::get_hub_value(registry, owner, "PLR_INP_SPRINT"_hs);
+        float inp_sprint = hub::get(registry, owner, "PLR_INP_SPRINT"_hs);
         if (inp_sprint == hub::VALUE_NOT_FOUND) {
             inp_sprint = 0.0f;
         }
 
-        float inp_jump = hub::get_hub_value(registry, owner, "PLR_INP_JUMP"_hs);
+        float inp_jump = hub::get(registry, owner, "PLR_INP_JUMP"_hs);
         if (inp_jump == hub::VALUE_NOT_FOUND) {
             inp_jump = 0.0f;
         }
 
-        float cam_yaw = hub::get_hub_value(registry, owner, "PLR_CAM_YAW"_hs);
+        float cam_yaw = hub::get(registry, owner, "PLR_CAM_YAW"_hs);
         if (cam_yaw == hub::VALUE_NOT_FOUND) {
             cam_yaw = pos.yaw;
         }
 
-        float cam_orb = hub::get_hub_value(registry, owner, "PLR_CAM_ORB"_hs);
+        float cam_orb = hub::get(registry, owner, "PLR_CAM_ORB"_hs);
         if (cam_orb == hub::VALUE_NOT_FOUND) {
             cam_orb = 0.0f;
         }
@@ -229,7 +229,7 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
         uint32_t pos_hash = static_cast<uint32_t>(
             static_cast<int32_t>(pos.x) * 73856093 ^
             static_cast<int32_t>(pos.z) * 19349663);
-        float trn_hgt = hub::get_hub_value(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
+        float trn_hgt = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
         if (trn_hgt == hub::VALUE_NOT_FOUND) {
             trn_hgt = 0.0f;
         }
