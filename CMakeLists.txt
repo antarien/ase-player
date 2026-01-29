@@ -15,19 +15,19 @@ project(ase-player
 # ------------------------------------------------------------------------------
 
 add_library(ase-player STATIC
-    src/lifecycle/player_life_spawn_system.cpp
-    src/control/player_ctrl_input_system.cpp
-    src/control/player_ctrl_move_system.cpp
-    src/simulation/player_sim_phys_system.cpp
-    src/state/player_state_status_system.cpp
-    src/spatial/player_spatial_chunk_system.cpp
+    src/lifecycle/player_life_spwn_sys.cpp
+    src/control/player_ctrl_inp_sys.cpp
+    src/control/player_ctrl_mov_sys.cpp
+    src/simulation/player_sim_phys_sys.cpp
+    src/state/player_sta_sts_sys.cpp
+    src/state/player_sta_chnk_sys.cpp
     # Hub (PLAN_ASE_SDK_V2: Write positions for L4 plugins)
-    src/hub/player_hub_pos_system.cpp
+    src/hub/player_hub_pos_sys.cpp
     # Network (Pure ECS 4-System Pattern)
-    src/network/player_bct_req_system.cpp    # AUSGEHEND Step 1
-    src/network/player_bct_snd_system.cpp    # AUSGEHEND Step 3
-    src/persistence/player_pst_ser_system.cpp  # Persistence via Replication Layer
-    src/log/player_log_causality_system.cpp
+    src/network/player_bct_req_sys.cpp       # AUSGEHEND Step 1
+    src/network/player_bct_snd_sys.cpp       # AUSGEHEND Step 3
+    src/persistence/player_pst_ser_sys.cpp   # Persistence via Replication Layer
+    src/log/player_log_obsv_sys.cpp
 )
 add_library(ase::player ALIAS ase-player)
 

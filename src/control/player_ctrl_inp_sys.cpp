@@ -1,58 +1,55 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_net_bct_req_system.cpp
- * @brief       PlayerNetBctReqSystem - Create network broadcast request entities for player state
+ * @file        player_ctrl_inp_sys.cpp
+ * @brief       PlayerCtrlInpSystem - Process player input and update facing direction
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    network
- * @schedule    Transmission
+ * @category    action/control
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_NET_BCT_REQ: Player Network Broadcast Request)
+ * CAUSAL CHAIN (CAUSA_PLR_CTRL_INP: Player Input Processing)
  *
- *   [PlayerDirtyTag + PlayerSpawnedTag]
+ *   [PlayerInpExtComponent from PlayerSyncInpSystem]
  *          │
- *          │ dirty/spawned players need network broadcast
+ *          │ input values from Component (SYN Pattern)
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerNetBctReqSystem         │
+ *   │  THIS SYSTEM: PlayerCtrlInpSystem           │
+ *   │  (SHARED - no Hub access)                   │
  *   │                                             │
- *   │  READS:                                     │
+ *   │  READS (from Components):                   │
+ *   │    - PlayerInpExtComponent (input bridge)   │
  *   │    - PlayerStIdComponent (identity)         │
- *   │    - PlayerStPosComponent (position)        │
- *   │    - PlayerStVelComponent (velocity)        │
- *   │    - PlayerStStsComponent (state)           │
- *   │    - PlayerSpawnedTag (new players)         │
- *   │    - PlayerDirtyTag (changed players)       │
+ *   │    - PlayerStPosComponent (position/yaw)    │
+ *   │    - PlayerStMovComponent (turn speed)      │
  *   │                                             │
- *   │  WRITES:                                    │
- *   │    - PlayerBufBctSpnComponent (spawn buf)   │
- *   │    - PlayerBufBctStaComponent (state buf)   │
- *   │    - PlayerBctSpnPndTag (spawn pending)     │
- *   │    - PlayerBctStaPndTag (state pending)     │
- *   │    - Removes PlayerSpawnedTag               │
- *   │    - Removes PlayerDirtyTag                 │
- *   │    - Removes PlayerChunkChangedTag          │
+ *   │  WRITES (to Components):                    │
+ *   │    - PlayerStPosComponent (yaw)             │
+ *   │    - PlayerDirtyTag (if changed)            │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ serialization entities created
+ *          │ player facing updated
  *          ▼
- *   PlayerNetBctSndSystem (sends via network)
+ *   PlayerCtrlMovSystem (uses facing for movement)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
- * READS (from player module via Components):
- *   PlayerStIdComponent  → Player identity for broadcast
- *   PlayerStPosComponent → Position data
- *   PlayerStVelComponent → Velocity data
- *   PlayerStStsComponent → State data
+ * READS (from Hub):
+ *   (none - uses SYN pattern, reads from PlayerInpExtComponent)
  *
  * WRITES (to Hub for other modules):
- *   (none - creates serialization entities directly)
+ *   (none - uses SYN pattern, writes to Components only)
+ *
+ * NOTE: This is a SHARED calculation system using the SYN pattern.
+ * Input data is synced from Hub to PlayerInpExtComponent by PlayerSyncInpSystem
+ * before this system runs. This system operates on Component data only.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -141,31 +138,23 @@
  */
 
 // INCLUDES - ONLY THESE ARE ALLOWED!
-// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>
+// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>, <chrono>
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/network/player_net_bct_req_system.hpp>
-// Components from same module
+#include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
+// Components from same module ONLY
+#include <ase/player/components/input/player_inp_ext_component.hpp>
 #include <ase/player/components/state/player_st_id_component.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
-#include <ase/player/components/buffer/player_buf_bct_spn_component.hpp>
-#include <ase/player/components/buffer/player_buf_bct_sta_component.hpp>
+#include <ase/player/components/state/player_st_mov_component.hpp>
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
-#include <ase/player/components/tag/player_tag_spawned_component.hpp>
-#include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_spn_pnd_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_sta_pnd_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Serialization (Layer 2)
-#include <ase/serial/serial.hpp>
 // Logging
 #include <ase/log/log.hpp>
-
-#include <cstring>
+// Math
+#include <ase/math/math.hpp>
 
 namespace ase::player {
 using namespace entt::literals;  // For "_hs hashed strings (Hub)
@@ -186,110 +175,67 @@ namespace {
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerNetBctReqSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerNetBctReqSystem] Started");
+void PlayerCtrlInpSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerCtrlInpSystem] Started");
 }
 
-void PlayerNetBctReqSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerCtrlInpSystem::tick(ecs::Registry& registry, float dt) {
     /**
-     * STEP 1: Process spawned players using iterator-based loop
-     * Using begin/end iterators allows entity creation during iteration.
+     * STEP 1: Get turn speed from manager
      */
-    auto spawn_view = registry.view<PlayerStIdComponent, PlayerStPosComponent, PlayerSpawnedTag>();
-    auto spawn_it = spawn_view.begin();
-    auto spawn_end = spawn_view.end();
-    while (spawn_it != spawn_end) {
-        auto entity = *spawn_it;
-        ++spawn_it;
-
-        auto& id = registry.get<PlayerStIdComponent>(entity);
-        auto& pos = registry.get<PlayerStPosComponent>(entity);
-
-        auto ser = registry.create();
-
-        auto& spn_buf = registry.emplace<PlayerBufBctSpnComponent>(ser);
-        std::strncpy(spn_buf.player_id, id.player_id, sizeof(spn_buf.player_id) - 1);
-        spn_buf.player_id[sizeof(spn_buf.player_id) - 1] = '\0';
-        spn_buf.spawned_at_ms = id.spawned_at_ms;
-        spn_buf.last_input_ms = id.last_input_ms;
-        spn_buf.x = pos.x;
-        spn_buf.y = pos.y;
-        spn_buf.z = pos.z;
-        spn_buf.yaw = pos.yaw;
-
-        auto& jsn_buf = registry.emplace<serial::SerialBufJsnComponent>(ser);
-        jsn_buf.src_ptr = reinterpret_cast<uint64_t>(&registry.get<PlayerBufBctSpnComponent>(ser));
-        jsn_buf.src_typ = SERIAL_TYP_PLR_SPN;
-        jsn_buf.src_siz = sizeof(PlayerBufBctSpnComponent);
-        jsn_buf.st = serial::SERIAL_ST_PND;
-
-        registry.emplace<serial::SerialJsnPndTag>(ser);
-        registry.emplace<PlayerBctSpnPndTag>(ser);
-
-        registry.remove<PlayerSpawnedTag>(entity);
-
-        log::debug("[PlayerNetBctReqSystem] Created spawn request for player {}", id.player_id);
+    float turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
+    auto mov_view = registry.view<PlayerStMovComponent>();
+    for (auto [e, mov] : mov_view.each()) {
+        (void)e;
+        turn_speed = mov.turn_speed;
+        break;
     }
 
     /**
-     * STEP 2: Process dirty players - create state broadcast requests
+     * STEP 2: Process each player entity with input data (SYN Pattern)
+     * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
-    auto dirty_view = registry.view<PlayerStIdComponent, PlayerStPosComponent,
-                                    PlayerStVelComponent, PlayerStStsComponent, PlayerDirtyTag>();
-    auto dirty_it = dirty_view.begin();
-    auto dirty_end = dirty_view.end();
-    while (dirty_it != dirty_end) {
-        auto entity = *dirty_it;
-        ++dirty_it;
+    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent, PlayerInpExtComponent>();
 
-        auto& id = registry.get<PlayerStIdComponent>(entity);
-        auto& pos = registry.get<PlayerStPosComponent>(entity);
-        auto& vel = registry.get<PlayerStVelComponent>(entity);
-        auto& sts = registry.get<PlayerStStsComponent>(entity);
+    for (auto [entity, identity, pos, inp] : view.each()) {
+        (void)identity;
 
-        auto ser = registry.create();
+        /**
+         * STEP 3: Read input values from PlayerInpExtComponent (SYN Pattern)
+         */
+        float forward = inp.inp_fwd;
+        float strafe = inp.inp_str;
+        float cam_yaw = inp.cam_yaw;
+        float orbit_mode = inp.cam_orb;
 
-        auto& sta_buf = registry.emplace<PlayerBufBctStaComponent>(ser);
-        std::strncpy(sta_buf.player_id, id.player_id, sizeof(sta_buf.player_id) - 1);
-        sta_buf.player_id[sizeof(sta_buf.player_id) - 1] = '\0';
-        sta_buf.spawned_at_ms = id.spawned_at_ms;
-        sta_buf.last_input_ms = id.last_input_ms;
-        sta_buf.x = pos.x;
-        sta_buf.y = pos.y;
-        sta_buf.z = pos.z;
-        sta_buf.yaw = pos.yaw;
-        sta_buf.vx = vel.vx;
-        sta_buf.vy = vel.vy;
-        sta_buf.vz = vel.vz;
-        sta_buf.sts = sts.sts;
+        bool is_moving = (forward != 0.0f || strafe != 0.0f);
+        bool is_orbit = (orbit_mode > 0.5f);
 
-        auto& jsn_buf = registry.emplace<serial::SerialBufJsnComponent>(ser);
-        jsn_buf.src_ptr = reinterpret_cast<uint64_t>(&registry.get<PlayerBufBctStaComponent>(ser));
-        jsn_buf.src_typ = SERIAL_TYP_PLR_STA;
-        jsn_buf.src_siz = sizeof(PlayerBufBctStaComponent);
-        jsn_buf.st = serial::SERIAL_ST_PND;
+        /**
+         * STEP 4: Update player facing based on camera yaw (if moving and not in orbit mode)
+         */
+        if (is_moving && !is_orbit) {
+            float delta = cam_yaw - pos.yaw;
+            while (delta > math::PI) delta -= math::TWO_PI;
+            while (delta < -math::PI) delta += math::TWO_PI;
 
-        registry.emplace<serial::SerialJsnPndTag>(ser);
-        registry.emplace<PlayerBctStaPndTag>(ser);
+            float max_turn = turn_speed * dt;
+            if (math::abs(delta) < max_turn) {
+                pos.yaw = cam_yaw;
+            } else {
+                pos.yaw += (delta > 0.0f ? max_turn : -max_turn);
+            }
 
-        registry.remove<PlayerDirtyTag>(entity);
-    }
+            while (pos.yaw < 0.0f) pos.yaw += math::TWO_PI;
+            while (pos.yaw >= math::TWO_PI) pos.yaw -= math::TWO_PI;
 
-    /**
-     * STEP 3: Clear chunk changed tags
-     */
-    auto chunk_view = registry.view<PlayerChunkChangedTag>();
-    auto chunk_it = chunk_view.begin();
-    auto chunk_end = chunk_view.end();
-    while (chunk_it != chunk_end) {
-        auto entity = *chunk_it;
-        ++chunk_it;
-        registry.remove<PlayerChunkChangedTag>(entity);
+            registry.emplace_or_replace<PlayerDirtyTag>(entity);
+        }
     }
 }
 
-void PlayerNetBctReqSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerNetBctReqSystem] Stopped");
+void PlayerCtrlInpSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerCtrlInpSystem] Stopped");
 }
 
 }  // namespace ase::player

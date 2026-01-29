@@ -28,17 +28,17 @@
  */
 
 #include <ase/ecs/app.hpp>
-#include <ase/player/systems/lifecycle/player_life_spawn_system.hpp>
-#include <ase/player/systems/control/player_ctrl_input_system.hpp>
-#include <ase/player/systems/control/player_ctrl_move_system.hpp>
-#include <ase/player/systems/simulation/player_sim_phys_system.hpp>
-#include <ase/player/systems/state/player_state_status_system.hpp>
-#include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
-#include <ase/player/systems/hub/player_hub_pos_system.hpp>
-#include <ase/player/systems/network/player_bct_req_system.hpp>
-#include <ase/player/systems/network/player_bct_snd_system.hpp>
-#include <ase/player/systems/persistence/player_pst_ser_system.hpp>
-#include <ase/player/systems/log/player_log_causality_system.hpp>
+#include <ase/player/systems/lifecycle/player_life_spwn_sys.hpp>
+#include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
+#include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
+#include <ase/player/systems/state/player_sta_sts_sys.hpp>
+#include <ase/player/systems/state/player_sta_chnk_sys.hpp>
+#include <ase/player/systems/hub/player_hub_pos_sys.hpp>
+#include <ase/player/systems/network/player_bct_req_sys.hpp>
+#include <ase/player/systems/network/player_bct_snd_sys.hpp>
+#include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
+#include <ase/player/systems/log/player_log_obsv_sys.hpp>
 
 namespace ase::player {
 
@@ -60,25 +60,25 @@ struct PlayerModule {
          * Physics, movement, game logic systems.
          * Order matters - use run_after() for dependencies.
          */
-        app.add_system<PlayerLifeSpawnSystem>(ecs::Schedule::Dynamics);
+        app.add_system<PlayerLifeSpwnSystem>(ecs::Schedule::Dynamics);
 
-        app.add_system_with<PlayerCtrlInputSystem>(ecs::Schedule::Dynamics)
+        app.add_system_with<PlayerCtrlInpSystem>(ecs::Schedule::Dynamics)
             .run_after("TerrainChunkSystem");
 
-        app.add_system_with<PlayerCtrlMoveSystem>(ecs::Schedule::Dynamics)
-            .run_after("PlayerCtrlInputSystem");
+        app.add_system_with<PlayerCtrlMovSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerCtrlInpSystem");
 
         app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
-            .run_after("PlayerCtrlMoveSystem");
+            .run_after("PlayerCtrlMovSystem");
 
-        app.add_system_with<PlayerStateStatusSystem>(ecs::Schedule::Dynamics)
+        app.add_system_with<PlayerStaStsSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimPhysSystem");
 
-        app.add_system_with<PlayerSpatialChunkSystem>(ecs::Schedule::Dynamics)
-            .run_after("PlayerStateStatusSystem");
+        app.add_system_with<PlayerStaChnkSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerStaStsSystem");
 
         app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::Dynamics)
-            .run_after("PlayerSpatialChunkSystem");
+            .run_after("PlayerStaChnkSystem");
 
         app.add_system_with<PlayerBctReqSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerHubPosSystem");
@@ -99,7 +99,7 @@ struct PlayerModule {
          * CONCLUSION (Schedule::Conclusion)
          * Debug/logging runs after all other schedules.
          */
-        app.add_system<PlayerLogCausalitySystem>(ecs::Schedule::Conclusion);
+        app.add_system<PlayerLogObsvSystem>(ecs::Schedule::Conclusion);
     }
 };
 

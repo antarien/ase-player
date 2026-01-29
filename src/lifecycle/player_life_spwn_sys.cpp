@@ -1,25 +1,25 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_life_spawn_system.cpp
- * @brief       PlayerLifeSpawnSystem - Process player spawn and despawn requests
+ * @file        player_life_spwn_sys.cpp
+ * @brief       PlayerLifeSpwnSystem - Process player spawn and despawn requests
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    lifecycle
+ * @category    ecs/entity/entitylifecycle
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_LIFE_SPAWN: Player Lifecycle Management)
+ * CAUSAL CHAIN (CAUSA_PLR_LIFE_SPWN: Player Lifecycle Management)
  *
  *   [PlayerReqSpawnComponent / PlayerReqDespComponent]
  *          │
  *          │ spawn/despawn requests from Integration Layer
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerLifeSpawnSystem         │
+ *   │  THIS SYSTEM: PlayerLifeSpwnSystem          │
  *   │                                             │
  *   │  READS:                                     │
  *   │    - PlayerReqSpawnComponent (requests)     │
@@ -45,7 +45,7 @@
  *   Observer systems in other modules add their components
  *   (InputSpawnObserver, CameraSpawnObserver, etc.)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Hub):
  *   "TRN_HGT_AT_POS"_hs → Terrain height at position (set by terrain module)
@@ -143,11 +143,11 @@
  */
 
 // INCLUDES - ONLY THESE ARE ALLOWED!
-// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>
+// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>, <chrono>
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/lifecycle/player_life_spawn_system.hpp>
+#include <ase/player/systems/lifecycle/player_life_spwn_sys.hpp>
 // Components from same module ONLY
 #include <ase/player/components/request/player_req_spawn_component.hpp>
 #include <ase/player/components/request/player_req_desp_component.hpp>
@@ -167,13 +167,12 @@
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Hub for HUB Pattern (cross-module reads)
-#include <ase/hub/hub.hpp>
+#include <ase/hub/api.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
 #include <ase/math/math.hpp>
 
-#include <chrono>
 #include <cstring>
 
 namespace ase::player {
@@ -182,8 +181,8 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
  * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
+ *   OK: namespace { void helper() {...} }   // CORRECT
+ *   NO: static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
@@ -195,8 +194,8 @@ namespace {
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerLifeSpawnSystem::on_start(ecs::Registry& registry) {
-    log::info("[PlayerLifeSpawnSystem] Started");
+void PlayerLifeSpwnSystem::on_start(ecs::Registry& registry) {
+    log::info("[PlayerLifeSpwnSystem] Started");
 
     auto view = registry.view<PlayerMgrTag>();
     bool mgr_exists = false;
@@ -224,13 +223,11 @@ void PlayerLifeSpawnSystem::on_start(ecs::Registry& registry) {
         mov.eye_height = MOVEMENT_DEFAULT_EYE_HEIGHT;
         mov.chunk_size = MOVEMENT_DEFAULT_CHUNK_SIZE;
 
-        log::info("[PlayerLifeSpawnSystem] Created player manager entity");
+        log::info("[PlayerLifeSpwnSystem] Created player manager entity");
     }
 }
 
-void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
-    using namespace std::chrono;
-
+void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * STEP 1: Get movement settings from manager
      */
@@ -288,7 +285,7 @@ void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
                 static_cast<int32_t>(request.x) * 73856093 ^
                 static_cast<int32_t>(request.z) * 19349663);
             float hub_height = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
-            if (hub_height != hub::VALUE_NOT_FOUND) {
+            if (hub_height != hub::NOT_FOUND) {
                 ground_y = hub_height;
             }
             // Note: If terrain height not in Hub, spawn at y=0 (terrain module will update)
@@ -299,9 +296,9 @@ void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             auto& identity = registry.emplace<PlayerStIdComponent>(result_entity);
             std::strncpy(identity.player_id, request.player_id, sizeof(identity.player_id) - 1);
             identity.player_id[sizeof(identity.player_id) - 1] = '\0';
-            identity.spawned_at_ms = static_cast<uint64_t>(
-                duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
-            identity.last_input_ms = identity.spawned_at_ms;
+            // Timestamps initialized to 0 - can be set via Hub or request if needed
+            identity.spawned_at_ms = 0;
+            identity.last_input_ms = 0;
 
             auto& pos = registry.emplace<PlayerStPosComponent>(result_entity);
             pos.x = request.x;
@@ -328,9 +325,9 @@ void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             registry.emplace<PlayerDirtyTag>(result_entity);
 
             success = true;
-            log::debug("[PlayerLifeSpawnSystem] Spawned player");
+            log::debug("[PlayerLifeSpwnSystem] Spawned player");
         } else {
-            log::debug("[PlayerLifeSpawnSystem] Player already exists");
+            log::debug("[PlayerLifeSpwnSystem] Player already exists");
         }
 
         auto& result = registry.emplace<PlayerReqSpawnResComponent>(request_entity);
@@ -360,13 +357,13 @@ void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
                              sizeof(identity.player_id) - 1) == 0) {
                 registry.emplace_or_replace<PlayerDespPndTag>(pe);
                 success = true;
-                log::debug("[PlayerLifeSpawnSystem] Marked player for despawn");
+                log::debug("[PlayerLifeSpwnSystem] Marked player for despawn");
                 break;
             }
         }
 
         if (!success) {
-            log::debug("[PlayerLifeSpawnSystem] Player not found for despawn");
+            log::debug("[PlayerLifeSpwnSystem] Player not found for despawn");
         }
 
         auto& result = registry.emplace<PlayerReqDespResComponent>(request_entity);
@@ -388,8 +385,8 @@ void PlayerLifeSpawnSystem::tick(ecs::Registry& registry, float /*dt*/) {
     }
 }
 
-void PlayerLifeSpawnSystem::on_stop(ecs::Registry& registry) {
-    log::info("[PlayerLifeSpawnSystem] Stopping");
+void PlayerLifeSpwnSystem::on_stop(ecs::Registry& registry) {
+    log::info("[PlayerLifeSpwnSystem] Stopping");
 
     // Tag all players for despawn
     auto view = registry.view<PlayerStIdComponent>();
@@ -410,10 +407,10 @@ void PlayerLifeSpawnSystem::on_stop(ecs::Registry& registry) {
     }
 
     if (count > 0) {
-        log::info("[PlayerLifeSpawnSystem] Despawned {} players on shutdown", count);
+        log::info("[PlayerLifeSpwnSystem] Despawned {} players on shutdown", count);
     }
 
-    log::info("[PlayerLifeSpawnSystem] Stopped");
+    log::info("[PlayerLifeSpwnSystem] Stopped");
 }
 
 }  // namespace ase::player

@@ -3,24 +3,24 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_life_spawn_system.hpp
- * @brief       PlayerLifeSpawnSystem - Processes spawn/despawn requests
- * @description Creates/destroys player entities based on request components.
+ * @file        player_hub_pos_sys.hpp
+ * @brief       PlayerHubPosSystem - Write player positions to Hub for L4 plugins
+ * @description PLAN_ASE_SDK_V2: L4 plugins read player data via Hub, not direct components.
+ *              Writes PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_ENTITY_ID per player.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    lifecycle
+ * @category    hub
  * @schedule    Integration
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE:
  *
- *   Request Flow:
- *   REST Handler ──> creates request entity with PlayerReqSpawnComponent
- *   PlayerLifeSpawnSystem ──> processes request, creates player, adds result
- *   REST Handler ──> reads result from PlayerReqSpawnResComponent
+ *   PlayerStPosComponent ──> PlayerHubPosSystem ──> Hub
+ *   (position data)         (writes to Hub)        PLR_POS_X, PLR_POS_Y, PLR_POS_Z
+ *                                                  PLR_ENTITY_ID
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -42,15 +42,15 @@
 namespace ase::player {
 
 /**
- * @brief Processes spawn/despawn requests
+ * @brief Write player positions to Hub for L4 plugins
  *
- * @schedule Integration - processes lifecycle events
- * @reads    PlayerReqSpawnComponent, PlayerReqDespawnComponent
- * @writes   PlayerReqSpawnResComponent, creates/destroys player entities
+ * @schedule Integration - after position updates
+ * @reads    PlayerStPosComponent, PlayerStIdComponent
+ * @writes   Hub values: PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_ENTITY_ID
  */
-class PlayerLifeSpawnSystem : public ecs::System {
+class PlayerHubPosSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerLifeSpawnSystem"; }
+    const char* name() const override { return "PlayerHubPosSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

@@ -3,25 +3,23 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_sim_phys_system.hpp
- * @brief       PlayerSimPhysSystem - Apply gravity and terrain collision
+ * @file        player_sta_sts_sys.hpp
+ * @brief       PlayerStaStsSystem - Determine player movement state from velocity and physics
  * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Processes physics simulation for players including gravity and
- *              terrain collision detection.
+ *              Determines state (idle, walking, running, jumping, falling).
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    simulation
+ * @category    state/lifecycle/activity
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerStVelComponent ─────┐
- *   PlayerInpExtComponent ────┼──> PlayerSimPhysSystem ──> PlayerStPosComponent
- *   (terrain height)          │    (physics sim)           PlayerStPhysComponent
+ *   PlayerStVelComponent ──> PlayerStaStsSystem ──> PlayerStStsComponent
+ *   (velocity)               (determines state)      (state updated)
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -43,15 +41,15 @@
 namespace ase::player {
 
 /**
- * @brief Apply gravity and terrain collision (SHARED)
+ * @brief Determine player movement state (SHARED)
  *
- * @schedule Dynamics - physics simulation
- * @reads    PlayerStVelComponent, PlayerInpExtComponent (trn_hgt)
- * @writes   PlayerStPosComponent, PlayerStPhysComponent
+ * @schedule Dynamics - determines state after physics
+ * @reads    PlayerInpExtComponent, PlayerStVelComponent, PlayerStPhysComponent
+ * @writes   PlayerStStsComponent (state value)
  */
-class PlayerSimPhysSystem : public ecs::System {
+class PlayerStaStsSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerSimPhysSystem"; }
+    const char* name() const override { return "PlayerStaStsSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

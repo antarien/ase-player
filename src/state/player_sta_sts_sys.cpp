@@ -1,56 +1,54 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_ctrl_move_system.cpp
- * @brief       PlayerCtrlMoveSystem - Calculate player velocity from input
+ * @file        player_sta_sts_sys.cpp
+ * @brief       PlayerStaStsSystem - Determine player movement state from velocity and physics
  * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
  *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    control
- * @schedule    Kinematics
+ * @category    state/lifecycle/activity
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_CTRL_MOV: Player Movement Calculation)
+ * CAUSAL CHAIN (CAUSA_PLR_STS: Player State Determination)
  *
- *   [PlayerInpExtComponent from PlayerSyncInpSystem]
+ *   [PlayerStVelComponent + PlayerStPhysComponent]
  *          │
- *          │ input values from Component (SYN Pattern)
+ *          │ velocity and physics data
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerCtrlMoveSystem          │
+ *   │  THIS SYSTEM: PlayerStaStsSystem            │
  *   │  (SHARED - no Hub access)                   │
  *   │                                             │
  *   │  READS (from Components):                   │
- *   │    - PlayerInpExtComponent (input bridge)   │
- *   │    - PlayerStPosComponent (yaw)             │
- *   │    - PlayerStVelComponent (current vel)     │
- *   │    - PlayerStPhysComponent (on_ground)      │
- *   │    - PlayerStMovComponent (speed settings)  │
- *   │                                             │
- *   │  WRITES (to Components):                    │
+ *   │    - PlayerInpExtComponent (inp_sprint)     │
  *   │    - PlayerStVelComponent (vx, vy, vz)      │
  *   │    - PlayerStPhysComponent (on_ground)      │
+ *   │    - PlayerStMovComponent (min_speed)       │
+ *   │                                             │
+ *   │  WRITES (to Components):                    │
+ *   │    - PlayerStStsComponent (sts)             │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ velocity calculated
+ *          │ state value updated
  *          ▼
- *   PlayerSimPhysSystem (applies velocity to position)
+ *   PlayerBctReqSystem (reads sts for broadcast)
  *
- * SYN Pattern (SHARED Calc System)
+ * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
- * READS (from PlayerInpExtComponent - filled by PlayerSyncInpSystem):
- *   inp_fwd     → Forward input (-1 to 1)
- *   inp_str     → Strafe input (-1 to 1)
- *   inp_sprint  → Sprint input (0 or 1)
- *   inp_jump    → Jump input (0 or 1)
- *   cam_yaw     → Camera yaw (radians)
+ * READS (from Hub):
+ *   (none - uses SYN pattern, reads from PlayerInpExtComponent)
  *
- * WRITES (to Components only - no Hub writes):
- *   (none)
+ * WRITES (to Hub for other modules):
+ *   (none - uses SYN pattern, writes to Components only)
+ *
+ * NOTE: This is a SHARED calculation system using the SYN pattern.
+ * Sprint input is synced from Hub to PlayerInpExtComponent by PlayerSyncInpSystem
+ * before this system runs. This system operates on Component data only.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -139,17 +137,18 @@
  */
 
 // INCLUDES - ONLY THESE ARE ALLOWED!
-// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>
+// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>, <chrono>
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/control/player_ctrl_move_system.hpp>
-// Components from same module ONLY
+#include <ase/player/systems/state/player_sta_sts_sys.hpp>
+// Components from same module
 #include <ase/player/components/input/player_inp_ext_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_vel_component.hpp>
 #include <ase/player/components/state/player_st_phys_component.hpp>
+#include <ase/player/components/state/player_st_sts_component.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
+#include <ase/player/components/state/player_st_id_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -158,7 +157,7 @@
 #include <ase/math/math.hpp>
 
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings
+using namespace entt::literals;  // For "_hs hashed strings (Hub)
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
@@ -176,109 +175,76 @@ namespace {
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerCtrlMoveSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerCtrlMoveSystem] Started");
+void PlayerStaStsSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerStaStsSystem] Started");
 }
 
-void PlayerCtrlMoveSystem::tick(ecs::Registry& registry, float dt) {
+void PlayerStaStsSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * STEP 1: Get movement settings from manager
+     * PlayerStMovComponent on manager entity defines min_speed_threshold.
      */
-    PlayerStMovComponent mov;
-    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
-    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
-    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
-    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
-    mov.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
-    mov.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
-
+    float min_speed = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
     auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, m] : mov_view.each()) {
+    for (auto [e, mov] : mov_view.each()) {
         (void)e;
-        mov = m;
+        min_speed = mov.min_speed_threshold;
         break;
     }
 
     /**
-     * STEP 2: Process each player entity with input data (SYN Pattern)
-     * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
+     * STEP 2: Create view for player entities with required components (SYN Pattern)
+     * Reads sprint input from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
     auto view = registry.view<
         PlayerInpExtComponent,
-        PlayerStPosComponent,
+        PlayerStIdComponent,
         PlayerStVelComponent,
-        PlayerStPhysComponent
+        PlayerStPhysComponent,
+        PlayerStStsComponent
     >();
 
-    for (auto [entity, inp, pos, vel, physics] : view.each()) {
-        /**
-         * STEP 3: Read input values from PlayerInpExtComponent (SYN Pattern)
-         */
-        float forward = inp.inp_fwd;
-        float strafe = inp.inp_str;
-        bool sprint = (inp.inp_sprint > 0.5f);
-        bool jump = (inp.inp_jump > 0.5f);
-        float movement_yaw = inp.cam_yaw;
+    for (auto [entity, inp, id, vel, physics, state] : view.each()) {
+        (void)id;
+        (void)entity;
 
         /**
-         * STEP 4: Calculate movement direction using ase-math
+         * STEP 3: Calculate horizontal speed using ase-math
          */
-        float sin_yaw = math::sin(movement_yaw);
-        float cos_yaw = math::cos(movement_yaw);
+        float speed_xz = math::sqrt(vel.vx * vel.vx + vel.vz * vel.vz);
 
-        float move_x = -forward * sin_yaw + strafe * cos_yaw;
-        float move_z = -forward * cos_yaw - strafe * sin_yaw;
-
-        float move_len = math::sqrt(move_x * move_x + move_z * move_z);
-        if (move_len > 1.0f) {
-            move_x /= move_len;
-            move_z /= move_len;
+        /**
+         * STEP 4: Read sprint input from PlayerInpExtComponent (SYN Pattern)
+         */
+        float sprint_val = inp.inp_sprint;
+        if (sprint_val < 0.0f || sprint_val > 1.0f) {
+            sprint_val = math::clamp(sprint_val, 0.0f, 1.0f);
         }
 
-        /**
-         * STEP 5: Calculate target velocity
-         */
-        float speed = sprint ? mov.run_speed : mov.walk_speed;
-        float control = physics.on_ground ? 1.0f : mov.air_control;
-
-        float target_vx = move_x * speed;
-        float target_vz = move_z * speed;
+        bool is_sprinting = (sprint_val > 0.5f);
 
         /**
-         * STEP 6: Apply acceleration based on ground state
+         * STEP 5: Determine state based on physics and velocity
+         * Uses data-driven approach with constants from types.hpp.
          */
         if (physics.on_ground) {
-            float accel = mov.ground_friction * dt;
-            accel = math::min(accel, 1.0f);
-            vel.vx += (target_vx - vel.vx) * accel;
-            vel.vz += (target_vz - vel.vz) * accel;
+            if (speed_xz > min_speed) {
+                state.sts = is_sprinting ? PLAYER_STATE_RUNNING : PLAYER_STATE_WALKING;
+            } else {
+                state.sts = PLAYER_STATE_IDLE;
+            }
         } else {
-            vel.vx += (target_vx - vel.vx) * control * dt;
-            vel.vz += (target_vz - vel.vz) * control * dt;
+            if (vel.vy > 0.0f) {
+                state.sts = PLAYER_STATE_JUMPING;
+            } else {
+                state.sts = PLAYER_STATE_FALLING;
+            }
         }
-
-        /**
-         * STEP 7: Handle jump
-         */
-        if (jump && physics.on_ground) {
-            vel.vy = mov.jump_impulse;
-            physics.on_ground = false;
-        }
-
-        /**
-         * STEP 8: Apply gravity
-         */
-        if (!physics.on_ground && physics.gravity_enabled) {
-            vel.vy -= mov.gravity * dt;
-        }
-
-        (void)pos;  // Position read for potential future use
-        (void)entity;  // Entity available for potential tagging
     }
 }
 
-void PlayerCtrlMoveSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerCtrlMoveSystem] Stopped");
+void PlayerStaStsSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerStaStsSystem] Stopped");
 }
 
 }  // namespace ase::player

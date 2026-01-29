@@ -3,24 +3,23 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_ctrl_move_system.hpp
- * @brief       PlayerCtrlMoveSystem - Calculate velocity from input
+ * @file        player_sim_phys_sys.hpp
+ * @brief       PlayerSimPhysSystem - Apply physics simulation to player entities
  * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Converts input state to player velocity based on physics properties.
+ *              Applies velocity to position and handles ground collision.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    control
- * @schedule    Kinematics
+ * @category    process/simulation
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerInpExtComponent ─────┐
- *   PlayerStPosComponent ──────┼──> PlayerCtrlMoveSystem ──> PlayerStVelComponent
- *   PlayerStPhysComponent ─────┘   (calculates velocity)
+ *   PlayerStVelComponent ──> PlayerSimPhysSystem ──> PlayerStPosComponent
+ *   (velocity)                (applies physics)       (position updated)
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -42,15 +41,15 @@
 namespace ase::player {
 
 /**
- * @brief Calculate velocity from input (SHARED)
+ * @brief Apply physics simulation to player entities (SHARED)
  *
- * @schedule Kinematics - calculates velocity from input
- * @reads    PlayerInpExtComponent, PlayerStPosComponent, PlayerStPhysComponent
- * @writes   PlayerStVelComponent
+ * @schedule Dynamics - applies physics simulation
+ * @reads    PlayerInpExtComponent (terrain height), PlayerStVelComponent
+ * @writes   PlayerStPosComponent (position), PlayerStPhysComponent (on_ground)
  */
-class PlayerCtrlMoveSystem : public ecs::System {
+class PlayerSimPhysSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerCtrlMoveSystem"; }
+    const char* name() const override { return "PlayerSimPhysSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

@@ -3,25 +3,23 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_state_status_system.hpp
- * @brief       PlayerStateStatusSystem - Update player state machine
+ * @file        player_ctrl_inp_sys.hpp
+ * @brief       PlayerCtrlInpSystem - Process player input and update facing direction
  * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Updates player state (idle, walking, running, jumping) based on
- *              velocity and physics state.
+ *              Updates player yaw rotation towards movement direction.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    state
- * @schedule    Kinematics
+ * @category    action/control
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerStVelComponent ──────┐
- *   PlayerStPhysComponent ─────┼──> PlayerStateStatusSystem ──> PlayerStStsComponent
- *   PlayerInpExtComponent ─────┘    (state machine)
+ *   PlayerInpExtComponent ──> PlayerCtrlInpSystem ──> PlayerStPosComponent
+ *   (from PlayerSyncInpSystem)  (processes input)       (yaw rotation)
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -43,15 +41,16 @@
 namespace ase::player {
 
 /**
- * @brief Update player state machine (SHARED)
+ * @brief Process player input and update facing direction (SHARED)
  *
- * @schedule Kinematics - after physics, before state-dependent systems
- * @reads    PlayerStVelComponent, PlayerStPhysComponent, PlayerInpExtComponent
- * @writes   PlayerStStsComponent
+ * @schedule Dynamics - processes input for movement
+ * @reads    PlayerInpExtComponent (input bridge from SyncSystem)
+ * @reads    PlayerStIdComponent, PlayerStPosComponent, PlayerStMovComponent
+ * @writes   PlayerStPosComponent (yaw rotation towards movement)
  */
-class PlayerStateStatusSystem : public ecs::System {
+class PlayerCtrlInpSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerStateStatusSystem"; }
+    const char* name() const override { return "PlayerCtrlInpSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

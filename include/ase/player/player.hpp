@@ -77,36 +77,36 @@
 /**
  * SYSTEMS - Lifecycle (1)
  */
-#include <ase/player/systems/lifecycle/player_life_spawn_system.hpp>
+#include <ase/player/systems/lifecycle/player_life_spwn_sys.hpp>
 
 /**
  * SYSTEMS - Control (2)
  */
-#include <ase/player/systems/control/player_ctrl_input_system.hpp>
-#include <ase/player/systems/control/player_ctrl_move_system.hpp>
+#include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
+#include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
 
 /**
  * SYSTEMS - Simulation (1)
  */
-#include <ase/player/systems/simulation/player_sim_phys_system.hpp>
+#include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
 
 /**
  * SYSTEMS - State (1)
  */
-#include <ase/player/systems/state/player_state_status_system.hpp>
+#include <ase/player/systems/state/player_sta_sts_sys.hpp>
 
 /**
- * SYSTEMS - Spatial (1)
+ * SYSTEMS - State/Chunk (1)
  */
-#include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
+#include <ase/player/systems/state/player_sta_chnk_sys.hpp>
 
 /**
  * SYSTEMS - Hub (1)
  */
-#include <ase/player/systems/hub/player_hub_pos_system.hpp>
+#include <ase/player/systems/hub/player_hub_pos_sys.hpp>
 
 /**
  * SYSTEMS - Network (2)
  */
-#include <ase/player/systems/network/player_bct_req_system.hpp>
-#include <ase/player/systems/network/player_bct_snd_system.hpp>
+#include <ase/player/systems/network/player_bct_req_sys.hpp>
+#include <ase/player/systems/network/player_bct_snd_sys.hpp>

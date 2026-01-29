@@ -1,58 +1,58 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_bct_req_system.cpp
- * @brief       PlayerBctReqSystem - Create broadcast request entities for player state changes
+ * @file        player_bct_snd_sys.cpp
+ * @brief       PlayerBctSndSystem - Player broadcast send system
+ * @description Sends serialized player broadcasts via Hub for replication.
+ *              Pure ECS pattern: reads SerialJsnFinTag, writes Hub values.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    network
+ * @category    entity/actor/player
  * @schedule    Transmission
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     2.0.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_BCT_REQ: Player Broadcast Request Creation)
+ * CAUSAL CHAIN (CAUSA_PLR_BCT_SND: Player Broadcast Send)
  *
- *   [PlayerDirtyTag + PlayerSpawnedTag]
+ *   [SerialJsnFinTag + PlayerBctSpnPndTag/PlayerBctStaPndTag]
  *          │
- *          │ dirty/spawned players need broadcast
+ *          │ serialization complete
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerBctReqSystem            │
+ *   │  THIS SYSTEM: PlayerBctSndSystem            │
  *   │                                             │
  *   │  READS:                                     │
- *   │    - PlayerStIdComponent (identity)         │
- *   │    - PlayerStPosComponent (position)        │
- *   │    - PlayerStVelComponent (velocity)        │
- *   │    - PlayerStStsComponent (state)           │
- *   │    - PlayerSpawnedTag (new players)         │
- *   │    - PlayerDirtyTag (changed players)       │
- *   │                                             │
- *   │  WRITES:                                    │
- *   │    - PlayerBufBctSpnComponent (spawn buf)   │
- *   │    - PlayerBufBctStaComponent (state buf)   │
+ *   │    - SerialJsnFinTag (serialization done)   │
+ *   │    - SerialBufJsnComponent (JSON buffer)    │
+ *   │    - PlayerBufBctSpnComponent (spawn data)  │
+ *   │    - PlayerBufBctStaComponent (state data)  │
  *   │    - PlayerBctSpnPndTag (spawn pending)     │
  *   │    - PlayerBctStaPndTag (state pending)     │
- *   │    - Removes PlayerSpawnedTag               │
- *   │    - Removes PlayerDirtyTag                 │
- *   │    - Removes PlayerChunkChangedTag          │
+ *   │                                             │
+ *   │  WRITES:                                    │
+ *   │    - Hub: REP_MSG_CHN, REP_MSG_PTR_*        │
+ *   │    - Hub: REP_MSG_LEN, REP_MSG_BCT          │
+ *   │    - PlayerBctSpnSntTag (spawn sent)        │
+ *   │    - PlayerBctStaSntTag (state sent)        │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ serialization entities created
+ *          │ message data written to Hub
  *          ▼
- *   PlayerBctSndSystem (sends via network)
+ *   ReplicationSndSystem (reads Hub, sends via network)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * HUB Pattern (MIG_ASE_HUB_API v2.0):
  *
- * READS (from player module via Components):
- *   PlayerStIdComponent  → Player identity for broadcast
- *   PlayerStPosComponent → Position data
- *   PlayerStVelComponent → Velocity data
- *   PlayerStStsComponent → State data
+ * READS (from ase-serial via Components):
+ *   SerialBufJsnComponent → Serialized JSON data
  *
- * WRITES (to Hub for other modules):
- *   (none - creates serialization entities directly)
+ * WRITES (to Hub for ase-replication):
+ *   "REP_MSG_CHN"_hs    → Channel name hash
+ *   "REP_MSG_PTR_HI"_hs → Payload pointer high bits
+ *   "REP_MSG_PTR_LO"_hs → Payload pointer low bits
+ *   "REP_MSG_LEN"_hs    → Payload length
+ *   "REP_MSG_BCT"_hs    → Broadcast request flag (1.0)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -145,157 +145,119 @@
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/network/player_bct_req_system.hpp>
+#include <ase/player/systems/network/player_bct_snd_sys.hpp>
 // Components from same module
-#include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
 #include <ase/player/components/buffer/player_buf_bct_spn_component.hpp>
 #include <ase/player/components/buffer/player_buf_bct_sta_component.hpp>
-#include <ase/player/components/tag/player_tag_dirty_component.hpp>
-#include <ase/player/components/tag/player_tag_spawned_component.hpp>
-#include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
 #include <ase/player/components/tag/player_tag_bct_spn_pnd_component.hpp>
 #include <ase/player/components/tag/player_tag_bct_sta_pnd_component.hpp>
-// types.hpp for constants
+#include <ase/player/components/tag/player_tag_bct_spn_snt_component.hpp>
+#include <ase/player/components/tag/player_tag_bct_sta_snt_component.hpp>
 #include <ase/player/types.hpp>
 // Serialization (Layer 2)
 #include <ase/serial/serial.hpp>
+// Hub for HUB Pattern
+#include <ase/hub/api.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
-#include <cstring>
-
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings (Hub)
+using namespace entt::literals;
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
  * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
+ *   OK: namespace { void helper() {...} }   // CORRECT
+ *   NO: static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
-
-// No helper functions needed - all logic inlined in tick()
 
 }  // anonymous namespace
 
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerBctReqSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerBctReqSystem] Started");
+void PlayerBctSndSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerBctSndSystem] Started");
 }
 
-void PlayerBctReqSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerBctSndSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Process spawned players - mark for broadcast
-     * Tag entities with PlayerBctSpnReqTag, then process in separate pass.
+     * STEP 1: Process spawn broadcasts (Tag-filtered View)
+     * Entities with SerialJsnFinTag + PlayerBctSpnPndTag, excluding already sent
      */
-    auto spawn_view = registry.view<PlayerStIdComponent, PlayerStPosComponent, PlayerSpawnedTag>();
+    {
+        auto view = registry.view<serial::SerialJsnFinTag,
+                                  serial::SerialBufJsnComponent,
+                                  PlayerBufBctSpnComponent,
+                                  PlayerBctSpnPndTag>(
+            entt::exclude<PlayerBctSpnSntTag>
+        );
 
-    /**
-     * STEP 2: Create spawn broadcast entities using iterator-based loop
-     * Using begin/end iterators allows entity creation during iteration.
-     */
-    auto spawn_it = spawn_view.begin();
-    auto spawn_end = spawn_view.end();
-    while (spawn_it != spawn_end) {
-        auto entity = *spawn_it;
-        ++spawn_it;
+        for (auto [entity, jsn_buf, spn_buf] : view.each()) {
+            if (jsn_buf.st != serial::SERIAL_ST_FIN || jsn_buf.jsn_ptr == 0) {
+                continue;
+            }
 
-        auto& id = registry.get<PlayerStIdComponent>(entity);
-        auto& pos = registry.get<PlayerStPosComponent>(entity);
+            uint32_t owner = static_cast<uint32_t>(entity);
 
-        auto ser = registry.create();
+            /**
+             * Hub: Write broadcast data (HUB Pattern - WRITES)
+             * Replication module will read these values
+             */
+            hub::set(registry, owner, "REP_MSG_CHN"_hs, static_cast<float>(CHANNEL_PLR_SPN_HASH));
+            hub::set(registry, owner, "REP_MSG_PTR_HI"_hs, static_cast<float>(jsn_buf.jsn_ptr >> 32));
+            hub::set(registry, owner, "REP_MSG_PTR_LO"_hs, static_cast<float>(jsn_buf.jsn_ptr & 0xFFFFFFFF));
+            hub::set(registry, owner, "REP_MSG_LEN"_hs, static_cast<float>(jsn_buf.jsn_len));
+            hub::set(registry, owner, "REP_MSG_BCT"_hs, 1.0f);
 
-        auto& spn_buf = registry.emplace<PlayerBufBctSpnComponent>(ser);
-        std::strncpy(spn_buf.player_id, id.player_id, sizeof(spn_buf.player_id) - 1);
-        spn_buf.player_id[sizeof(spn_buf.player_id) - 1] = '\0';
-        spn_buf.spawned_at_ms = id.spawned_at_ms;
-        spn_buf.last_input_ms = id.last_input_ms;
-        spn_buf.x = pos.x;
-        spn_buf.y = pos.y;
-        spn_buf.z = pos.z;
-        spn_buf.yaw = pos.yaw;
+            /**
+             * Mark as sent (deferred, tags only)
+             */
+            registry.emplace_or_replace<PlayerBctSpnSntTag>(entity);
 
-        auto& jsn_buf = registry.emplace<serial::SerialBufJsnComponent>(ser);
-        jsn_buf.src_ptr = reinterpret_cast<uint64_t>(&registry.get<PlayerBufBctSpnComponent>(ser));
-        jsn_buf.src_typ = SERIAL_TYP_PLR_SPN;
-        jsn_buf.src_siz = sizeof(PlayerBufBctSpnComponent);
-        jsn_buf.st = serial::SERIAL_ST_PND;
-
-        registry.emplace<serial::SerialJsnPndTag>(ser);
-        registry.emplace<PlayerBctSpnPndTag>(ser);
-
-        registry.remove<PlayerSpawnedTag>(entity);
-
-        log::debug("[PlayerBctReqSystem] Created spawn request for player {}", id.player_id);
+            log::debug("[PlayerBctSndSystem] Spawn broadcast queued via Hub");
+        }
     }
 
     /**
-     * STEP 3: Process dirty players - create state broadcast requests
+     * STEP 2: Process state broadcasts (separate Tag-filtered View)
      */
-    auto dirty_view = registry.view<PlayerStIdComponent, PlayerStPosComponent,
-                                    PlayerStVelComponent, PlayerStStsComponent, PlayerDirtyTag>();
+    {
+        auto view = registry.view<serial::SerialJsnFinTag,
+                                  serial::SerialBufJsnComponent,
+                                  PlayerBufBctStaComponent,
+                                  PlayerBctStaPndTag>(
+            entt::exclude<PlayerBctStaSntTag>
+        );
 
-    auto dirty_it = dirty_view.begin();
-    auto dirty_end = dirty_view.end();
-    while (dirty_it != dirty_end) {
-        auto entity = *dirty_it;
-        ++dirty_it;
+        for (auto [entity, jsn_buf, sta_buf] : view.each()) {
+            if (jsn_buf.st != serial::SERIAL_ST_FIN || jsn_buf.jsn_ptr == 0) {
+                continue;
+            }
 
-        auto& id = registry.get<PlayerStIdComponent>(entity);
-        auto& pos = registry.get<PlayerStPosComponent>(entity);
-        auto& vel = registry.get<PlayerStVelComponent>(entity);
-        auto& sts = registry.get<PlayerStStsComponent>(entity);
+            uint32_t owner = static_cast<uint32_t>(entity);
 
-        auto ser = registry.create();
+            /**
+             * Hub: Write broadcast data (HUB Pattern - WRITES)
+             */
+            hub::set(registry, owner, "REP_MSG_CHN"_hs, static_cast<float>(CHANNEL_PLR_STA_HASH));
+            hub::set(registry, owner, "REP_MSG_PTR_HI"_hs, static_cast<float>(jsn_buf.jsn_ptr >> 32));
+            hub::set(registry, owner, "REP_MSG_PTR_LO"_hs, static_cast<float>(jsn_buf.jsn_ptr & 0xFFFFFFFF));
+            hub::set(registry, owner, "REP_MSG_LEN"_hs, static_cast<float>(jsn_buf.jsn_len));
+            hub::set(registry, owner, "REP_MSG_BCT"_hs, 1.0f);
 
-        auto& sta_buf = registry.emplace<PlayerBufBctStaComponent>(ser);
-        std::strncpy(sta_buf.player_id, id.player_id, sizeof(sta_buf.player_id) - 1);
-        sta_buf.player_id[sizeof(sta_buf.player_id) - 1] = '\0';
-        sta_buf.spawned_at_ms = id.spawned_at_ms;
-        sta_buf.last_input_ms = id.last_input_ms;
-        sta_buf.x = pos.x;
-        sta_buf.y = pos.y;
-        sta_buf.z = pos.z;
-        sta_buf.yaw = pos.yaw;
-        sta_buf.vx = vel.vx;
-        sta_buf.vy = vel.vy;
-        sta_buf.vz = vel.vz;
-        sta_buf.sts = sts.sts;
-
-        auto& jsn_buf = registry.emplace<serial::SerialBufJsnComponent>(ser);
-        jsn_buf.src_ptr = reinterpret_cast<uint64_t>(&registry.get<PlayerBufBctStaComponent>(ser));
-        jsn_buf.src_typ = SERIAL_TYP_PLR_STA;
-        jsn_buf.src_siz = sizeof(PlayerBufBctStaComponent);
-        jsn_buf.st = serial::SERIAL_ST_PND;
-
-        registry.emplace<serial::SerialJsnPndTag>(ser);
-        registry.emplace<PlayerBctStaPndTag>(ser);
-
-        registry.remove<PlayerDirtyTag>(entity);
-    }
-
-    /**
-     * STEP 4: Clear chunk changed tags
-     */
-    auto chunk_view = registry.view<PlayerChunkChangedTag>();
-    auto chunk_it = chunk_view.begin();
-    auto chunk_end = chunk_view.end();
-    while (chunk_it != chunk_end) {
-        auto entity = *chunk_it;
-        ++chunk_it;
-        registry.remove<PlayerChunkChangedTag>(entity);
+            /**
+             * Mark as sent (deferred, tags only)
+             */
+            registry.emplace_or_replace<PlayerBctStaSntTag>(entity);
+        }
     }
 }
 
-void PlayerBctReqSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerBctReqSystem] Stopped");
+void PlayerBctSndSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerBctSndSystem] Stopped");
 }
 
 }  // namespace ase::player

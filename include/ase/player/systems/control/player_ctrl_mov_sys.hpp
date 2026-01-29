@@ -3,23 +3,23 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_ctrl_input_system.hpp
- * @brief       PlayerCtrlInputSystem - Process player input and update facing direction
+ * @file        player_ctrl_mov_sys.hpp
+ * @brief       PlayerCtrlMovSystem - Calculate player velocity from input
  * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Updates player yaw rotation towards movement direction.
+ *              Calculates target velocity based on input and movement settings.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    control
- * @schedule    Kinematics
+ * @category    action/control
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerInpExtComponent ──> PlayerCtrlInputSystem ──> PlayerStPosComponent
- *   (from PlayerSyncInpSystem)  (processes input)       (yaw rotation)
+ *   PlayerInpExtComponent ──> PlayerCtrlMovSystem ──> PlayerStVelComponent
+ *   (from PlayerSyncInpSystem)  (calculates velocity)   (vx, vy, vz)
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -41,16 +41,16 @@
 namespace ase::player {
 
 /**
- * @brief Process player input and update facing direction (SHARED)
+ * @brief Calculate player velocity from input (SHARED)
  *
- * @schedule Kinematics - processes input for movement
+ * @schedule Dynamics - processes input for movement
  * @reads    PlayerInpExtComponent (input bridge from SyncSystem)
- * @reads    PlayerStIdComponent, PlayerStPosComponent, PlayerStMovComponent
- * @writes   PlayerStPosComponent (yaw rotation towards movement)
+ * @reads    PlayerStPosComponent, PlayerStVelComponent, PlayerStPhysComponent, PlayerStMovComponent
+ * @writes   PlayerStVelComponent (velocity from input)
  */
-class PlayerCtrlInputSystem : public ecs::System {
+class PlayerCtrlMovSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerCtrlInputSystem"; }
+    const char* name() const override { return "PlayerCtrlMovSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

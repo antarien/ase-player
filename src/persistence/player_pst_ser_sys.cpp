@@ -1,57 +1,57 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_bct_snd_system.cpp
- * @brief       PlayerBctSndSystem - Prepare player broadcasts for replication via Hub
+ * @file        player_pst_ser_sys.cpp
+ * @brief       PlayerPstSerSystem - Player persistence serialization
+ * @description Serializes dirty players and delegates persistence to Replication Layer.
+ *              Naming: Player + Pst(Persist) + Ser(Serialize) + System
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    network
- * @schedule    Transmission
+ * @category    entity/actor/player
+ * @schedule    Preservation
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     2.0.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_BCT_SND: Player Broadcast Send)
+ * CAUSAL CHAIN (CAUSA_PLR_PST_SER: Player Persistence Serialization)
  *
- *   [SerialJsnFinTag + PlayerBctSpnPndTag/PlayerBctStaPndTag]
+ *   [PlayerPstDtyTag + PlayerSpawnedTag]
  *          │
- *          │ serialization complete
+ *          │ player dirty, needs persistence
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerBctSndSystem            │
+ *   │  THIS SYSTEM: PlayerPstSerSystem            │
  *   │                                             │
  *   │  READS:                                     │
- *   │    - SerialJsnFinTag (serialization done)   │
- *   │    - SerialBufJsnComponent (JSON buffer)    │
- *   │    - PlayerBufBctSpnComponent (spawn data)  │
- *   │    - PlayerBufBctStaComponent (state data)  │
- *   │    - PlayerBctSpnPndTag (spawn pending)     │
- *   │    - PlayerBctStaPndTag (state pending)     │
+ *   │    - PlayerPstDtyTag (dirty flag)           │
+ *   │    - PlayerSpawnedTag (spawned flag)        │
+ *   │    - PlayerStIdComponent (identity)         │
+ *   │    - PlayerStPosComponent (position)        │
+ *   │    - PlayerStVelComponent (velocity)        │
+ *   │    - PlayerStStsComponent (status)          │
  *   │                                             │
  *   │  WRITES:                                    │
- *   │    - "REP_MSG_CHN"_hs (Hub - channel)       │
- *   │    - "REP_MSG_PTR"_hs (Hub - payload ptr)   │
- *   │    - "REP_MSG_LEN"_hs (Hub - payload len)   │
- *   │    - "REP_MSG_BCT"_hs (Hub - broadcast req) │
- *   │    - PlayerBctSpnSntTag (spawn sent)        │
- *   │    - PlayerBctStaSntTag (state sent)        │
+ *   │    - PlayerBufPstComponent (persistence buf)│
+ *   │    - SerialBufJsnComponent (JSON buffer)    │
+ *   │    - SerialJsnPndTag (serialization pnd)    │
+ *   │    - Hub: REP_PST_SER, REP_PST_SYN          │
+ *   │    - Removes PlayerPstDtyTag                │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ message data written to Hub
+ *          │ persistence request queued
  *          ▼
- *   ReplicationSndSystem (reads Hub, sends via network)
+ *   SerialJsnSystem (serializes data)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * HUB Pattern (MIG_ASE_HUB_API v2.0):
  *
- * READS (from ase-serial via Components):
- *   SerialBufJsnComponent → Serialized JSON data
+ * READS (from Components):
+ *   PlayerStIdComponent → Player identity
+ *   PlayerStPosComponent → Position data
  *
  * WRITES (to Hub for ase-replication):
- *   "REP_MSG_CHN"_hs → Channel name hash
- *   "REP_MSG_PTR"_hs → Payload pointer (as float bits)
- *   "REP_MSG_LEN"_hs → Payload length
- *   "REP_MSG_BCT"_hs → Broadcast request flag (1.0)
+ *   "REP_PST_SER"_hs → Serialization entity reference
+ *   "REP_PST_SYN"_hs → Sync request flag
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -144,122 +144,113 @@
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/network/player_bct_snd_system.hpp>
+#include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 // Components from same module
-#include <ase/player/components/buffer/player_buf_bct_spn_component.hpp>
-#include <ase/player/components/buffer/player_buf_bct_sta_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_spn_pnd_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_sta_pnd_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_spn_snt_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_sta_snt_component.hpp>
-// types.hpp for constants
+#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_st_pos_component.hpp>
+#include <ase/player/components/state/player_st_vel_component.hpp>
+#include <ase/player/components/state/player_st_sts_component.hpp>
+#include <ase/player/components/buffer/player_buf_pst_component.hpp>
+#include <ase/player/components/tag/player_tag_pst_dty_component.hpp>
+#include <ase/player/components/tag/player_tag_spawned_component.hpp>
 #include <ase/player/types.hpp>
 // Serialization (Layer 2)
 #include <ase/serial/serial.hpp>
 // Hub for HUB Pattern
-#include <ase/hub/hub.hpp>
+#include <ase/hub/api.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings (Hub)
+using namespace entt::literals;
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
  * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
+ *   OK: namespace { void helper() {...} }   // CORRECT
+ *   NO: static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
-
-// No helper functions needed - all logic inlined in tick()
 
 }  // anonymous namespace
 
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerBctSndSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerBctSndSystem] Started");
+void PlayerPstSerSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerPstSerSystem] Started");
 }
 
-void PlayerBctSndSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Process spawn broadcasts (Tag-filtered View)
-     * Entities with SerialJsnFinTag + PlayerBctSpnPndTag, excluding already sent
+     * STEP 1: Process dirty players that need persistence
+     * Single-pass processing without collect-then-process
      */
-    {
-        auto view = registry.view<serial::SerialJsnFinTag,
-                                  serial::SerialBufJsnComponent,
-                                  PlayerBufBctSpnComponent,
-                                  PlayerBctSpnPndTag>(
-            entt::exclude<PlayerBctSpnSntTag>
-        );
-
-        for (auto [entity, jsn_buf, spn_buf] : view.each()) {
-            if (jsn_buf.st != serial::SERIAL_ST_FIN || jsn_buf.jsn_ptr == 0) {
-                continue;
-            }
-
-            uint32_t owner = static_cast<uint32_t>(entity);
-
-            /**
-             * Write broadcast data to Hub (HUB Pattern - WRITES)
-             * Replication module will read these values
-             */
-            hub::set(registry, owner, "REP_MSG_CHN"_hs, static_cast<float>(CHANNEL_PLR_SPN_HASH));
-            hub::set(registry, owner, "REP_MSG_PTR_HI"_hs, static_cast<float>(jsn_buf.jsn_ptr >> 32));
-            hub::set(registry, owner, "REP_MSG_PTR_LO"_hs, static_cast<float>(jsn_buf.jsn_ptr & 0xFFFFFFFF));
-            hub::set(registry, owner, "REP_MSG_LEN"_hs, static_cast<float>(jsn_buf.jsn_len));
-            hub::set(registry, owner, "REP_MSG_BCT"_hs, 1.0f);
-
-            /**
-             * Mark as sent (deferred - tags only, no remove during iteration)
-             */
-            registry.emplace_or_replace<PlayerBctSpnSntTag>(entity);
-
-            log::debug("[PlayerBctSndSystem] Spawn broadcast queued via Hub");
-        }
-    }
+    auto view = registry.view<
+        PlayerPstDtyTag,
+        PlayerSpawnedTag,
+        PlayerStIdComponent,
+        PlayerStPosComponent,
+        PlayerStVelComponent,
+        PlayerStStsComponent
+    >();
 
     /**
-     * STEP 2: Process state broadcasts (separate Tag-filtered View)
+     * Use iterator pattern for entity creation during iteration
      */
-    {
-        auto view = registry.view<serial::SerialJsnFinTag,
-                                  serial::SerialBufJsnComponent,
-                                  PlayerBufBctStaComponent,
-                                  PlayerBctStaPndTag>(
-            entt::exclude<PlayerBctStaSntTag>
-        );
+    auto it = view.begin();
+    auto end_it = view.end();
+    while (it != end_it) {
+        auto entity = *it;
+        ++it;
 
-        for (auto [entity, jsn_buf, sta_buf] : view.each()) {
-            if (jsn_buf.st != serial::SERIAL_ST_FIN || jsn_buf.jsn_ptr == 0) {
-                continue;
-            }
+        auto& id = registry.get<PlayerStIdComponent>(entity);
+        auto& pos = registry.get<PlayerStPosComponent>(entity);
 
-            uint32_t owner = static_cast<uint32_t>(entity);
+        /**
+         * STEP 2: Create serialization request entity
+         */
+        auto ser = registry.create();
 
-            /**
-             * Write broadcast data to Hub (HUB Pattern - WRITES)
-             */
-            hub::set(registry, owner, "REP_MSG_CHN"_hs, static_cast<float>(CHANNEL_PLR_STA_HASH));
-            hub::set(registry, owner, "REP_MSG_PTR_HI"_hs, static_cast<float>(jsn_buf.jsn_ptr >> 32));
-            hub::set(registry, owner, "REP_MSG_PTR_LO"_hs, static_cast<float>(jsn_buf.jsn_ptr & 0xFFFFFFFF));
-            hub::set(registry, owner, "REP_MSG_LEN"_hs, static_cast<float>(jsn_buf.jsn_len));
-            hub::set(registry, owner, "REP_MSG_BCT"_hs, 1.0f);
+        auto& jsn_buf = registry.emplace<serial::SerialBufJsnComponent>(ser);
+        jsn_buf.src_ptr = reinterpret_cast<uint64_t>(&pos);
+        jsn_buf.src_typ = SERIAL_TYP_PLR_STA;
+        jsn_buf.src_siz = sizeof(PlayerStPosComponent);
+        jsn_buf.st = serial::SERIAL_ST_PND;
 
-            /**
-             * Mark as sent (deferred - tags only)
-             */
-            registry.emplace_or_replace<PlayerBctStaSntTag>(entity);
+        registry.emplace<serial::SerialJsnPndTag>(ser);
+
+        /**
+         * Hub: Write persistence metadata (HUB Pattern - WRITES)
+         * Replication module reads these to perform persistence
+         */
+        uint32_t owner = static_cast<uint32_t>(entity);
+        hub::set(registry, owner, "REP_PST_SER"_hs, static_cast<float>(ser));
+        hub::set(registry, owner, "REP_PST_SYN"_hs, 1.0f);
+
+        /**
+         * STEP 4: Update persistence buffer with player_id pointer
+         * Uses pointer pattern, stores reference to id.player_id
+         */
+        auto& buf = registry.get_or_emplace<PlayerBufPstComponent>(entity);
+        buf.plr_id_ptr = reinterpret_cast<uint64_t>(id.player_id);
+        buf.plr_id_len = 0;
+        while (buf.plr_id_len < sizeof(id.player_id) && id.player_id[buf.plr_id_len] != '\0') {
+            ++buf.plr_id_len;
         }
+
+        /**
+         * STEP 5: Remove dirty tag (processed)
+         */
+        registry.remove<PlayerPstDtyTag>(entity);
+
+        log::debug("[PlayerPstSerSystem] Queued player for persistence");
     }
 }
 
-void PlayerBctSndSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerBctSndSystem] Stopped");
+void PlayerPstSerSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerPstSerSystem] Stopped");
 }
 
 }  // namespace ase::player

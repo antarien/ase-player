@@ -3,24 +3,26 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_bct_req_system.hpp
- * @brief       PlayerBctReqSystem - AUSGEHEND Step 1
- * @description Creates serialization requests for player broadcast.
- *              Pure ECS pattern: copies state to buffer, sets SerialJsnPndTag.
+ * @file        player_sync_inp_sys.hpp
+ * @brief       PlayerSyncInpSystem - Sync Hub input values to Input Component
+ * @description SYN PATTERN: Reads Hub values and writes to PlayerInpExtComponent.
+ *              Calculation systems read from PlayerInpExtComponent (no Hub access).
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    network
- * @schedule    Integration
+ * @category    input
+ * @schedule    Synchronization
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE:
  *
- *   PlayerDirtyTag ───┐
- *   PlayerSpawnedTag ─┼──> PlayerBctReqSystem ──> SerialBufJsnComponent
- *   PlayerState* ─────┘    (creates request)      + SerialJsnPndTag
+ *   Hub Values ──> PlayerSyncInpSystem ──> PlayerInpExtComponent
+ *   PLR_INP_FWD     (reads Hub)             (bridge data)
+ *   PLR_INP_STR
+ *   PLR_CAM_YAW
+ *   TRN_HGT_AT_POS
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -42,15 +44,15 @@
 namespace ase::player {
 
 /**
- * @brief Creates serialization requests for player broadcast
+ * @brief Sync Hub input values to PlayerInpExtComponent
  *
- * @schedule Integration - prepares broadcast data
- * @reads    PlayerDirtyTag, PlayerSpawnedTag, PlayerState components
- * @writes   SerialBufJsnComponent, SerialJsnPndTag
+ * @schedule Synchronization - before calculation systems
+ * @reads    Hub values: PLR_INP_FWD, PLR_INP_STR, PLR_CAM_YAW, TRN_HGT_AT_POS
+ * @writes   PlayerInpExtComponent
  */
-class PlayerBctReqSystem : public ecs::System {
+class PlayerSyncInpSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerBctReqSystem"; }
+    const char* name() const override { return "PlayerSyncInpSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

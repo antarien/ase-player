@@ -3,18 +3,18 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_log_causality_system.hpp
- * @brief       PlayerLogCausalitySystem - Logs player causality chain
+ * @file        player_log_obsv_sys.hpp
+ * @brief       PlayerLogObsvSystem - Logs player state observation
  * @description Consistent with SkyLogCausalitySystem and TerrainLogCausalitySystem.
  *              ECS STATELESS: Uses PlayerCacheObsComponent for tracking.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    log
- * @schedule    Dissemination
+ * @category    error/logging/output
+ * @schedule    Conclusion
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE:
  *
@@ -27,7 +27,7 @@
  *   - PlayerChunkChangedTag (chunk changed)
  *
  *   Example output:
- *   [ase-player] [PlayerLogCausalitySystem]
+ *   [ase-player] [PlayerLogObsvSystem]
  *   players:3 -> idle:1 -> walking:1 -> running:1 -> jumping:0 -> dirty:2 -> spawned:0
  *
  * ECS SYSTEM HEADER COMPLIANCE
@@ -50,16 +50,16 @@
 namespace ase::player {
 
 /**
- * @brief Logs player causality chain
+ * @brief Logs player state observation
  *
- * @schedule Dissemination - logs at end of frame
+ * @schedule Conclusion - logs at end of frame
  * @reads    PlayerMgrTag, PlayerStIdComponent, PlayerStStsComponent, PlayerSpawnedTag,
  *           PlayerDirtyTag, PlayerChunkChangedTag
  * @writes   Log output
  */
-class PlayerLogCausalitySystem : public ecs::System {
+class PlayerLogObsvSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerLogCausalitySystem"; }
+    const char* name() const override { return "PlayerLogObsvSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

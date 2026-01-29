@@ -1,56 +1,58 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_pst_ser_system.cpp
- * @brief       PlayerPstSerSystem - Serialize player data for persistence
+ * @file        player_sim_phys_sys.cpp
+ * @brief       PlayerSimPhysSystem - Apply physics simulation to player entities
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    persistence
- * @schedule    Preservation
+ * @category    process/simulation
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_PST_SER: Player Persistence Serialization)
+ * CAUSAL CHAIN (CAUSA_PLR_SIM_PHYS: Player Physics Simulation)
  *
- *   [PlayerPstDtyTag + PlayerSpawnedTag]
+ *   [PlayerStVelComponent from PlayerCtrlMovSystem]
  *          │
- *          │ player dirty, needs persistence
+ *          │ velocity calculated
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerPstSerSystem            │
+ *   │  THIS SYSTEM: PlayerSimPhysSystem           │
+ *   │  (SHARED - no Hub access)                   │
  *   │                                             │
- *   │  READS:                                     │
- *   │    - PlayerPstDtyTag (dirty flag)           │
- *   │    - PlayerSpawnedTag (spawned flag)        │
- *   │    - PlayerStIdComponent (identity)         │
+ *   │  READS (from Components):                   │
+ *   │    - PlayerInpExtComponent (trn_hgt)        │
  *   │    - PlayerStPosComponent (position)        │
  *   │    - PlayerStVelComponent (velocity)        │
- *   │    - PlayerStStsComponent (status)          │
+ *   │    - PlayerStPhysComponent (physics state)  │
+ *   │    - PlayerStMovComponent (settings)        │
  *   │                                             │
- *   │  WRITES:                                    │
- *   │    - PlayerBufPstComponent (persistence buf)│
- *   │    - SerialBufJsnComponent (JSON buffer)    │
- *   │    - SerialJsnPndTag (serialization pnd)    │
- *   │    - "REP_PST_SER"_hs (Hub - ser entity)    │
- *   │    - "REP_PST_SYN"_hs (Hub - sync flag)     │
- *   │    - Removes PlayerPstDtyTag                │
+ *   │  WRITES (to Components):                    │
+ *   │    - PlayerStPosComponent (x, y, z)         │
+ *   │    - PlayerStVelComponent (vy on ground)    │
+ *   │    - PlayerStPhysComponent (on_ground)      │
+ *   │    - PlayerDirtyTag (if moving)             │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ persistence request queued
+ *          │ position updated
  *          ▼
- *   SerialJsnSystem (serializes data)
+ *   PlayerBctReqSystem (broadcasts state changes)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
- * READS (from Components):
- *   PlayerStIdComponent → Player identity
- *   PlayerStPosComponent → Position data
+ * READS (from Hub):
+ *   (none - uses SYN pattern, reads terrain height from PlayerInpExtComponent)
  *
- * WRITES (to Hub for ase-replication):
- *   "REP_PST_SER"_hs → Serialization entity reference
- *   "REP_PST_SYN"_hs → Sync request flag
+ * WRITES (to Hub for other modules):
+ *   (none - uses SYN pattern, writes to Components only)
+ *
+ * NOTE: This is a SHARED calculation system using the SYN pattern.
+ * Terrain height is synced from Hub to PlayerInpExtComponent by PlayerSyncInpSystem
+ * before this system runs. This system operates on Component data only.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -139,27 +141,24 @@
  */
 
 // INCLUDES - ONLY THESE ARE ALLOWED!
-// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>
+// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>, <chrono>
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/persistence/player_pst_ser_system.hpp>
-// Components from same module
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
+// Components from same module ONLY
+#include <ase/player/components/input/player_inp_ext_component.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
-#include <ase/player/components/buffer/player_buf_pst_component.hpp>
-#include <ase/player/components/tag/player_tag_pst_dty_component.hpp>
-#include <ase/player/components/tag/player_tag_spawned_component.hpp>
+#include <ase/player/components/state/player_st_phys_component.hpp>
+#include <ase/player/components/state/player_st_mov_component.hpp>
+#include <ase/player/components/tag/player_tag_dirty_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Serialization (Layer 2)
-#include <ase/serial/serial.hpp>
-// Hub for HUB Pattern
-#include <ase/hub/hub.hpp>
 // Logging
 #include <ase/log/log.hpp>
+// Math
+#include <ase/math/math.hpp>
 
 namespace ase::player {
 using namespace entt::literals;  // For "_hs hashed strings (Hub)
@@ -180,79 +179,73 @@ namespace {
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerPstSerSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerPstSerSystem] Started");
+void PlayerSimPhysSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerSimPhysSystem] Started");
 }
 
-void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
     /**
-     * STEP 1: Process dirty players that need persistence
-     * Single-pass processing without collect-then-process
+     * STEP 1: Get physics settings from manager
+     */
+    float ground_snap = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
+    float vel_eps = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
+
+    auto mov_view = registry.view<PlayerStMovComponent>();
+    for (auto [e, mov] : mov_view.each()) {
+        (void)e;
+        ground_snap = mov.ground_snap_dist;
+        vel_eps = mov.velocity_epsilon;
+        break;
+    }
+
+    /**
+     * STEP 2: Process each player entity with input data (SYN Pattern)
+     * Reads terrain height from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
     auto view = registry.view<
-        PlayerPstDtyTag,
-        PlayerSpawnedTag,
-        PlayerStIdComponent,
+        PlayerInpExtComponent,
         PlayerStPosComponent,
         PlayerStVelComponent,
-        PlayerStStsComponent
+        PlayerStPhysComponent
     >();
 
-    /**
-     * Use iterator pattern for entity creation during iteration
-     */
-    auto it = view.begin();
-    auto end_it = view.end();
-    while (it != end_it) {
-        auto entity = *it;
-        ++it;
-
-        auto& id = registry.get<PlayerStIdComponent>(entity);
-        auto& pos = registry.get<PlayerStPosComponent>(entity);
+    for (auto [entity, inp, pos, vel, physics] : view.each()) {
+        /**
+         * STEP 3: Apply velocity to position
+         */
+        pos.x += vel.vx * dt;
+        pos.y += vel.vy * dt;
+        pos.z += vel.vz * dt;
 
         /**
-         * STEP 2: Create serialization request entity
+         * STEP 4: Get terrain height from PlayerInpExtComponent (SYN Pattern)
+         * Terrain height was synced from Hub by PlayerSyncInpSystem
          */
-        auto ser = registry.create();
-
-        auto& jsn_buf = registry.emplace<serial::SerialBufJsnComponent>(ser);
-        jsn_buf.src_ptr = reinterpret_cast<uint64_t>(&pos);
-        jsn_buf.src_typ = SERIAL_TYP_PLR_STA;
-        jsn_buf.src_siz = sizeof(PlayerStPosComponent);
-        jsn_buf.st = serial::SERIAL_ST_PND;
-
-        registry.emplace<serial::SerialJsnPndTag>(ser);
+        float ground_height = inp.trn_hgt;
 
         /**
-         * STEP 3: Write persistence metadata to Hub (HUB Pattern - WRITES)
-         * Replication module reads these to perform persistence
+         * STEP 5: Ground collision detection and response
          */
-        uint32_t owner = static_cast<uint32_t>(entity);
-        hub::set(registry, owner, "REP_PST_SER"_hs, static_cast<float>(ser));
-        hub::set(registry, owner, "REP_PST_SYN"_hs, 1.0f);
-
-        /**
-         * STEP 4: Update persistence buffer with player_id pointer
-         * Uses pointer pattern - stores reference to id.player_id
-         */
-        auto& buf = registry.get_or_emplace<PlayerBufPstComponent>(entity);
-        buf.plr_id_ptr = reinterpret_cast<uint64_t>(id.player_id);
-        buf.plr_id_len = 0;
-        while (buf.plr_id_len < sizeof(id.player_id) && id.player_id[buf.plr_id_len] != '\0') {
-            ++buf.plr_id_len;
+        if (pos.y <= ground_height + ground_snap) {
+            pos.y = ground_height;
+            vel.vy = 0.0f;
+            physics.on_ground = true;
+        } else {
+            physics.on_ground = false;
         }
 
         /**
-         * STEP 5: Remove dirty tag (processed)
+         * STEP 6: Mark dirty if moving (using ase-math sqrt)
          */
-        registry.remove<PlayerPstDtyTag>(entity);
-
-        log::debug("[PlayerPstSerSystem] Queued player for persistence");
+        float vel_len = math::sqrt(vel.vx * vel.vx + vel.vz * vel.vz);
+        if (vel_len > vel_eps) {
+            registry.emplace_or_replace<PlayerDirtyTag>(entity);
+        }
     }
 }
 
-void PlayerPstSerSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerPstSerSystem] Stopped");
+void PlayerSimPhysSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerSimPhysSystem] Stopped");
 }
 
 }  // namespace ase::player

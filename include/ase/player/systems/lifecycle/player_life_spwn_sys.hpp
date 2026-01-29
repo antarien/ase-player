@@ -3,24 +3,24 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_net_bct_snd_system.hpp
- * @brief       PlayerNetBctSndSystem - Sends serialized player data as broadcast
- * @description Schedule: Transmission
- *              snd = send
+ * @file        player_life_spwn_sys.hpp
+ * @brief       PlayerLifeSpwnSystem - Processes spawn/despawn requests
+ * @description Creates/destroys player entities based on request components.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    network
- * @schedule    Transmission
+ * @category    ecs/entity/entitylifecycle
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE:
  *
- *   SerialJsnFinTag ──────────┐
- *   SerialBufJsnComponent ────┼──> PlayerNetBctSndSystem ──> ReplicationMsgDatComponent
- *   PlayerBct*PndTag ─────────┘    (sends broadcast)         + ReplicationMsgPndBctTag
+ *   Request Flow:
+ *   REST Handler ──> creates request entity with PlayerReqSpawnComponent
+ *   PlayerLifeSpwnSystem ──> processes request, creates player, adds result
+ *   REST Handler ──> reads result from PlayerReqSpawnResComponent
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -42,15 +42,15 @@
 namespace ase::player {
 
 /**
- * @brief Sends serialized player data as broadcast
+ * @brief Processes spawn/despawn requests
  *
- * @schedule Transmission - sends data over network
- * @reads    SerialJsnFinTag, SerialBufJsnComponent, PlayerBct*PndTag
- * @writes   ReplicationMsgDatComponent, ReplicationMsgPndBctTag
+ * @schedule Dynamics - processes lifecycle events
+ * @reads    PlayerReqSpawnComponent, PlayerReqDespComponent
+ * @writes   PlayerReqSpawnResComponent, creates/destroys player entities
  */
-class PlayerNetBctSndSystem : public ecs::System {
+class PlayerLifeSpwnSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerNetBctSndSystem"; }
+    const char* name() const override { return "PlayerLifeSpwnSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

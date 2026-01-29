@@ -1,50 +1,55 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_state_status_system.cpp
- * @brief       PlayerStateStatusSystem - Determine player movement state from velocity and physics
- * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Calculation systems read from Components, not Hub (SYN Pattern).
+ * @file        player_hub_pos_sys.cpp
+ * @brief       PlayerHubPosSystem - Write player positions to Hub for cross-module access
+ * @description Publishes player position data to Hub for L4 plugins and other modules.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    state
- * @schedule    Kinematics
+ * @category    hub
+ * @schedule    Dissemination
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_STS: Player State Determination)
+ * CAUSAL CHAIN (CAUSA_PLR_HUB_POS: Player Position Hub Publishing)
  *
- *   [PlayerStVelComponent + PlayerStPhysComponent]
+ *   [PlayerStPosComponent]
  *          │
- *          │ velocity and physics data
+ *          │ position data (x, y, z)
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerStateStatusSystem       │
- *   │  (SHARED - no Hub access)                   │
+ *   │  THIS SYSTEM: PlayerHubPosSystem            │
  *   │                                             │
- *   │  READS (from Components):                   │
- *   │    - PlayerInpExtComponent (inp_sprint)     │
- *   │    - PlayerStVelComponent (vx, vy, vz)      │
- *   │    - PlayerStPhysComponent (on_ground)      │
- *   │    - PlayerStMovComponent (min_speed)       │
+ *   │  READS:                                     │
+ *   │    → PlayerStIdComponent (identity)         │
+ *   │    → PlayerStPosComponent (position)        │
  *   │                                             │
- *   │  WRITES (to Components):                    │
- *   │    - PlayerStStsComponent (sts)             │
+ *   │  WRITES:                                    │
+ *   │    → "PLR_POS_X"_hs (Hub)                   │
+ *   │    → "PLR_POS_Y"_hs (Hub)                   │
+ *   │    → "PLR_POS_Z"_hs (Hub)                   │
+ *   │    → "PLR_ENTITY_ID"_hs (Hub)               │
+ *   │    → "PLR_IS_PLAYER"_hs (Hub)               │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ state value updated
+ *          │ position available via Hub
  *          ▼
- *   PlayerBctReqSystem (reads sts for broadcast)
+ *   L4 Plugins (read via sdk::get)
  *
- * SYN Pattern (SHARED Calc System)
+ * HUB Pattern (MIG_ASE_HUB_API O(1)):
  *
- * READS (from PlayerInpExtComponent - filled by PlayerSyncInpSystem):
- *   inp_sprint → Whether player is sprinting (1.0f = sprint, 0.0f = walk)
+ * READS (from player module via Components):
+ *   PlayerStIdComponent  → Player identity for iteration
+ *   PlayerStPosComponent → Position data (x, y, z)
  *
- * WRITES (to Components only - no Hub writes):
- *   (none)
+ * WRITES (to Hub for other modules):
+ *   "PLR_POS_X"_hs       → Player X position (float)
+ *   "PLR_POS_Y"_hs       → Player Y position (float)
+ *   "PLR_POS_Z"_hs       → Player Z position (float)
+ *   "PLR_ENTITY_ID"_hs   → Entity ID as float for reference
+ *   "PLR_IS_PLAYER"_hs   → 1.0f marker for player entities
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -137,110 +142,64 @@
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/state/player_state_status_system.hpp>
+#include <ase/player/systems/hub/player_hub_pos_sys.hpp>
 // Components from same module
-#include <ase/player/components/input/player_inp_ext_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_phys_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
+#include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_id_component.hpp>
-// types.hpp for constants
-#include <ase/player/types.hpp>
+// Hub for O(1) API
+#include <ase/hub/api.hpp>
 // Logging
 #include <ase/log/log.hpp>
-// Math
-#include <ase/math/math.hpp>
 
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings
+using namespace entt::literals;  // For "_hs hashed strings (Hub)
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
  * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
+ *   namespace { void helper() {...} }   // CORRECT
+ *   static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
 
-// No helper functions needed - all logic inlined in tick()
+// No helper functions needed - this system is simple enough for inline processing
 
 }  // anonymous namespace
 
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerStateStatusSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerStateStatusSystem] Started");
+void PlayerHubPosSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerHubPosSystem] Started");
 }
 
-void PlayerStateStatusSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Get movement settings from manager
-     * PlayerStMovComponent on manager entity defines min_speed_threshold.
+     * STEP 1: Create view and iterate player entities
+     * Views are created on demand, not stored as member variables.
+     * PlayerStIdComponent identifies player entities.
      */
-    float min_speed = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
-    auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, mov] : mov_view.each()) {
-        (void)e;
-        min_speed = mov.min_speed_threshold;
-        break;
-    }
+    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent>();
 
-    /**
-     * STEP 2: Create view for player entities with required components (SYN Pattern)
-     * Reads sprint input from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
-     */
-    auto view = registry.view<
-        PlayerInpExtComponent,
-        PlayerStIdComponent,
-        PlayerStVelComponent,
-        PlayerStPhysComponent,
-        PlayerStStsComponent
-    >();
-
-    for (auto [entity, inp, id, vel, physics, state] : view.each()) {
-        (void)id;
-        (void)entity;
+    for (auto [entity, id, pos] : view.each()) {
+        uint32_t owner = static_cast<uint32_t>(entity);
 
         /**
-         * STEP 3: Calculate horizontal speed using ase-math
+         * STEP 2: Write position to Hub (HUB Pattern - WRITES)
+         * Publish position data for L4 plugins to consume via sdk::hub::get().
+         * This enables loose coupling - plugins read from Hub, not direct components.
          */
-        float speed_xz = math::sqrt(vel.vx * vel.vx + vel.vz * vel.vz);
-
-        /**
-         * STEP 4: Read sprint input from PlayerInpExtComponent (SYN Pattern)
-         */
-        float sprint_val = inp.inp_sprint;
-        if (sprint_val < 0.0f || sprint_val > 1.0f) {
-            sprint_val = math::clamp(sprint_val, 0.0f, 1.0f);
-        }
-
-        bool is_sprinting = (sprint_val > 0.5f);
-
-        /**
-         * STEP 5: Determine state based on physics and velocity
-         * Uses data-driven approach with constants from types.hpp.
-         */
-        if (physics.on_ground) {
-            if (speed_xz > min_speed) {
-                state.sts = is_sprinting ? PLAYER_STATE_RUNNING : PLAYER_STATE_WALKING;
-            } else {
-                state.sts = PLAYER_STATE_IDLE;
-            }
-        } else {
-            if (vel.vy > 0.0f) {
-                state.sts = PLAYER_STATE_JUMPING;
-            } else {
-                state.sts = PLAYER_STATE_FALLING;
-            }
-        }
+        hub::set(registry, owner, "PLR_POS_X"_hs, pos.x);
+        hub::set(registry, owner, "PLR_POS_Y"_hs, pos.y);
+        hub::set(registry, owner, "PLR_POS_Z"_hs, pos.z);
+        hub::set(registry, owner, "PLR_ENTITY_ID"_hs, static_cast<float>(owner));
+        hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
     }
 }
 
-void PlayerStateStatusSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerStateStatusSystem] Stopped");
+void PlayerHubPosSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerHubPosSystem] Stopped");
 }
 
 }  // namespace ase::player

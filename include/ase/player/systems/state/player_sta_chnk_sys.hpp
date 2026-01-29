@@ -3,26 +3,23 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_sync_inp_system.hpp
- * @brief       PlayerSyncInpSystem - Sync Hub input values to Input Component
- * @description SYN PATTERN: Reads Hub values and writes to PlayerInpExtComponent.
- *              Calculation systems read from PlayerInpExtComponent (no Hub access).
+ * @file        player_sta_chnk_sys.hpp
+ * @brief       PlayerStaChnkSystem - Track player chunk position for streaming
+ * @description Updates chunk component when player position changes chunks.
+ *              ECS STATELESS: No private member state!
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    sync
- * @schedule    Synchronization
+ * @category    state
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE:
  *
- *   Hub Values ──> PlayerSyncInpSystem ──> PlayerInpExtComponent
- *   PLR_INP_FWD     (reads Hub)             (bridge data)
- *   PLR_INP_STR
- *   PLR_CAM_YAW
- *   TRN_HGT_AT_POS
+ *   PlayerStPosComponent ──> PlayerStaChnkSystem ──> PlayerStChkComponent
+ *   (position)              (tracks chunks)         PlayerChunkChangedTag
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -44,15 +41,15 @@
 namespace ase::player {
 
 /**
- * @brief Sync Hub input values to PlayerInpExtComponent
+ * @brief Track player chunk presence
  *
- * @schedule Synchronization - before calculation systems
- * @reads    Hub values: PLR_INP_FWD, PLR_INP_STR, PLR_CAM_YAW, TRN_HGT_AT_POS
- * @writes   PlayerInpExtComponent
+ * @schedule Dynamics - after position updates
+ * @reads    PlayerStPosComponent
+ * @writes   PlayerStChkComponent, PlayerChunkChangedTag
  */
-class PlayerSyncInpSystem : public ecs::System {
+class PlayerStaChnkSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerSyncInpSystem"; }
+    const char* name() const override { return "PlayerStaChnkSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

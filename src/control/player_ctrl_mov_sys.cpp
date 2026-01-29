@@ -1,54 +1,56 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_hub_pos_system.cpp
- * @brief       PlayerHubPosSystem - Write player positions to Hub for cross-module access
+ * @file        player_ctrl_mov_sys.cpp
+ * @brief       PlayerCtrlMovSystem - Calculate player velocity from input
+ * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    hub
- * @schedule    Dissemination
+ * @category    action/control
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_HUB_POS: Player Position Hub Publishing)
+ * CAUSAL CHAIN (CAUSA_PLR_CTRL_MOV: Player Movement Calculation)
  *
- *   [PlayerStPosComponent]
+ *   [PlayerInpExtComponent from PlayerSyncInpSystem]
  *          │
- *          │ position data (x, y, z)
+ *          │ input values from Component (SYN Pattern)
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerHubPosSystem            │
+ *   │  THIS SYSTEM: PlayerCtrlMovSystem           │
+ *   │  (SHARED - no Hub access)                   │
  *   │                                             │
- *   │  READS:                                     │
- *   │    - PlayerStIdComponent (identity)         │
- *   │    - PlayerStPosComponent (position)        │
+ *   │  READS (from Components):                   │
+ *   │    - PlayerInpExtComponent (input bridge)   │
+ *   │    - PlayerStPosComponent (yaw)             │
+ *   │    - PlayerStVelComponent (current vel)     │
+ *   │    - PlayerStPhysComponent (on_ground)      │
+ *   │    - PlayerStMovComponent (speed settings)  │
  *   │                                             │
- *   │  WRITES:                                    │
- *   │    - "PLR_POS_X"_hs (Hub)                   │
- *   │    - "PLR_POS_Y"_hs (Hub)                   │
- *   │    - "PLR_POS_Z"_hs (Hub)                   │
- *   │    - "PLR_ENTITY_ID"_hs (Hub)               │
- *   │    - "PLR_IS_PLAYER"_hs (Hub)               │
+ *   │  WRITES (to Components):                    │
+ *   │    - PlayerStVelComponent (vx, vy, vz)      │
+ *   │    - PlayerStPhysComponent (on_ground)      │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ position available via Hub
+ *          │ velocity calculated
  *          ▼
- *   L4 Plugins (read via sdk::get)
+ *   PlayerSimPhysSystem (applies velocity to position)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
- * READS (from player module via Components):
- *   PlayerStIdComponent  → Player identity for iteration
- *   PlayerStPosComponent → Position data (x, y, z)
+ * READS (from Hub):
+ *   (none - uses SYN pattern, reads from PlayerInpExtComponent)
  *
  * WRITES (to Hub for other modules):
- *   "PLR_POS_X"_hs       → Player X position (float)
- *   "PLR_POS_Y"_hs       → Player Y position (float)
- *   "PLR_POS_Z"_hs       → Player Z position (float)
- *   "PLR_ENTITY_ID"_hs   → Entity ID as float for reference
- *   "PLR_IS_PLAYER"_hs   → 1.0f marker for player entities
+ *   (none - uses SYN pattern, writes to Components only)
+ *
+ * NOTE: This is a SHARED calculation system using the SYN pattern.
+ * Input data is synced from Hub to PlayerInpExtComponent by PlayerSyncInpSystem
+ * before this system runs. This system operates on Component data only.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -137,18 +139,23 @@
  */
 
 // INCLUDES - ONLY THESE ARE ALLOWED!
-// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>
+// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>, <chrono>
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/hub/player_hub_pos_system.hpp>
-// Components from same module
+#include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
+// Components from same module ONLY
+#include <ase/player/components/input/player_inp_ext_component.hpp>
 #include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
-// Hub for HUB Pattern
-#include <ase/hub/hub.hpp>
+#include <ase/player/components/state/player_st_vel_component.hpp>
+#include <ase/player/components/state/player_st_phys_component.hpp>
+#include <ase/player/components/state/player_st_mov_component.hpp>
+// types.hpp for constants
+#include <ase/player/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
+// Math
+#include <ase/math/math.hpp>
 
 namespace ase::player {
 using namespace entt::literals;  // For "_hs hashed strings (Hub)
@@ -162,43 +169,116 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
  */
 namespace {
 
-// No helper functions needed - this system is simple enough for inline processing
+// No helper functions needed - all logic inlined in tick()
 
 }  // anonymous namespace
 
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerHubPosSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerHubPosSystem] Started");
+void PlayerCtrlMovSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerCtrlMovSystem] Started");
 }
 
-void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
     /**
-     * STEP 1: Create view and iterate player entities
-     * Views are created on demand, not stored as member variables.
-     * PlayerStIdComponent identifies player entities.
+     * STEP 1: Get movement settings from manager
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent>();
+    PlayerStMovComponent mov;
+    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
+    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
+    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
+    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
+    mov.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
+    mov.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
 
-    for (auto [entity, id, pos] : view.each()) {
-        uint32_t owner = static_cast<uint32_t>(entity);
+    auto mov_view = registry.view<PlayerStMovComponent>();
+    for (auto [e, m] : mov_view.each()) {
+        (void)e;
+        mov = m;
+        break;
+    }
+
+    /**
+     * STEP 2: Process each player entity with input data (SYN Pattern)
+     * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
+     */
+    auto view = registry.view<
+        PlayerInpExtComponent,
+        PlayerStPosComponent,
+        PlayerStVelComponent,
+        PlayerStPhysComponent
+    >();
+
+    for (auto [entity, inp, pos, vel, physics] : view.each()) {
+        /**
+         * STEP 3: Read input values from PlayerInpExtComponent (SYN Pattern)
+         */
+        float forward = inp.inp_fwd;
+        float strafe = inp.inp_str;
+        bool sprint = (inp.inp_sprint > 0.5f);
+        bool jump = (inp.inp_jump > 0.5f);
+        float movement_yaw = inp.cam_yaw;
 
         /**
-         * STEP 2: Write position to Hub (HUB Pattern - WRITES)
-         * Publish position data for L4 plugins to consume via sdk::hub::get().
-         * This enables loose coupling - plugins read from Hub, not direct components.
+         * STEP 4: Calculate movement direction using ase-math
          */
-        hub::set(registry, owner, "PLR_POS_X"_hs, pos.x);
-        hub::set(registry, owner, "PLR_POS_Y"_hs, pos.y);
-        hub::set(registry, owner, "PLR_POS_Z"_hs, pos.z);
-        hub::set(registry, owner, "PLR_ENTITY_ID"_hs, static_cast<float>(owner));
-        hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
+        float sin_yaw = math::sin(movement_yaw);
+        float cos_yaw = math::cos(movement_yaw);
+
+        float move_x = -forward * sin_yaw + strafe * cos_yaw;
+        float move_z = -forward * cos_yaw - strafe * sin_yaw;
+
+        float move_len = math::sqrt(move_x * move_x + move_z * move_z);
+        if (move_len > 1.0f) {
+            move_x /= move_len;
+            move_z /= move_len;
+        }
+
+        /**
+         * STEP 5: Calculate target velocity
+         */
+        float speed = sprint ? mov.run_speed : mov.walk_speed;
+        float control = physics.on_ground ? 1.0f : mov.air_control;
+
+        float target_vx = move_x * speed;
+        float target_vz = move_z * speed;
+
+        /**
+         * STEP 6: Apply acceleration based on ground state
+         */
+        if (physics.on_ground) {
+            float accel = mov.ground_friction * dt;
+            accel = math::min(accel, 1.0f);
+            vel.vx += (target_vx - vel.vx) * accel;
+            vel.vz += (target_vz - vel.vz) * accel;
+        } else {
+            vel.vx += (target_vx - vel.vx) * control * dt;
+            vel.vz += (target_vz - vel.vz) * control * dt;
+        }
+
+        /**
+         * STEP 7: Handle jump
+         */
+        if (jump && physics.on_ground) {
+            vel.vy = mov.jump_impulse;
+            physics.on_ground = false;
+        }
+
+        /**
+         * STEP 8: Apply gravity
+         */
+        if (!physics.on_ground && physics.gravity_enabled) {
+            vel.vy -= mov.gravity * dt;
+        }
+
+        (void)pos;  // Position read for potential future use
+        (void)entity;  // Entity available for potential tagging
     }
 }
 
-void PlayerHubPosSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerHubPosSystem] Stopped");
+void PlayerCtrlMovSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerCtrlMovSystem] Stopped");
 }
 
 }  // namespace ase::player

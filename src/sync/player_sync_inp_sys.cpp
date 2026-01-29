@@ -1,48 +1,59 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_net_bct_snd_system.cpp
- * @brief       PlayerNetBctSndSystem - Process completed broadcasts and queue for cleanup
+ * @file        player_sync_inp_sys.cpp
+ * @brief       PlayerSyncInpSystem - Sync Hub input values to Input Component
+ * @description SYN PATTERN: Reads Hub values and writes to PlayerInpExtComponent.
+ *              Calculation systems read from PlayerInpExtComponent (no Hub access).
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    network
- * @schedule    Transmission
+ * @category    input
+ * @schedule    Synchronization
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_NET_BCT_SND: Player Network Broadcast Send)
+ * CAUSAL CHAIN (CAUSA_PLR_SYNC_INP: Player Input Synchronization)
  *
- *   [SerialJsnFinTag + PlayerBctSpnSntTag/PlayerBctStaSntTag]
+ *   [Hub Values from ase-input]
  *          │
- *          │ broadcast sent via Hub
+ *          │ external input data
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerNetBctSndSystem         │
+ *   │  THIS SYSTEM: PlayerSyncInpSystem           │
+ *   │  (SERVER-ONLY - Hub access)                 │
  *   │                                             │
- *   │  READS:                                     │
- *   │    - SerialJsnFinTag (serialization done)   │
- *   │    - SerialBufJsnComponent (JSON buffer)    │
- *   │    - PlayerBctSpnSntTag (spawn sent)        │
- *   │    - PlayerBctStaSntTag (state sent)        │
- *   │    - SerialErrTag (error occurred)          │
+ *   │  READS (from Hub):                          │
+ *   │    → "PLR_INP_FWD"_hs (forward input)       │
+ *   │    → "PLR_INP_STR"_hs (strafe input)        │
+ *   │    → "PLR_INP_SPRINT"_hs (sprint flag)      │
+ *   │    → "PLR_INP_JUMP"_hs (jump flag)          │
+ *   │    → "PLR_CAM_YAW"_hs (camera yaw)          │
+ *   │    → "PLR_CAM_ORB"_hs (orbit mode)          │
+ *   │    → "TRN_HGT_AT_POS"_hs (terrain height)   │
  *   │                                             │
- *   │  WRITES:                                    │
- *   │    - PlayerDespPndTag (mark for cleanup)    │
+ *   │  WRITES (to Components):                    │
+ *   │    → PlayerInpExtComponent (all fields)     │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ entities marked for cleanup
+ *          │ input data in Component
  *          ▼
- *   PlayerCleanupSystem (Schedule::Last)
+ *   PlayerCtrlInputCalcSystem (SHARED - no Hub!)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
- * READS (from Components):
- *   SerialBufJsnComponent → Serialized JSON data
+ * READS (from Hub - ALL input values):
+ *   "PLR_INP_FWD"_hs    → PlayerInpExtComponent.inp_fwd
+ *   "PLR_INP_STR"_hs    → PlayerInpExtComponent.inp_str
+ *   "PLR_INP_SPRINT"_hs → PlayerInpExtComponent.inp_sprint
+ *   "PLR_INP_JUMP"_hs   → PlayerInpExtComponent.inp_jump
+ *   "PLR_CAM_YAW"_hs    → PlayerInpExtComponent.cam_yaw
+ *   "PLR_CAM_ORB"_hs    → PlayerInpExtComponent.cam_orb
+ *   "TRN_HGT_AT_POS"_hs → PlayerInpExtComponent.trn_hgt
  *
- * WRITES (to Hub):
- *   (none - marks entities for deferred cleanup)
+ * WRITES (to Components only - no Hub writes):
+ *   (none)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -135,19 +146,14 @@
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/network/player_net_bct_snd_system.hpp>
+#include <ase/player/systems/sync/player_sync_inp_sys.hpp>
 // Components from same module
-#include <ase/player/components/buffer/player_buf_bct_spn_component.hpp>
-#include <ase/player/components/buffer/player_buf_bct_sta_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_spn_pnd_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_sta_pnd_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_spn_snt_component.hpp>
-#include <ase/player/components/tag/player_tag_bct_sta_snt_component.hpp>
-#include <ase/player/components/tag/player_tag_desp_pnd_component.hpp>
+#include <ase/player/components/input/player_inp_ext_component.hpp>
+#include <ase/player/components/state/player_st_pos_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Serialization (Layer 2)
-#include <ase/serial/serial.hpp>
+// Hub for HUB Pattern (SERVER-ONLY sync system)
+#include <ase/hub/api.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
@@ -157,8 +163,8 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
  * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
+ *   namespace { void helper() {...} }   // CORRECT
+ *   static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
@@ -170,76 +176,80 @@ namespace {
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerNetBctSndSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerNetBctSndSystem] Started");
+void PlayerSyncInpSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerSyncInpSystem] Started");
 }
 
-void PlayerNetBctSndSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Process completed spawn broadcasts
-     * Mark sent entities for cleanup (deferred deletion pattern)
+     * STEP 1: Process each player entity with position (all players)
+     * Sync Hub input values to PlayerInpExtComponent
      */
-    {
-        auto view = registry.view<
-            serial::SerialJsnFinTag,
-            serial::SerialBufJsnComponent,
-            PlayerBctSpnSntTag
-        >();
+    auto view = registry.view<PlayerStPosComponent>();
 
-        for (auto [entity, jsn_buf] : view.each()) {
-            if (jsn_buf.jsn_ptr != 0 && jsn_buf.jsn_len > 0) {
-                log::debug("[PlayerNetBctSndSystem] Spawn broadcast completed ({} bytes)", jsn_buf.jsn_len);
-            }
+    for (auto [entity, pos] : view.each()) {
+        uint32_t owner = static_cast<uint32_t>(entity);
 
-            /**
-             * Mark for deferred cleanup (Schedule::Last cleanup system)
-             */
-            registry.emplace_or_replace<PlayerDespPndTag>(entity);
+        /**
+         * STEP 2: Read all input values from Hub (HUB Pattern - READS)
+         */
+        float inp_fwd = hub::get(registry, owner, "PLR_INP_FWD"_hs);
+        if (inp_fwd == hub::NOT_FOUND) {
+            inp_fwd = 0.0f;
         }
-    }
 
-    /**
-     * STEP 2: Process completed state broadcasts
-     */
-    {
-        auto view = registry.view<
-            serial::SerialJsnFinTag,
-            serial::SerialBufJsnComponent,
-            PlayerBctStaSntTag
-        >();
-
-        for (auto [entity, jsn_buf] : view.each()) {
-            /**
-             * Mark for deferred cleanup
-             */
-            registry.emplace_or_replace<PlayerDespPndTag>(entity);
+        float inp_str = hub::get(registry, owner, "PLR_INP_STR"_hs);
+        if (inp_str == hub::NOT_FOUND) {
+            inp_str = 0.0f;
         }
-    }
 
-    /**
-     * STEP 3: Handle serialization errors
-     */
-    {
-        auto view = registry.view<
-            serial::SerialErrTag,
-            serial::SerialBufJsnComponent
-        >();
-
-        for (auto [entity, jsn_buf] : view.each()) {
-            if (jsn_buf.err_ptr != 0) {
-                log::error("[PlayerNetBctSndSystem] Serialization error occurred");
-            }
-
-            /**
-             * Mark for deferred cleanup
-             */
-            registry.emplace_or_replace<PlayerDespPndTag>(entity);
+        float inp_sprint = hub::get(registry, owner, "PLR_INP_SPRINT"_hs);
+        if (inp_sprint == hub::NOT_FOUND) {
+            inp_sprint = 0.0f;
         }
+
+        float inp_jump = hub::get(registry, owner, "PLR_INP_JUMP"_hs);
+        if (inp_jump == hub::NOT_FOUND) {
+            inp_jump = 0.0f;
+        }
+
+        float cam_yaw = hub::get(registry, owner, "PLR_CAM_YAW"_hs);
+        if (cam_yaw == hub::NOT_FOUND) {
+            cam_yaw = pos.yaw;
+        }
+
+        float cam_orb = hub::get(registry, owner, "PLR_CAM_ORB"_hs);
+        if (cam_orb == hub::NOT_FOUND) {
+            cam_orb = 0.0f;
+        }
+
+        /**
+         * STEP 3: Read terrain height from Hub
+         */
+        uint32_t pos_hash = static_cast<uint32_t>(
+            static_cast<int32_t>(pos.x) * 73856093 ^
+            static_cast<int32_t>(pos.z) * 19349663);
+        float trn_hgt = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
+        if (trn_hgt == hub::NOT_FOUND) {
+            trn_hgt = 0.0f;
+        }
+
+        /**
+         * STEP 4: Write to PlayerInpExtComponent (bridge to calc systems)
+         */
+        auto& inp = registry.get_or_emplace<PlayerInpExtComponent>(entity);
+        inp.inp_fwd = inp_fwd;
+        inp.inp_str = inp_str;
+        inp.inp_sprint = inp_sprint;
+        inp.inp_jump = inp_jump;
+        inp.cam_yaw = cam_yaw;
+        inp.cam_orb = cam_orb;
+        inp.trn_hgt = trn_hgt;
     }
 }
 
-void PlayerNetBctSndSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerNetBctSndSystem] Stopped");
+void PlayerSyncInpSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerSyncInpSystem] Stopped");
 }
 
 }  // namespace ase::player

@@ -1,49 +1,51 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_spatial_chunk_system.cpp
- * @brief       PlayerSpatialChunkSystem - Track player chunk position for streaming
+ * @file        player_sta_chnk_sys.cpp
+ * @brief       PlayerStaChnkSystem - Track player chunk position for streaming
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    spatial
+ * @category    state
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_SPA_CHK: Player Chunk Tracking)
+ * CAUSAL CHAIN (CAUSA_PLR_STA_CHNK: Player Chunk Tracking)
  *
  *   [PlayerStPosComponent from PlayerSimPhysSystem]
  *          │
  *          │ position updated
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerSpatialChunkSystem      │
+ *   │  THIS SYSTEM: PlayerStaChnkSystem           │
  *   │                                             │
  *   │  READS:                                     │
- *   │    - PlayerStPosComponent (x, z)            │
- *   │    - PlayerStChkComponent (current chunk)   │
- *   │    - PlayerStMovComponent (chunk_size)      │
+ *   │    → PlayerStPosComponent (x, z)            │
+ *   │    → PlayerStChkComponent (current chunk)   │
+ *   │    → PlayerStMovComponent (chunk_size)      │
  *   │                                             │
  *   │  WRITES:                                    │
- *   │    - PlayerStChkComponent (chunk_x, chunk_y)│
- *   │    - PlayerChunkChangedTag (if changed)     │
- *   │    - "PLR_CHK_CHG"_hs (Hub - notify terrain)│
+ *   │    → PlayerStChkComponent (chunk_x, chunk_y)│
+ *   │    → PlayerChunkChangedTag (if changed)     │
+ *   │    → "PLR_CHK_CHG"_hs (Hub - notify terrain)│
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ chunk changed notification
  *          ▼
  *   TerrainStreamingSystem (via Hub)
  *
- * HUB Pattern (MIG_ASE_HUB)
+ * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Components):
  *   PlayerStPosComponent → Current position
  *   PlayerStChkComponent → Current chunk
  *
  * WRITES (to Hub for other modules):
- *   "PLR_CHK_CHG"_hs → Player chunk changed notification
+ *   "PLR_CHK_X"_hs   → Player chunk X coordinate (float)
+ *   "PLR_CHK_Z"_hs   → Player chunk Z coordinate (float)
+ *   "PLR_CHK_CHG"_hs → Player chunk changed notification (1.0f)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -136,7 +138,7 @@
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/spatial/player_spatial_chunk_system.hpp>
+#include <ase/player/systems/state/player_sta_chnk_sys.hpp>
 // Components from same module ONLY
 #include <ase/player/components/state/player_st_pos_component.hpp>
 #include <ase/player/components/state/player_st_chk_component.hpp>
@@ -145,7 +147,7 @@
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Hub for HUB Pattern
-#include <ase/hub/hub.hpp>
+#include <ase/hub/api.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
@@ -157,8 +159,8 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
  * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
+ *   namespace { void helper() {...} }   // CORRECT
+ *   static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
@@ -170,11 +172,11 @@ namespace {
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerSpatialChunkSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerSpatialChunkSystem] Started");
+void PlayerStaChnkSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerStaChnkSystem] Started");
 }
 
-void PlayerSpatialChunkSystem::tick(ecs::Registry& registry, float /*dt*/) {
+void PlayerStaChnkSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * STEP 1: Get chunk size from manager
      */
@@ -223,8 +225,8 @@ void PlayerSpatialChunkSystem::tick(ecs::Registry& registry, float /*dt*/) {
     }
 }
 
-void PlayerSpatialChunkSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerSpatialChunkSystem] Stopped");
+void PlayerStaChnkSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerStaChnkSystem] Stopped");
 }
 
 }  // namespace ase::player

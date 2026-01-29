@@ -3,24 +3,22 @@
 /**
  * ASE ECS SYSTEM HEADER
  *
- * @file        player_hub_pos_system.hpp
- * @brief       PlayerHubPosSystem - Write player positions to Hub for L4 plugins
- * @description PLAN_ASE_SDK_V2: L4 plugins read player data via Hub, not direct components.
- *              Writes PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_ENTITY_ID per player.
+ * @file        player_bct_req_sys.hpp
+ * @brief       PlayerBctReqSystem - Create broadcast request entities for player state changes
+ * @description Creates serialization entities for players with dirty/spawned tags.
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    hub
- * @schedule    Integration
+ * @category    network/message
+ * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
  * ARCHITECTURE:
  *
- *   PlayerStPosComponent ──> PlayerHubPosSystem ──> Hub
- *   (position data)         (writes to Hub)        PLR_POS_X, PLR_POS_Y, PLR_POS_Z
- *                                                  PLR_ENTITY_ID
+ *   PlayerDirtyTag/PlayerSpawnedTag ──> PlayerBctReqSystem ──> SerialBufJsnComponent
+ *   (dirty players)                     (creates requests)     (serialization pending)
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -42,15 +40,16 @@
 namespace ase::player {
 
 /**
- * @brief Write player positions to Hub for L4 plugins
+ * @brief Create broadcast request entities for player state changes
  *
- * @schedule Integration - after position updates
- * @reads    PlayerStPosComponent, PlayerStIdComponent
- * @writes   Hub values: PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_ENTITY_ID
+ * @schedule Dynamics - after state updates
+ * @reads    PlayerStIdComponent, PlayerStPosComponent, PlayerStVelComponent
+ * @reads    PlayerDirtyTag, PlayerSpawnedTag
+ * @writes   PlayerBufBctSpnComponent, PlayerBufBctStaComponent, SerialBufJsnComponent
  */
-class PlayerHubPosSystem : public ecs::System {
+class PlayerBctReqSystem : public ecs::System {
 public:
-    const char* name() const override { return "PlayerHubPosSystem"; }
+    const char* name() const override { return "PlayerBctReqSystem"; }
     void on_start(ecs::Registry& registry) override;
     void tick(ecs::Registry& registry, float dt) override;
     void on_stop(ecs::Registry& registry) override;

@@ -1,55 +1,51 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_ctrl_input_system.cpp
- * @brief       PlayerCtrlInputSystem - Process player input and update facing direction
- * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Calculation systems read from Components, not Hub (SYN Pattern).
+ * @file        player_log_obsv_sys.cpp
+ * @brief       PlayerLogObsvSystem - Log player state counts periodically
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    control
- * @schedule    Kinematics
+ * @category    error/logging/output
+ * @schedule    Conclusion
  * @created     2026-01-22
- * @modified    2026-01-22
- * @version     1.0.0
+ * @modified    2026-01-29
+ * @version     1.1.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_CTRL_INP: Player Input Processing)
+ * CAUSAL CHAIN (CAUSA_PLR_LOG_OBSV: Player State Observation Logging)
  *
- *   [PlayerInpExtComponent from PlayerSyncInpSystem]
+ *   [Player Components + Tags]
  *          │
- *          │ input values from Component (SYN Pattern)
+ *          │ state data (id, status, tags)
  *          ▼
  *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerCtrlInputSystem         │
- *   │  (SHARED - no Hub access)                   │
+ *   │  THIS SYSTEM: PlayerLogObsvSystem           │
  *   │                                             │
- *   │  READS (from Components):                   │
- *   │    - PlayerInpExtComponent (input bridge)   │
- *   │    - PlayerStIdComponent (identity)         │
- *   │    - PlayerStPosComponent (position/yaw)    │
- *   │    - PlayerStMovComponent (turn speed)      │
+ *   │  READS:                                     │
+ *   │    → PlayerMgrTag (manager entity)          │
+ *   │    → PlayerStIdComponent (count players)    │
+ *   │    → PlayerStStsComponent (state counts)    │
+ *   │    → PlayerSpawnedTag (spawned count)       │
+ *   │    → PlayerDirtyTag (dirty count)           │
+ *   │    → PlayerChunkChangedTag (chunk changes)  │
+ *   │    → "LOG_CONST_DEFAULT_INTERVAL"_hs (Hub)  │
  *   │                                             │
- *   │  WRITES (to Components):                    │
- *   │    - PlayerStPosComponent (yaw)             │
- *   │    - PlayerStIdComponent (last_input_ms)    │
- *   │    - PlayerDirtyTag (if changed)            │
+ *   │  WRITES:                                    │
+ *   │    → PlayerCacheObsComponent (timer/cache)  │
+ *   │    → log::debug (periodic output)           │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ player facing updated
+ *          │ debug log output
  *          ▼
- *   PlayerCtrlMoveSystem (uses facing for movement)
+ *   Console/Log File
  *
- * SYN Pattern (SHARED Calc System)
+ * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
- * READS (from PlayerInpExtComponent - filled by PlayerSyncInpSystem):
- *   inp_fwd   → Forward input (-1 to 1)
- *   inp_str   → Strafe input (-1 to 1)
- *   cam_yaw   → Camera yaw (radians)
- *   cam_orb   → Orbit mode flag (0 or 1)
+ * READS (from hub_constants.json via Hub):
+ *   "LOG_CONST_DEFAULT_INTERVAL"_hs → Log interval in seconds (float)
  *
- * WRITES (to Components only - no Hub writes):
- *   (none)
+ * WRITES (to Hub for other modules):
+ *   (none - this is an observation/logging system)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -142,30 +138,30 @@
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/control/player_ctrl_input_system.hpp>
-// Components from same module ONLY
-#include <ase/player/components/input/player_inp_ext_component.hpp>
+#include <ase/player/systems/log/player_log_obsv_sys.hpp>
+// Components from same module
+#include <ase/player/components/cache/player_cache_obs_component.hpp>
+#include <ase/player/components/tag/player_tag_mgr_component.hpp>
 #include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
+#include <ase/player/components/state/player_st_sts_component.hpp>
+#include <ase/player/components/tag/player_tag_spawned_component.hpp>
 #include <ase/player/components/tag/player_tag_dirty_component.hpp>
+#include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
+// Hub for HUB Pattern
+#include <ase/hub/api.hpp>
 // Logging
 #include <ase/log/log.hpp>
-// Math
-#include <ase/math/math.hpp>
-
-#include <chrono>
 
 namespace ase::player {
-using namespace entt::literals;  // For "_hs hashed strings
+using namespace entt::literals;  // For "_hs hashed strings (Hub)
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
  * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
+ *   namespace { void helper() {...} }   // CORRECT
+ *   static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
@@ -177,73 +173,120 @@ namespace {
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerCtrlInputSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerCtrlInputSystem] Started");
+void PlayerLogObsvSystem::on_start(ecs::Registry& /*registry*/) {
+    log::info("[PlayerLogObsvSystem] Started");
 }
 
-void PlayerCtrlInputSystem::tick(ecs::Registry& registry, float dt) {
-    using namespace std::chrono;
-
+void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
     /**
-     * STEP 1: Get turn speed from manager
+     * STEP 1: Find player manager entity
+     * PlayerMgrTag identifies the singleton manager entity.
      */
-    float turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
-    auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, mov] : mov_view.each()) {
-        (void)e;
-        turn_speed = mov.turn_speed;
-        break;
-    }
+    auto mgr_view = registry.view<PlayerMgrTag>();
 
-    /**
-     * STEP 2: Process each player entity with input data (SYN Pattern)
-     * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
-     */
-    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent, PlayerInpExtComponent>();
-
-    for (auto [entity, identity, pos, inp] : view.each()) {
-        /**
-         * STEP 3: Read input values from PlayerInpExtComponent (SYN Pattern)
-         */
-        float forward = inp.inp_fwd;
-        float strafe = inp.inp_str;
-        float cam_yaw = inp.cam_yaw;
-        float orbit_mode = inp.cam_orb;
-
-        bool is_moving = (forward != 0.0f || strafe != 0.0f);
-        bool is_orbit = (orbit_mode > 0.5f);
+    for (auto mgr : mgr_view) {
+        auto& cache = registry.get_or_emplace<PlayerCacheObsComponent>(mgr);
 
         /**
-         * STEP 4: Update player facing based on camera yaw (if moving and not in orbit mode)
+         * STEP 2: Update timer
          */
-        if (is_moving && !is_orbit) {
-            float delta = cam_yaw - pos.yaw;
-            while (delta > math::PI) delta -= math::TWO_PI;
-            while (delta < -math::PI) delta += math::TWO_PI;
+        cache.log_interval_timer += dt;
 
-            float max_turn = turn_speed * dt;
-            if (math::abs(delta) < max_turn) {
-                pos.yaw = cam_yaw;
-            } else {
-                pos.yaw += (delta > 0.0f ? max_turn : -max_turn);
-            }
-
-            while (pos.yaw < 0.0f) pos.yaw += math::TWO_PI;
-            while (pos.yaw >= math::TWO_PI) pos.yaw -= math::TWO_PI;
-
-            registry.emplace_or_replace<PlayerDirtyTag>(entity);
+        /**
+         * STEP 3: Count total players
+         */
+        uint32_t player_count = 0;
+        auto player_view = registry.view<PlayerStIdComponent>();
+        for (auto e : player_view) {
+            (void)e;
+            ++player_count;
         }
 
         /**
-         * STEP 5: Update last input timestamp
+         * STEP 4: Count states using lookup table (NO switch/case!)
+         * Array indexed by PLAYER_STATE_* constants from types.hpp
          */
-        identity.last_input_ms = static_cast<uint64_t>(
-            duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+        uint32_t state_counts[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+        auto status_view = registry.view<PlayerStStsComponent>();
+        for (auto [e, status] : status_view.each()) {
+            (void)e;
+            if (status.sts < 8) {
+                ++state_counts[status.sts];
+            }
+        }
+
+        // Extract counts from lookup table using types.hpp constants
+        uint32_t idle_count = state_counts[PLAYER_STATE_IDLE];
+        uint32_t walking_count = state_counts[PLAYER_STATE_WALKING];
+        uint32_t running_count = state_counts[PLAYER_STATE_RUNNING];
+        uint32_t jumping_count = state_counts[PLAYER_STATE_JUMPING];
+        uint32_t falling_count = state_counts[PLAYER_STATE_FALLING];
+        uint32_t moving_count = player_count - idle_count;
+
+        /**
+         * STEP 5: Detect significant change
+         */
+        bool significant_change =
+            player_count != cache.last_player_count ||
+            moving_count != cache.last_moving_count;
+
+        /**
+         * STEP 6: Read log interval from Hub (HUB Pattern - READS)
+         * INLINED: No get_*() helper with Registry allowed
+         */
+        float log_interval = hub::get(registry, hub::GLOBAL, "LOG_CONST_DEFAULT_INTERVAL"_hs);
+        if (log_interval == hub::NOT_FOUND) {
+            log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerLogObsvSystem", "LOG_CONST_DEFAULT_INTERVAL");
+            log_interval = 5.0f;  // Fallback from hub_constants.json default
+        }
+
+        /**
+         * STEP 7: Log on interval or significant change
+         */
+        if (cache.log_interval_timer >= log_interval || significant_change) {
+            cache.log_interval_timer = 0.0f;
+            cache.last_player_count = player_count;
+            cache.last_moving_count = moving_count;
+
+            /**
+             * STEP 8: Count tag-based states
+             */
+            uint32_t spawned_count = 0;
+            auto spawned_view = registry.view<PlayerSpawnedTag>();
+            for (auto e : spawned_view) {
+                (void)e;
+                ++spawned_count;
+            }
+
+            uint32_t dirty_count = 0;
+            auto dirty_view = registry.view<PlayerDirtyTag>();
+            for (auto e : dirty_view) {
+                (void)e;
+                ++dirty_count;
+            }
+
+            uint32_t chunk_changed_count = 0;
+            auto chunk_view = registry.view<PlayerChunkChangedTag>();
+            for (auto e : chunk_view) {
+                (void)e;
+                ++chunk_changed_count;
+            }
+
+            /**
+             * STEP 9: Output debug log
+             */
+            log::debug("\x1b[38;5;141m[ase-player]\x1b[0m [PlayerLogObsvSystem] "
+                       "players:{} -> idle:{} -> walk:{} -> run:{} -> jump:{} -> fall:{} -> "
+                       "dirty:{} -> spawned:{} -> chk_chg:{}",
+                       player_count, idle_count, walking_count, running_count,
+                       jumping_count, falling_count, dirty_count, spawned_count,
+                       chunk_changed_count);
+        }
     }
 }
 
-void PlayerCtrlInputSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerCtrlInputSystem] Stopped");
+void PlayerLogObsvSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::info("[PlayerLogObsvSystem] Stopped");
 }
 
 }  // namespace ase::player
