@@ -100,7 +100,7 @@
  * [ ] ALL THREE METHODS implemented
  * [ ] on_start/on_stop: log::info with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
- * [ ] log::error() for EVERY VALUE_NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
+ * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
  * [ ] NO switch/case statements? (use Tag-filtered Views (separate View per type)!)
  * [ ] NO if-else chains for type dispatch? (use separate Systems per type!)
