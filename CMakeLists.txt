@@ -23,7 +23,7 @@ CMAKE MODULE COMPLIANCE
 [ ] add_library() with STATIC and EXPLICIT file list
 [ ] NO file(GLOB_RECURSE ...) - explicit files only!
 [ ] NO file(GLOB ...) - explicit files only!
-[ ] Files organized by category with #[[ ]] comment headers
+[ ] Files organized by category with bracket comment headers
 [ ] add_library(ase::{module} ALIAS ...) for namespace
 [ ] target_include_directories() with PUBLIC and generator expressions
 [ ] target_compile_features() with cxx_std_20
