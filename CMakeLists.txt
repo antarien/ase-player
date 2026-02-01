@@ -54,6 +54,13 @@ endif()
 
 project(ase-player VERSION ${ASE_PLAYER_VERSION} LANGUAGES CXX)
 
+# Generate version.hpp from template (SSOT)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/ase/player/version.hpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/include/ase/player/version.hpp"
+    @ONLY
+)
+
 # ==============================================================================
 # BUILD CONFIGURATION
 # ==============================================================================

@@ -28,6 +28,7 @@
  */
 
 #include <ase/ecs/app.hpp>
+#include <ase/player/version.hpp>
 #include <ase/player/systems/lifecycle/player_life_spwn_sys.hpp>
 #include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
 #include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
@@ -53,6 +54,7 @@ namespace ase::player {
 struct PlayerModule {
 
     static constexpr const char* name() { return "ase-player"; }
+    static constexpr const char* version() { return MODULE_VERSION; }
 
     void build(ecs::App& app) {
 
