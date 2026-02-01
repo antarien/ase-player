@@ -39,6 +39,7 @@
 #include <ase/player/systems/network/player_bct_snd_sys.hpp>
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
+#include <ase/player/systems/sync/player_sync_inp_sys.hpp>
 
 namespace ase::player {
 
@@ -100,6 +101,12 @@ struct PlayerModule {
          * Debug/logging runs after all other schedules.
          */
         app.add_system<PlayerLogObsvSystem>(ecs::Schedule::Conclusion);
+
+        /**
+         * INTEGRATION (Schedule::Integration)
+         * Sync input state from network.
+         */
+        app.add_system<PlayerSyncInpSystem>(ecs::Schedule::Integration);
     }
 };
 

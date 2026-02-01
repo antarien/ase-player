@@ -125,6 +125,15 @@ add_library(${PROJECT_NAME} STATIC
 )
 add_library(ase::player ALIAS ${PROJECT_NAME})
 
+# Track module definition header - forces rebuild when module registration changes
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ase/player/player_module.hpp
+    PROPERTIES HEADER_FILE_ONLY TRUE
+)
+target_sources(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ase/player/player_module.hpp
+)
+
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
