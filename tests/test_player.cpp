@@ -14,7 +14,7 @@ namespace {
 // Process spawn request synchronously by running lifecycle system
 ase::ecs::Entity do_spawn_request(
     ase::ecs::Registry& registry,
-    PlayerLifeSpawnSystem& lifecycle,
+    PlayerLifeSpwnSystem& lifecycle,
     const char* player_id,
     float x, float z
 ) {
@@ -39,7 +39,7 @@ ase::ecs::Entity do_spawn_request(
 
 bool do_despawn_request(
     ase::ecs::Registry& registry,
-    PlayerLifeSpawnSystem& lifecycle,
+    PlayerLifeSpwnSystem& lifecycle,
     const char* player_id
 ) {
     auto request_entity = registry.create();
@@ -172,14 +172,14 @@ void test_player_state_constants() {
 }
 
 void test_spawn_via_lifecycle_system() {
-    std::cout << "Testing spawn via PlayerLifeSpawnSystem..." << std::endl;
+    std::cout << "Testing spawn via PlayerLifeSpwnSystem..." << std::endl;
 
     ase::ecs::Registry registry;
-    PlayerLifeSpawnSystem lifecycle;
+    PlayerLifeSpwnSystem lifecycle;
 
     // Setup terrain chunk at (0,0) with height 10.0
     setup_terrain_chunk(registry, 0, 0, 10.0f);
-    // Setup terrain chunk for position (100, 200) -> chunk (6, 12)
+    // Setup terrain chunk for position (100, 200) → chunk (6, 12)
     setup_terrain_chunk(registry, 6, 12, 10.0f);
 
     // Create PlayerStMovComponent singleton (needed for spawn)
@@ -225,10 +225,10 @@ void test_spawn_via_lifecycle_system() {
 }
 
 void test_despawn_via_lifecycle_system() {
-    std::cout << "Testing despawn via PlayerLifeSpawnSystem..." << std::endl;
+    std::cout << "Testing despawn via PlayerLifeSpwnSystem..." << std::endl;
 
     ase::ecs::Registry registry;
-    PlayerLifeSpawnSystem lifecycle;
+    PlayerLifeSpwnSystem lifecycle;
 
     // Setup terrain chunk at (0,0) with height 0.0
     setup_terrain_chunk(registry, 0, 0, 0.0f);
@@ -256,7 +256,7 @@ void test_get_all_players() {
     std::cout << "Testing get_all_players via view..." << std::endl;
 
     ase::ecs::Registry registry;
-    PlayerLifeSpawnSystem lifecycle;
+    PlayerLifeSpwnSystem lifecycle;
 
     // Setup terrain chunk at (0,0)
     setup_terrain_chunk(registry, 0, 0, 0.0f);

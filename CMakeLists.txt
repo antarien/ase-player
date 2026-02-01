@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.20)
-project(ase-player VERSION 0.1.0 LANGUAGES CXX)
 
 #[[
 ASE MODULE BUILD CONFIGURATION
@@ -11,9 +10,9 @@ ASE MODULE BUILD CONFIGURATION
 
 @module      ase-player
 @layer       3 (Module)
-@created     2025-01-01
-@modified    2025-01-30
-@version     1.0.0
+@created     2025-12-15
+@modified    2026-01-30
+@version     00.01.01.00051 [core]
 
 CMAKE MODULE COMPLIANCE
 
@@ -36,6 +35,30 @@ CMAKE MODULE COMPLIANCE
 [ ] include(GNUInstallDirs) for installation
 [ ] install(DIRECTORY include/ ...) for headers
 ]]
+
+# Parse local VERSION (SSOT) if not building from root
+if(NOT DEFINED ASE_PLAYER_VERSION)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+        message(FATAL_ERROR "VERSION file not found: ${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+    endif()
+    file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" _VERSION_LINES)
+    foreach(_LINE ${_VERSION_LINES})
+        if(_LINE MATCHES "^ASE_PLAYER=(.*)$")
+            set(ASE_PLAYER_VERSION "${CMAKE_MATCH_1}")
+        endif()
+    endforeach()
+    if(NOT DEFINED ASE_PLAYER_VERSION)
+        message(FATAL_ERROR "ASE_PLAYER version not found in VERSION file")
+    endif()
+endif()
+
+project(ase-player VERSION ${ASE_PLAYER_VERSION} LANGUAGES CXX)
+
+# ==============================================================================
+# BUILD CONFIGURATION
+# ==============================================================================
+
+
 
 message(STATUS "Configuring ${PROJECT_NAME} v${PROJECT_VERSION}")
 
