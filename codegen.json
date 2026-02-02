@@ -8,49 +8,312 @@
       "name": "player_spawn",
       "reliability": "reliable",
       "type": "create",
-      "components": ["PlayerStIdComponent", "PlayerStPosComponent"]
+      "components": [
+        "PlayerStIdComponent",
+        "PlayerStPosComponent"
+      ]
     },
     {
       "name": "player_state",
       "reliability": "unreliable",
       "type": "update",
-      "components": ["PlayerStIdComponent", "PlayerStPosComponent", "PlayerStVelComponent", "PlayerStStsComponent"]
+      "components": [
+        "PlayerStIdComponent",
+        "PlayerStPosComponent",
+        "PlayerStVelComponent",
+        "PlayerStStsComponent"
+      ]
     },
     {
       "name": "player_despawn",
       "reliability": "reliable",
       "type": "delete",
-      "components": ["PlayerStIdComponent"]
+      "components": [
+        "PlayerStIdComponent"
+      ]
     }
   ],
   "components": {
     "shared": [
-      "PlayerStIdComponent",
-      "PlayerStPosComponent",
-      "PlayerStVelComponent",
-      "PlayerStPhysComponent",
-      "PlayerStStsComponent",
-      "PlayerStChkComponent",
-      "PlayerStMovComponent",
-      "PlayerSpawnedTag",
-      "PlayerLocalTag",
-      "PlayerDirtyTag",
-      "PlayerChunkChangedTag",
-      "PlayerMgrTag",
-      "PlayerInitTag"
+      {
+        "name": "PlayerStIdComponent",
+        "description": "PlayerStIdComponent - Player identity data",
+        "fields": []
+      },
+      {
+        "name": "PlayerStPosComponent",
+        "description": "PlayerStPosComponent - Player world transform",
+        "fields": [
+          {
+            "name": "x",
+            "type": "float32"
+          },
+          {
+            "name": "y",
+            "type": "float32"
+          },
+          {
+            "name": "z",
+            "type": "float32"
+          },
+          {
+            "name": "yaw",
+            "type": "float32"
+          }
+        ]
+      },
+      {
+        "name": "PlayerStVelComponent",
+        "description": "PlayerStVelComponent - Player velocity data",
+        "fields": [
+          {
+            "name": "vx",
+            "type": "float32"
+          },
+          {
+            "name": "vy",
+            "type": "float32"
+          },
+          {
+            "name": "vz",
+            "type": "float32"
+          }
+        ]
+      },
+      {
+        "name": "PlayerStPhysComponent",
+        "description": "PlayerStPhysComponent - Player physics state",
+        "fields": [
+          {
+            "name": "on_ground",
+            "type": "bool",
+            "default": "false"
+          },
+          {
+            "name": "gravity_enabled",
+            "type": "bool",
+            "default": "false"
+          }
+        ]
+      },
+      {
+        "name": "PlayerStStsComponent",
+        "description": "PlayerStStsComponent - Player state machine",
+        "fields": [
+          {
+            "name": "sts",
+            "type": "uint8"
+          }
+        ]
+      },
+      {
+        "name": "PlayerStChkComponent",
+        "description": "PlayerStChkComponent - Player chunk presence",
+        "fields": [
+          {
+            "name": "chunk_x",
+            "type": "int32"
+          },
+          {
+            "name": "chunk_y",
+            "type": "int32"
+          }
+        ]
+      },
+      {
+        "name": "PlayerStMovComponent",
+        "description": "PlayerStMovComponent - Movement settings singleton",
+        "fields": [
+          {
+            "name": "walk_speed",
+            "type": "float32"
+          },
+          {
+            "name": "run_speed",
+            "type": "float32"
+          },
+          {
+            "name": "jump_impulse",
+            "type": "float32"
+          },
+          {
+            "name": "gravity",
+            "type": "float32"
+          },
+          {
+            "name": "ground_friction",
+            "type": "float32"
+          },
+          {
+            "name": "air_control",
+            "type": "float32"
+          },
+          {
+            "name": "ground_snap_dist",
+            "type": "float32"
+          },
+          {
+            "name": "turn_speed",
+            "type": "float32"
+          },
+          {
+            "name": "min_speed_threshold",
+            "type": "float32"
+          },
+          {
+            "name": "velocity_epsilon",
+            "type": "float32"
+          },
+          {
+            "name": "eye_height",
+            "type": "float32"
+          },
+          {
+            "name": "chunk_size",
+            "type": "float32"
+          }
+        ]
+      },
+      {
+        "name": "PlayerSpawnedTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      },
+      {
+        "name": "PlayerLocalTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      },
+      {
+        "name": "PlayerDirtyTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      },
+      {
+        "name": "PlayerChunkChangedTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      },
+      {
+        "name": "PlayerMgrTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      },
+      {
+        "name": "PlayerInitTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      }
     ],
     "server_only": [
-      "PlayerCacheObsComponent",
-      "PlayerReqSpawnComponent",
-      "PlayerReqDespComponent",
-      "PlayerReqSpawnResComponent",
-      "PlayerReqDespResComponent",
-      "PlayerBufBctSpnComponent",
-      "PlayerBufBctStaComponent",
-      "PlayerBufPstComponent",
-      "PlayerBctSpnPndTag",
-      "PlayerBctStaPndTag",
-      "PlayerPstDtyTag"
+      {
+        "name": "PlayerCacheObsComponent",
+        "description": "PlayerCacheObsComponent - Observer system cache for change detection",
+        "fields": [
+          {
+            "name": "last_player_count",
+            "type": "uint32"
+          },
+          {
+            "name": "last_moving_count",
+            "type": "uint32"
+          },
+          {
+            "name": "log_interval_timer",
+            "type": "float32"
+          }
+        ]
+      },
+      {
+        "name": "PlayerReqSpawnComponent",
+        "description": "Request to spawn a new player entity",
+        "fields": []
+      },
+      {
+        "name": "PlayerReqDespComponent",
+        "description": "Request to despawn a player entity",
+        "fields": []
+      },
+      {
+        "name": "PlayerReqSpawnResComponent",
+        "description": "Result of a spawn request",
+        "fields": [
+          {
+            "name": "spawned_entity",
+            "type": "uint32",
+            "default": "ecs::NullEntity"
+          },
+          {
+            "name": "success",
+            "type": "bool",
+            "default": "false"
+          }
+        ]
+      },
+      {
+        "name": "PlayerReqDespResComponent",
+        "description": "Result of a despawn request",
+        "fields": [
+          {
+            "name": "success",
+            "type": "bool",
+            "default": "false"
+          }
+        ]
+      },
+      {
+        "name": "PlayerBufBctSpnComponent",
+        "description": "PlayerBufBctSpnComponent - Buffer for spawn broadcast serialization",
+        "fields": []
+      },
+      {
+        "name": "PlayerBufBctStaComponent",
+        "description": "PlayerBufBctStaComponent - Buffer for state broadcast serialization",
+        "fields": []
+      },
+      {
+        "name": "PlayerBufPstComponent",
+        "description": "PlayerBufPstComponent - Player persistence buffer",
+        "fields": [
+          {
+            "name": "jsn_ptr",
+            "type": "uint64",
+            "pointer": true
+          },
+          {
+            "name": "jsn_len",
+            "type": "uint32"
+          },
+          {
+            "name": "plr_id_ptr",
+            "type": "uint64",
+            "pointer": true
+          },
+          {
+            "name": "plr_id_len",
+            "type": "uint32"
+          },
+          {
+            "name": "st",
+            "type": "uint8"
+          }
+        ]
+      },
+      {
+        "name": "PlayerBctSpnPndTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      },
+      {
+        "name": "PlayerBctStaPndTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      },
+      {
+        "name": "PlayerPstDtyTag",
+        "description": "TODO: Component file not found",
+        "fields": []
+      }
     ]
   },
   "systems": {
@@ -68,5 +331,6 @@
       "PlayerNetBctSndSystem",
       "PlayerPstSerSystem"
     ]
-  }
+  },
+  "version": "2.0.0"
 }
