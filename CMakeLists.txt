@@ -71,40 +71,167 @@ message(STATUS "Configuring ${PROJECT_NAME} v${PROJECT_VERSION}")
 
 add_library(${PROJECT_NAME} STATIC
     #[[
-    LIFECYCLE
+    HEADER FILES - ROOT
+    Module entry point and type definitions.
+    ]]
+    include/ase/player/types.hpp
+    include/ase/player/player.hpp
+    include/ase/player/player_module.hpp
+
+    #[[
+    HEADER FILES - COMPONENTS (cache/)
+    Cached data for observer patterns.
+    ]]
+    include/ase/player/components/cache/player_cache_obs_component.hpp
+
+    #[[
+    HEADER FILES - COMPONENTS (request/)
+    Request components for spawn/despawn operations.
+    ]]
+    include/ase/player/components/request/player_req_desp_component.hpp
+    include/ase/player/components/request/player_req_desp_res_component.hpp
+    include/ase/player/components/request/player_req_spawn_component.hpp
+    include/ase/player/components/request/player_req_spawn_res_component.hpp
+
+    #[[
+    HEADER FILES - COMPONENTS (state/)
+    Runtime player state data.
+    ]]
+    include/ase/player/components/state/player_st_chk_component.hpp
+    include/ase/player/components/state/player_st_id_component.hpp
+    include/ase/player/components/state/player_st_inp_cam_component.hpp
+    include/ase/player/components/state/player_st_inp_mov_component.hpp
+    include/ase/player/components/state/player_st_inp_net_component.hpp
+    include/ase/player/components/state/player_st_mov_component.hpp
+    include/ase/player/components/state/player_st_phys_component.hpp
+    include/ase/player/components/state/player_st_pos_component.hpp
+    include/ase/player/components/state/player_st_sts_component.hpp
+    include/ase/player/components/state/player_st_vel_component.hpp
+
+    #[[
+    HEADER FILES - COMPONENTS (input/)
+    External input components.
+    ]]
+    include/ase/player/components/input/player_inp_ext_component.hpp
+
+    #[[
+    HEADER FILES - COMPONENTS (buffer/)
+    Buffer components for broadcast and persistence.
+    ]]
+    include/ase/player/components/buffer/player_buf_bct_spn_component.hpp
+    include/ase/player/components/buffer/player_buf_bct_sta_component.hpp
+    include/ase/player/components/buffer/player_buf_pst_component.hpp
+
+    #[[
+    HEADER FILES - COMPONENTS (tag/)
+    Tag components for entity classification.
+    ]]
+    include/ase/player/components/tag/player_tag_bct_spn_pnd_component.hpp
+    include/ase/player/components/tag/player_tag_bct_spn_snt_component.hpp
+    include/ase/player/components/tag/player_tag_bct_sta_pnd_component.hpp
+    include/ase/player/components/tag/player_tag_bct_sta_snt_component.hpp
+    include/ase/player/components/tag/player_tag_chunk_changed_component.hpp
+    include/ase/player/components/tag/player_tag_desp_pnd_component.hpp
+    include/ase/player/components/tag/player_tag_dirty_component.hpp
+    include/ase/player/components/tag/player_tag_init_component.hpp
+    include/ase/player/components/tag/player_tag_inp_rmv_component.hpp
+    include/ase/player/components/tag/player_tag_local_component.hpp
+    include/ase/player/components/tag/player_tag_mgr_component.hpp
+    include/ase/player/components/tag/player_tag_pst_dty_component.hpp
+    include/ase/player/components/tag/player_tag_spawned_component.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (control/)
+    Player input and movement control systems.
+    ]]
+    include/ase/player/systems/control/player_ctrl_inp_sys.hpp
+    include/ase/player/systems/control/player_ctrl_mov_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (hub/)
+    Hub communication systems for cross-module data.
+    ]]
+    include/ase/player/systems/hub/player_hub_pos_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (lifecycle/)
+    Player spawn and despawn management systems.
+    ]]
+    include/ase/player/systems/lifecycle/player_life_spwn_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (log/)
+    Logging and diagnostics systems.
+    ]]
+    include/ase/player/systems/log/player_log_obsv_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (network/)
+    Network broadcast systems.
+    ]]
+    include/ase/player/systems/network/player_bct_req_sys.hpp
+    include/ase/player/systems/network/player_bct_snd_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (persistence/)
+    Player persistence systems.
+    ]]
+    include/ase/player/systems/persistence/player_pst_ser_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (simulation/)
+    Player physics simulation systems.
+    ]]
+    include/ase/player/systems/simulation/player_sim_phys_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (state/)
+    Player state management systems.
+    ]]
+    include/ase/player/systems/state/player_sta_chnk_sys.hpp
+    include/ase/player/systems/state/player_sta_sts_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (sync/)
+    Input synchronization systems.
+    ]]
+    include/ase/player/systems/sync/player_sync_inp_sys.hpp
+
+    #[[
+    SOURCE FILES - LIFECYCLE
     Player spawn and despawn management.
     ]]
     src/lifecycle/player_life_spwn_sys.cpp
 
     #[[
-    CONTROL
+    SOURCE FILES - CONTROL
     Player input and movement control.
     ]]
     src/control/player_ctrl_inp_sys.cpp
     src/control/player_ctrl_mov_sys.cpp
 
     #[[
-    SIMULATION
+    SOURCE FILES - SIMULATION
     Player physics simulation.
     ]]
     src/simulation/player_sim_phys_sys.cpp
 
     #[[
-    STATE
+    SOURCE FILES - STATE
     Player state and chunk association.
     ]]
     src/state/player_sta_sts_sys.cpp
     src/state/player_sta_chnk_sys.cpp
 
     #[[
-    HUB (Star Topology)
+    SOURCE FILES - HUB (Star Topology)
     Cross-module communication via Hub pattern.
     Write positions for L4 plugins (PLAN_ASE_SDK_V2).
     ]]
     src/hub/player_hub_pos_sys.cpp
 
     #[[
-    NETWORK
+    SOURCE FILES - NETWORK
     Network broadcast systems (Pure ECS 4-System Pattern).
     Outgoing broadcast request and send.
     ]]
@@ -112,19 +239,19 @@ add_library(${PROJECT_NAME} STATIC
     src/network/player_bct_snd_sys.cpp
 
     #[[
-    PERSISTENCE
+    SOURCE FILES - PERSISTENCE
     Player persistence via Replication Layer.
     ]]
     src/persistence/player_pst_ser_sys.cpp
 
     #[[
-    SYNC
+    SOURCE FILES - SYNC
     Input synchronization from network.
     ]]
     src/sync/player_sync_inp_sys.cpp
 
     #[[
-    LOG
+    SOURCE FILES - LOG
     Logging and diagnostics systems.
     Observer logging for player state.
     ]]
@@ -132,14 +259,8 @@ add_library(${PROJECT_NAME} STATIC
 )
 add_library(ase::player ALIAS ${PROJECT_NAME})
 
-# Track module definition header - forces rebuild when module registration changes
-set_source_files_properties(
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/ase/player/player_module.hpp
-    PROPERTIES HEADER_FILE_ONLY TRUE
-)
-target_sources(${PROJECT_NAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/ase/player/player_module.hpp
-)
+# Header files are already tracked via add_library() above
+# This ensures rebuilds when component/system registrations change
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC

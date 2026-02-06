@@ -26,6 +26,7 @@
  */
 
 #include <cstdint>
+#include <ase/types/types.hpp>
 
 namespace ase::player {
 
@@ -41,7 +42,7 @@ using TypId = uint16_t;     // Network serialization type identifier
  * Sentinel values for uninitialized/invalid data.
  */
 constexpr uint32_t InvalidPlayerId = 0;           // Invalid player ID sentinel
-constexpr uint32_t InvalidEntityId = UINT32_MAX;  // Entity 0 is VALID in EnTT!
+using ase::types::InvalidEntityId;                // SSOT: ase-types (Layer 0)
 
 /**
  * SERIAL TYPE IDs (Layer 3: 1-999)
@@ -119,6 +120,7 @@ constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;  // Chunk size (m)
  * The following constants are now in hub/data/hub_constants.json (SSOT):
  *   - LOG_CONST_DEFAULT_INTERVAL = 5.0 (was LOG_DEFAULT_INTERVAL)
  */
+constexpr float PLR_LOG_INTERVAL_FALLBACK = 5.0f;  // Log interval fallback (seconds) when Hub unavailable
 
 /**
  * ABBREVIATIONS (Documentation)
@@ -127,16 +129,16 @@ constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;  // Chunk size (m)
  *
  * Standard abbreviations used in this module (3-4 chars):
  *
- * | Full Word | Abbr | Example                          |
- * |-----------|------|----------------------------------|
- * | state     | st   | player_st_mov_component.hpp      |
- * | tag       | tag  | player_tag_ded_component.hpp     |
- * | movement  | mov  | player_st_mov_component.hpp      |
- * | spawn     | spn  | player_spn_system.hpp            |
- * | position  | pos  | player_st_pos_component.hpp      |
- * | velocity  | vel  | player_st_vel_component.hpp      |
- * | status    | sts  | player_st_sts_component.hpp      |
- * | dead      | ded  | player_tag_ded_component.hpp     |
+ * │ Full Word │ Abbr │ Example                          │
+ * │───────────│──────│──────────────────────────────────│
+ * │ state     │ st   │ player_st_mov_component.hpp      │
+ * │ tag       │ tag  │ player_tag_ded_component.hpp     │
+ * │ movement  │ mov  │ player_st_mov_component.hpp      │
+ * │ spawn     │ spn  │ player_spn_system.hpp            │
+ * │ position  │ pos  │ player_st_pos_component.hpp      │
+ * │ velocity  │ vel  │ player_st_vel_component.hpp      │
+ * │ status    │ sts  │ player_st_sts_component.hpp      │
+ * │ dead      │ ded  │ player_tag_ded_component.hpp     │
  *
  * NOTE: Folder names are SPELLED OUT (state/, not sta/)
  * NOTE: Abbreviations appear ONLY in filenames between prefix and suffix

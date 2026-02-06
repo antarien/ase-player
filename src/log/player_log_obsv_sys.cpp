@@ -9,8 +9,8 @@
  * @category    error/logging/output
  * @schedule    Conclusion
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-02-06
+ * @version     1.2.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_LOG_OBSV: Player State Observation Logging)
  *
@@ -131,6 +131,9 @@
  * [ ] External resources (shared_ptr, handles) accessed via registry.ctx().get<ResourceManager&>()?
  * [ ] ResourceManager registered in on_start() via registry.ctx().emplace<ResourceManager&>()?
  * [ ] Components store ONLY uint32_t IDs referencing external resources?
+ * [ ] Safe deletion (first collect, then delete)?
+ * [ ] Not deleting other entities during iteration?
+ * [ ] Not invalidating references during iteration?
  */
 
 // INCLUDES - ONLY THESE ARE ALLOWED!
@@ -151,6 +154,8 @@
 #include <ase/player/types.hpp>
 // Hub for HUB Pattern
 #include <ase/hub/api.hpp>
+// Types for sentinel functions (is_not_found)
+#include <ase/types/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
@@ -166,7 +171,21 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
  */
 namespace {
 
-// No helper functions needed - all logic inlined in tick()
+/**
+ * @brief Map player state index to human-readable name
+ * @param idx State index (PLAYER_STATE_* from types.hpp)
+ * @return Human-readable state name
+ */
+const char* state_name(uint8_t idx) {
+    if (idx == PLAYER_STATE_IDLE) return "idle";
+    if (idx == PLAYER_STATE_WALKING) return "walk";
+    if (idx == PLAYER_STATE_RUNNING) return "run";
+    if (idx == PLAYER_STATE_JUMPING) return "jump";
+    if (idx == PLAYER_STATE_FALLING) return "fall";
+    if (idx == PLAYER_STATE_SWIMMING) return "swim";
+    if (idx == PLAYER_STATE_DEAD) return "dead";
+    return "???";
+}
 
 }  // anonymous namespace
 
@@ -203,24 +222,25 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
         }
 
         /**
-         * STEP 4: Count states using lookup table (NO switch/case!)
-         * Array indexed by PLAYER_STATE_* constants from types.hpp
+         * STEP 4: Count states using individual counters (NO arrays!)
+         * Each state counted via named constant from types.hpp.
          */
-        uint32_t state_counts[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+        uint32_t idle_count = 0;
+        uint32_t walking_count = 0;
+        uint32_t running_count = 0;
+        uint32_t jumping_count = 0;
+        uint32_t falling_count = 0;
+
         auto status_view = registry.view<PlayerStStsComponent>();
         for (auto [e, status] : status_view.each()) {
             (void)e;
-            if (status.sts < 8) {
-                ++state_counts[status.sts];
-            }
+            if (status.sts == PLAYER_STATE_IDLE) { ++idle_count; continue; }
+            if (status.sts == PLAYER_STATE_WALKING) { ++walking_count; continue; }
+            if (status.sts == PLAYER_STATE_RUNNING) { ++running_count; continue; }
+            if (status.sts == PLAYER_STATE_JUMPING) { ++jumping_count; continue; }
+            if (status.sts == PLAYER_STATE_FALLING) { ++falling_count; continue; }
         }
 
-        // Extract counts from lookup table using types.hpp constants
-        uint32_t idle_count = state_counts[PLAYER_STATE_IDLE];
-        uint32_t walking_count = state_counts[PLAYER_STATE_WALKING];
-        uint32_t running_count = state_counts[PLAYER_STATE_RUNNING];
-        uint32_t jumping_count = state_counts[PLAYER_STATE_JUMPING];
-        uint32_t falling_count = state_counts[PLAYER_STATE_FALLING];
         uint32_t moving_count = player_count - idle_count;
 
         /**
@@ -235,9 +255,9 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
          * INLINED: No get_*() helper with Registry allowed
          */
         float log_interval = hub::get(registry, hub::GLOBAL, "LOG_CONST_DEFAULT_INTERVAL"_hs);
-        if (log_interval == hub::NOT_FOUND) {
+        if (types::is_not_found(log_interval)) {
             log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerLogObsvSystem", "LOG_CONST_DEFAULT_INTERVAL");
-            log_interval = 5.0f;  // Fallback from hub_constants.json default
+            log_interval = PLR_LOG_INTERVAL_FALLBACK;
         }
 
         /**
