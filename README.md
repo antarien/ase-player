@@ -10,7 +10,7 @@ Part of [ASE - Antares Simulation Engine](../../..)
 
 ## Overview
 
-The **ase-player** module manages all aspects of player entities in the ASE engine. It handles spawning/despawning, input processing, movement simulation, physics integration, and network broadcasting. Key features:
+The **ase-player** module manages all aspects of player entities in the ASE engine, from initial spawn through active gameplay to graceful disconnect handling. It handles spawning (creating player entities with initial position, orientation, and component composition via request/response pattern), despawning (cleanup on disconnect including inventory persistence and territory release), input-to-movement translation (reading InputStateComponent and applying movement with collision detection against terrain), physics integration (gravity, jumping, falling, swimming state detection), and network broadcasting (replicating player state to nearby clients at 20Hz via the replication module). The player movement system implements server-authoritative movement with client-side prediction — the server processes the canonical movement simulation while clients predict locally, with reconciliation when states diverge. Player entities serve as the anchor point for all player-facing systems: camera tracks the player, terrain streams chunks around the player position, and combat reads player state for engagement resolution. Key features:
 
 - **Lifecycle Management**: Spawn and despawn players with request/response pattern
 - **Input Processing**: Translates network input into movement vectors
