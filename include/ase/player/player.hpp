@@ -104,9 +104,3 @@
  * SYSTEMS - Hub (1)
  */
 #include <ase/player/systems/hub/player_hub_pos_sys.hpp>
-
-/**
- * SYSTEMS - Network (2)
- */
-#include <ase/player/systems/network/player_bct_req_sys.hpp>
-#include <ase/player/systems/network/player_bct_snd_sys.hpp>

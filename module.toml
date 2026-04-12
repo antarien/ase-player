@@ -1,0 +1,19 @@
+[module]
+name = "ase-player"
+version = "00.01.01.00051"
+type = "module"
+layer = 3
+api_version = 1
+
+[dependencies]
+ase-camera = "^00.00"
+ase-hub = "^00.01"
+ase-input = "^00.00"
+ase-network = "^00.00"
+ase-replication = "^00.00"
+ase-terrain = "^00.01"
+
+[dependencies.optional]
+
+[build]
+output = "ase_player.module"

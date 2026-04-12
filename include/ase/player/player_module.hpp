@@ -36,8 +36,6 @@
 #include <ase/player/systems/state/player_sta_sts_sys.hpp>
 #include <ase/player/systems/state/player_sta_chnk_sys.hpp>
 #include <ase/player/systems/hub/player_hub_pos_sys.hpp>
-#include <ase/player/systems/network/player_bct_req_sys.hpp>
-#include <ase/player/systems/network/player_bct_snd_sys.hpp>
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
@@ -46,9 +44,9 @@ namespace ase::player {
 
 /**
  * @brief PlayerModule - Player entity management module
- * DESIGN_PLAYER: Handles player lifecycle, movement, physics, state, and network sync.
+ * DESIGN_PLAYER: Handles player lifecycle, movement, physics, state, and persistence.
  *
- * Systems: 11 total
+ * Systems: 9 total
  * Dependencies: ase-input, ase-camera, ase-terrain (via Hub)
  */
 struct PlayerModule {
@@ -82,15 +80,6 @@ struct PlayerModule {
 
         app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerStaChnkSystem");
-
-        app.add_system_with<PlayerBctReqSystem>(ecs::Schedule::Dynamics)
-            .run_after("PlayerHubPosSystem");
-
-        /**
-         * TRANSMISSION (Schedule::Transmission, 20Hz)
-         * Broadcast state changes to clients.
-         */
-        app.add_system<PlayerBctSndSystem>(ecs::Schedule::Transmission);
 
         /**
          * PRESERVATION (Schedule::Preservation, 1Hz)

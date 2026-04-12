@@ -40,7 +40,7 @@
  *          │
  *          │ position updated
  *          ▼
- *   PlayerBctReqSystem (broadcasts state changes)
+ *   PlayerStaStsSystem (updates player status)
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *

@@ -5,8 +5,8 @@ ASE MODULE BUILD CONFIGURATION
 
 @file        CMakeLists.txt
 @brief       Build configuration for ase-player
-@description Player module - ECS-based player movement and replication.
-             Lifecycle, control, simulation, state, and network systems.
+@description Player module - ECS-based player movement and persistence.
+             Lifecycle, control, simulation, state, and hub systems.
 
 @module      ase-player
 @layer       3 (Module)
@@ -19,7 +19,7 @@ CMAKE MODULE COMPLIANCE
 [ ] cmake_minimum_required(VERSION 3.20) as FIRST line
 [ ] project() with VERSION and LANGUAGES CXX
 [ ] message(STATUS) for configuration output
-[ ] add_library() with STATIC and EXPLICIT file list
+[ ] add_library() with SHARED and EXPLICIT file list
 [ ] NO file(GLOB_RECURSE ...) - explicit files only!
 [ ] NO file(GLOB ...) - explicit files only!
 [ ] Files organized by category with bracket comment headers
@@ -69,7 +69,8 @@ configure_file(
 
 message(STATUS "Configuring ${PROJECT_NAME} v${PROJECT_VERSION}")
 
-add_library(${PROJECT_NAME} STATIC
+add_library(${PROJECT_NAME} SHARED
+    src/module_export.cpp
     #[[
     HEADER FILES - ROOT
     Module entry point and type definitions.
@@ -116,20 +117,14 @@ add_library(${PROJECT_NAME} STATIC
 
     #[[
     HEADER FILES - COMPONENTS (buffer/)
-    Buffer components for broadcast and persistence.
+    Buffer components for persistence.
     ]]
-    include/ase/player/components/buffer/player_buf_bct_spn_component.hpp
-    include/ase/player/components/buffer/player_buf_bct_sta_component.hpp
     include/ase/player/components/buffer/player_buf_pst_component.hpp
 
     #[[
     HEADER FILES - COMPONENTS (tag/)
     Tag components for entity classification.
     ]]
-    include/ase/player/components/tag/player_tag_bct_spn_pnd_component.hpp
-    include/ase/player/components/tag/player_tag_bct_spn_snt_component.hpp
-    include/ase/player/components/tag/player_tag_bct_sta_pnd_component.hpp
-    include/ase/player/components/tag/player_tag_bct_sta_snt_component.hpp
     include/ase/player/components/tag/player_tag_chunk_changed_component.hpp
     include/ase/player/components/tag/player_tag_desp_pnd_component.hpp
     include/ase/player/components/tag/player_tag_dirty_component.hpp
@@ -164,13 +159,6 @@ add_library(${PROJECT_NAME} STATIC
     Logging and diagnostics systems.
     ]]
     include/ase/player/systems/log/player_log_obsv_sys.hpp
-
-    #[[
-    HEADER FILES - SYSTEMS (network/)
-    Network broadcast systems.
-    ]]
-    include/ase/player/systems/network/player_bct_req_sys.hpp
-    include/ase/player/systems/network/player_bct_snd_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (persistence/)
@@ -231,14 +219,6 @@ add_library(${PROJECT_NAME} STATIC
     src/hub/player_hub_pos_sys.cpp
 
     #[[
-    SOURCE FILES - NETWORK
-    Network broadcast systems (Pure ECS 4-System Pattern).
-    Outgoing broadcast request and send.
-    ]]
-    src/network/player_bct_req_sys.cpp
-    src/network/player_bct_snd_sys.cpp
-
-    #[[
     SOURCE FILES - PERSISTENCE
     Player persistence via Replication Layer.
     ]]
@@ -259,6 +239,11 @@ add_library(${PROJECT_NAME} STATIC
 )
 add_library(ase::player ALIAS ${PROJECT_NAME})
 
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    OUTPUT_NAME "ase_player"
+    SUFFIX ".module"
+)
+
 # Header files are already tracked via add_library() above
 # This ensures rebuilds when component/system registrations change
 
@@ -276,15 +261,14 @@ target_link_libraries(${PROJECT_NAME}
         ase::ecs          # Layer 1 - ECS framework
         ase::log          # Layer 1 - Logging
         ase::math         # Layer 0 - Vec3, math utilities
+        ase::types        # Layer 0 - Type definitions (sentinel checks)
         ase::input        # Input types and components
         ase::terrain      # Terrain components
         ase::camera       # CameraComponent for spawn_player
-        ase::network      # ECS communication via network components
     PRIVATE
-        ase::hub          # Layer 1 - Star Topology (write positions for L4 plugins)
-        ase::replication  # Only ase::replication - re-exports serial components!
+        ase::hub          # Layer 3 - Star Topology (write positions for L4 plugins)
 )
-#[[ VERBOTEN: ase::serial, nlohmann_json! Use ase::replication only! ]]
+#[[ VERBOTEN: ase::replication, ase::network, ase::serial, nlohmann_json! Hub handles I/O! ]]
 
 if(ASE_BUILD_TESTS)
     add_subdirectory(tests)

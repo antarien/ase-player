@@ -36,7 +36,7 @@
  *          │
  *          │ state value updated
  *          ▼
- *   PlayerBctReqSystem (reads sts for broadcast)
+ *   PlayerStaChnkSystem (chunk association)
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
@@ -162,8 +162,8 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
  * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
+ *   OK: namespace { void helper() {...} }   // CORRECT
+ *   NO: static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
@@ -217,7 +217,7 @@ void PlayerStaStsSystem::tick(ecs::Registry& registry, float /*dt*/) {
          * STEP 4: Read sprint input from PlayerInpExtComponent (SYN Pattern)
          */
         float sprint_val = inp.inp_sprint;
-        if (sprint_val < 0.0f || sprint_val > 1.0f) {
+        if (!types::is_in_rng_f(sprint_val, 0.0f, 1.0f)) {
             sprint_val = math::clamp(sprint_val, 0.0f, 1.0f);
         }
 
