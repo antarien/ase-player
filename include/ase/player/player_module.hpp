@@ -47,7 +47,7 @@ namespace ase::player {
  * DESIGN_PLAYER: Handles player lifecycle, movement, physics, state, and persistence.
  *
  * Systems: 9 total
- * Dependencies: ase-input, ase-camera, ase-terrain (via Hub)
+ * Dependencies: ase-input, ase-terrain (via Hub)
  */
 struct PlayerModule {
 

@@ -264,7 +264,6 @@ target_link_libraries(${PROJECT_NAME}
         ase::types        # Layer 0 - Type definitions (sentinel checks)
         ase::input        # Input types and components
         ase::terrain      # Terrain components
-        ase::camera       # CameraComponent for spawn_player
     PRIVATE
         ase::hub          # Layer 3 - Star Topology (write positions for L4 plugins)
 )

@@ -9,8 +9,8 @@
  * @category    error/logging/output
  * @schedule    Conclusion
  * @created     2026-01-22
- * @modified    2026-02-06
- * @version     1.2.0
+ * @modified    2026-04-13
+ * @version     1.3.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_LOG_OBSV: Player State Observation Logging)
  *
@@ -90,7 +90,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -190,10 +190,10 @@ const char* state_name(uint8_t idx) {
 }  // anonymous namespace
 
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
-// ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
+// ALL THREE METHODS MUST BE IMPLEMENTED — NO EXCEPTIONS!
 
 void PlayerLogObsvSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerLogObsvSystem] Started");
+    log::debug("[PlayerLogObsvSystem] Started");
 }
 
 void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
@@ -252,11 +252,13 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
 
         /**
          * STEP 6: Read log interval from Hub (HUB Pattern - READS)
-         * INLINED: No get_*() helper with Registry allowed
+         * INLINED: No get_*() helper with Registry allowed.
+         * Tick-system: silent fallback on NOT_FOUND. Missing constants are an
+         * expected state when no replica/almanach is online — logging ERR every
+         * tick would spam the log. Fallback to PLR_LOG_INTERVAL_FALLBACK.
          */
         float log_interval = hub::get(registry, hub::GLOBAL, "LOG_CONST_DEFAULT_INTERVAL"_hs);
         if (types::is_not_found(log_interval)) {
-            log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerLogObsvSystem", "LOG_CONST_DEFAULT_INTERVAL");
             log_interval = PLR_LOG_INTERVAL_FALLBACK;
         }
 
@@ -306,7 +308,7 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
 }
 
 void PlayerLogObsvSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerLogObsvSystem] Stopped");
+    log::debug("[PlayerLogObsvSystem] Stopped");
 }
 
 }  // namespace ase::player
