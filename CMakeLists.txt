@@ -244,6 +244,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     SUFFIX ".module"
 )
 
+ase_install_module_toml(${PROJECT_NAME})
+
 # Header files are already tracked via add_library() above
 # This ensures rebuilds when component/system registrations change
 
@@ -259,7 +261,7 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ase::ecs          # Layer 1 - ECS framework
-        ase::log          # Layer 1 - Logging
+        ase::log::headers          # Layer 1 - Logging
         ase::math         # Layer 0 - Vec3, math utilities
         ase::types        # Layer 0 - Type definitions (sentinel checks)
         ase::input        # Input types and components
