@@ -39,10 +39,10 @@
 #   stable = Production ready (set manually)
 #
 # ==============================================================================
-ASE_PLAYER=00.01.13.00063
+ASE_PLAYER=00.01.14.00064
 ASE_PLAYER_NAME=Player System
 ASE_PLAYER_DESC=Player entity, spawn, respawn
 ASE_PLAYER_LAYER=3
 ASE_PLAYER_STATUS=feat
 ASE_PLAYER_CREATED=2025-12-15
-ASE_PLAYER_UPDATED=2026-04-13
+ASE_PLAYER_UPDATED=2026-04-16
