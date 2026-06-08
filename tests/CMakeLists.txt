@@ -32,6 +32,7 @@ add_executable(${PROJECT_NAME}-test
 target_link_libraries(${PROJECT_NAME}-test
     PRIVATE
         ase::player
+        ase::containers     # Layer 0 - Vector/Pair SSOT (player enumeration test)
         doctest::doctest
 )
 

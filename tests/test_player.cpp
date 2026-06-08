@@ -1,6 +1,8 @@
 #include <ase/player/player.hpp>
 #include <ase/terrain/terrain.hpp>
 #include <ase/ecs/system.hpp>
+#include <ase/containers/vector.hpp>
+#include <ase/containers/hash_map.hpp>
 #include <iostream>
 #include <cassert>
 #include <cmath>
@@ -69,8 +71,8 @@ ase::ecs::Entity do_find_player(ase::ecs::Registry& registry, const char* player
     return ase::ecs::NullEntity;
 }
 
-std::vector<std::pair<std::string, ase::ecs::Entity>> do_get_all_players(ase::ecs::Registry& registry) {
-    std::vector<std::pair<std::string, ase::ecs::Entity>> result;
+ase::containers::Vector<ase::containers::Pair<std::string, ase::ecs::Entity>> do_get_all_players(ase::ecs::Registry& registry) {
+    ase::containers::Vector<ase::containers::Pair<std::string, ase::ecs::Entity>> result;
     auto view = registry.view<PlayerStIdComponent>();
     for (auto [entity, identity] : view.each()) {
         result.emplace_back(identity.player_id, entity);
