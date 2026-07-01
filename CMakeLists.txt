@@ -108,6 +108,8 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/state/player_st_pos_component.hpp
     include/ase/player/components/state/player_st_sts_component.hpp
     include/ase/player/components/state/player_st_vel_component.hpp
+    include/ase/player/components/state/player_sta_cht_comp.hpp
+    include/ase/player/components/state/player_sta_acmp_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (input/)
@@ -149,10 +151,23 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/hub/player_hub_pos_sys.hpp
 
     #[[
+    HEADER FILES - SYSTEMS (anticheat/)
+    Engine-level anti-cheat movement authority (SERVER-ONLY, Phase 13 / Task 13.10).
+    ]]
+    include/ase/player/systems/anticheat/player_acc_mov_sys.hpp
+
+    #[[
     HEADER FILES - SYSTEMS (lifecycle/)
     Player spawn and despawn management systems.
     ]]
     include/ase/player/systems/lifecycle/player_life_spwn_sys.hpp
+
+    #[[
+    HEADER FILES - SYSTEMS (reception/)
+    Backend-driven spawn: drain the Replica-forwarded BIN_MSG_PLAYER_SPAWN=77 (LANE_SPW) into a
+    PlayerReqSpawnComponent (Phase 13 Task 13.10).
+    ]]
+    include/ase/player/systems/reception/player_spwn_rcv_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (log/)
@@ -171,6 +186,7 @@ add_library(${PROJECT_NAME} SHARED
     Player physics simulation systems.
     ]]
     include/ase/player/systems/simulation/player_sim_phys_sys.hpp
+    include/ase/player/systems/simulation/player_sim_cht_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (state/)
@@ -184,6 +200,12 @@ add_library(${PROJECT_NAME} SHARED
     Input synchronization systems.
     ]]
     include/ase/player/systems/sync/player_sync_inp_sys.hpp
+
+    #[[
+    SOURCE FILES - RECEPTION
+    Backend-driven spawn: drain BIN_MSG_PLAYER_SPAWN=77 (LANE_SPW) → PlayerReqSpawnComponent (Task 13.10).
+    ]]
+    src/reception/player_spwn_rcv_sys.cpp
 
     #[[
     SOURCE FILES - LIFECYCLE
@@ -203,6 +225,7 @@ add_library(${PROJECT_NAME} SHARED
     Player physics simulation.
     ]]
     src/simulation/player_sim_phys_sys.cpp
+    src/simulation/player_sim_cht_sys.cpp
 
     #[[
     SOURCE FILES - STATE
@@ -217,6 +240,12 @@ add_library(${PROJECT_NAME} SHARED
     Write positions for L4 plugins (PLAN_ASE_SDK_V2).
     ]]
     src/hub/player_hub_pos_sys.cpp
+
+    #[[
+    SOURCE FILES - ANTICHEAT
+    Engine-level anti-cheat movement authority (SERVER-ONLY, Phase 13 / Task 13.10).
+    ]]
+    src/anticheat/player_acc_mov_sys.cpp
 
     #[[
     SOURCE FILES - PERSISTENCE
@@ -268,6 +297,7 @@ target_link_libraries(${PROJECT_NAME}
         ase::terrain      # Terrain components
     PRIVATE
         ase::hub          # Layer 3 - Star Topology (write positions for L4 plugins)
+        ase::transport    # Layer 1 - ctx-shared inbound FIFO lanes (PlayerSpwnRcvSystem drains LANE_SPW; websocket-FREE, L3→L1 allowed)
 )
 #[[ VERBOTEN: ase::replication, ase::network, ase::serial, nlohmann_json! Hub handles I/O! ]]
 

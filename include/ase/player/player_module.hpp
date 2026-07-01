@@ -39,6 +39,9 @@
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
+#include <ase/player/systems/anticheat/player_acc_mov_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_cht_sys.hpp>
+#include <ase/player/systems/reception/player_spwn_rcv_sys.hpp>
 
 namespace ase::player {
 
@@ -57,6 +60,14 @@ struct PlayerModule {
     void build(ecs::App& app) {
 
         /**
+         * RECEPTION (Schedule::Reception)
+         * Drain the Replica-forwarded backend spawn frame (BIN_MSG_PLAYER_SPAWN=77, LANE_SPW) and create a
+         * PlayerReqSpawnComponent request. Runs in Reception (before Dynamics) so PlayerLifeSpwnSystem spawns
+         * the entity the SAME tick — a backend-driven spawn with no human WebRTC client (Phase 13 Task 13.10).
+         */
+        app.add_system<PlayerSpwnRcvSystem>(ecs::Schedule::Reception);
+
+        /**
          * DYNAMICS (Schedule::Dynamics, 30Hz)
          * Physics, movement, game logic systems.
          * Order matters - use run_after() for dependencies.
@@ -69,8 +80,16 @@ struct PlayerModule {
         app.add_system_with<PlayerCtrlMovSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlInpSystem");
 
-        app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
+        /**
+         * CHEAT SIMULATION (SERVER-ONLY, Phase 13 / Task 13.10)
+         * Overrides the input-capped velocity for a backend-driven cheating player (speed-hack), so
+         * PlayerSimPhysSystem applies it and PlayerAccMovSystem flags it. No-op for normal players.
+         */
+        app.add_system_with<PlayerSimChtSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlMovSystem");
+
+        app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimChtSystem");
 
         app.add_system_with<PlayerStaStsSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimPhysSystem");
@@ -80,6 +99,14 @@ struct PlayerModule {
 
         app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerStaChnkSystem");
+
+        /**
+         * ANTI-CHEAT (SERVER-ONLY authority, Phase 13 / Task 13.10)
+         * Reads the realised post-physics velocity and flags speed-hacks on the Hub
+         * as the contract trigger "PLAYER_MOVEMENT_SUSPICIOUS" (Replica forwards to MovementValidator).
+         */
+        app.add_system_with<PlayerAccMovSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerHubPosSystem");
 
         /**
          * PRESERVATION (Schedule::Preservation, 1Hz)

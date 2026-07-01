@@ -104,6 +104,45 @@ constexpr float MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD = 0.1f;  // Min speed thres
 constexpr float MOVEMENT_DEFAULT_VELOCITY_EPSILON = 0.01f;    // Velocity epsilon (m/s)
 
 /**
+ * ANTI-CHEAT MOVEMENT AUTHORITY (Phase 13 / Task 13.10)
+ * Engine-level deterministic bound on a player's realised horizontal speed. A legit player's
+ * velocity is capped at run_speed by PlayerCtrlMovSystem, so a realised horizontal speed above
+ * run_speed * margin cannot come from legitimate input — it is a speed-hack. The detector compares
+ * the SQUARED horizontal speed (vx*vx + vz*vz) against the squared bound (no sqrt, frequency-
+ * independent since velocity is m/s). A flagged player drives the contract trigger topic
+ * "PLAYER_MOVEMENT_SUSPICIOUS" (hashed at the Hub call site), consumed by MovementValidator.
+ */
+constexpr float PLR_AC_SPEED_MARGIN = 1.5f;  // Tolerance factor over run_speed (slopes, knockback, latency)
+constexpr float PLR_AC_MAX_HORIZONTAL_SPEED = MOVEMENT_DEFAULT_RUN_SPEED * PLR_AC_SPEED_MARGIN;  // Max plausible horizontal speed (m/s)
+constexpr float PLR_AC_MAX_HORIZONTAL_SPEED_SQ = PLR_AC_MAX_HORIZONTAL_SPEED * PLR_AC_MAX_HORIZONTAL_SPEED;  // Squared bound vs vx*vx + vz*vz
+
+/**
+ * ANTI-CHEAT TELEPORT AUTHORITY (Phase 13 / Task 13.10)
+ * A legit player moves at most run_speed*margin per second; at the Dynamics (30Hz) detector rate a single-
+ * tick horizontal position delta is sub-metre. A per-tick delta exceeding PLR_AC_TELEPORT_STEP cannot be
+ * legitimate motion — it is a teleport-hack. The detector compares the SQUARED per-tick position delta
+ * (dx*dx + dz*dz) against the squared bound (no sqrt). The flagged player drives the SAME contract trigger
+ * "PLAYER_MOVEMENT_SUSPICIOUS". PlayerStaAcpComponent holds the previous observed position per player.
+ */
+constexpr float PLR_AC_TELEPORT_STEP = PLR_AC_MAX_HORIZONTAL_SPEED;  // Max plausible single-tick horizontal position delta (m); larger = teleport
+constexpr float PLR_AC_TELEPORT_STEP_SQ = PLR_AC_TELEPORT_STEP * PLR_AC_TELEPORT_STEP;  // Squared bound vs dx*dx + dz*dz
+
+/**
+ * BACKEND-DRIVEN SPAWN WIRE (Phase 13 / Task 13.10)
+ * The Replica forwards the ase-cli spawn frame VERBATIM to the World publisher; PlayerSpwnRcvSystem drains
+ * transport::LANE_SPW and creates a PlayerReqSpawnComponent so PlayerLifeSpwnSystem spawns the real entity
+ * (no human WebRTC client). Local mirror of ase-network BIN_MSG_PLAYER_SPAWN=77 (L3→L3 forbidden — the bytes
+ * are restated here). Frame: [77][player_id:char[64]][x:f32][z:f32] = 73 bytes.
+ */
+constexpr uint8_t  PLR_BIN_MSG_PLAYER_SPAWN = 77;  // mirror of ase-network BIN_MSG_PLAYER_SPAWN (76 = PLAYER_CHEAT)
+constexpr uint32_t PLR_SPW_FRAME_SZ         = 73u; // 1 type + 64 player_id + 4 x + 4 z
+constexpr uint32_t PLR_SPW_PLAYER_ID_OFF    = 1u;  // player_id:char[64] offset (after the type byte)
+constexpr uint32_t PLR_SPW_PLAYER_ID_LEN    = 64u; // player_id fixed field length (matches PlayerReqSpawnComponent.player_id[64])
+constexpr uint32_t PLR_SPW_X_OFF            = 65u; // spawn x:f32 offset
+constexpr uint32_t PLR_SPW_Z_OFF            = 69u; // spawn z:f32 offset
+constexpr uint32_t PLR_SPW_RCV_BATCH_MAX    = 32u; // max spawn frames drained per tick (bounded)
+
+/**
  * DEFAULT VALUES - CAMERA/VIEW
  * Camera and view parameters.
  */
