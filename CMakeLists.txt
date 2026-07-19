@@ -110,6 +110,11 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/state/player_st_vel_component.hpp
     include/ase/player/components/state/player_sta_cht_comp.hpp
     include/ase/player/components/state/player_sta_acmp_comp.hpp
+    include/ase/player/components/state/player_sta_act_comp.hpp
+    include/ase/player/components/state/player_sta_cmb_comp.hpp
+    include/ase/player/components/state/player_sta_com_comp.hpp
+    include/ase/player/components/state/player_sta_eco_comp.hpp
+    include/ase/player/components/state/player_sta_inv_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (input/)
@@ -152,9 +157,15 @@ add_library(${PROJECT_NAME} SHARED
 
     #[[
     HEADER FILES - SYSTEMS (anticheat/)
-    Engine-level anti-cheat movement authority (SERVER-ONLY, Phase 13 / Task 13.10).
+    Engine-level anti-cheat authorities (SERVER-ONLY, Phase 13 / Task 13.10 + AP-3):
+    movement plus the archetype contract-topic detectors.
     ]]
     include/ase/player/systems/anticheat/player_acc_mov_sys.hpp
+    include/ase/player/systems/anticheat/player_acc_act_sys.hpp
+    include/ase/player/systems/anticheat/player_acc_cmb_sys.hpp
+    include/ase/player/systems/anticheat/player_acc_com_sys.hpp
+    include/ase/player/systems/anticheat/player_acc_eco_sys.hpp
+    include/ase/player/systems/anticheat/player_acc_inv_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (lifecycle/)
@@ -183,10 +194,13 @@ add_library(${PROJECT_NAME} SHARED
 
     #[[
     HEADER FILES - SYSTEMS (simulation/)
-    Player physics simulation systems.
+    Player physics simulation + backend cheat-induction systems (Phase 13 AP-3 archetype levers).
     ]]
     include/ase/player/systems/simulation/player_sim_phys_sys.hpp
     include/ase/player/systems/simulation/player_sim_cht_sys.hpp
+    include/ase/player/systems/simulation/player_sim_act_sys.hpp
+    include/ase/player/systems/simulation/player_sim_com_sys.hpp
+    include/ase/player/systems/simulation/player_sim_eco_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (state/)
@@ -222,10 +236,13 @@ add_library(${PROJECT_NAME} SHARED
 
     #[[
     SOURCE FILES - SIMULATION
-    Player physics simulation.
+    Player physics simulation + backend cheat-induction (Phase 13 AP-3 archetype levers).
     ]]
     src/simulation/player_sim_phys_sys.cpp
     src/simulation/player_sim_cht_sys.cpp
+    src/simulation/player_sim_act_sys.cpp
+    src/simulation/player_sim_com_sys.cpp
+    src/simulation/player_sim_eco_sys.cpp
 
     #[[
     SOURCE FILES - STATE
@@ -243,9 +260,15 @@ add_library(${PROJECT_NAME} SHARED
 
     #[[
     SOURCE FILES - ANTICHEAT
-    Engine-level anti-cheat movement authority (SERVER-ONLY, Phase 13 / Task 13.10).
+    Engine-level anti-cheat authorities (SERVER-ONLY, Phase 13 / Task 13.10 + AP-3):
+    movement plus the archetype contract-topic detectors.
     ]]
     src/anticheat/player_acc_mov_sys.cpp
+    src/anticheat/player_acc_act_sys.cpp
+    src/anticheat/player_acc_cmb_sys.cpp
+    src/anticheat/player_acc_com_sys.cpp
+    src/anticheat/player_acc_eco_sys.cpp
+    src/anticheat/player_acc_inv_sys.cpp
 
     #[[
     SOURCE FILES - PERSISTENCE

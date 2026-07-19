@@ -40,7 +40,15 @@
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_mov_sys.hpp>
+#include <ase/player/systems/anticheat/player_acc_act_sys.hpp>
+#include <ase/player/systems/anticheat/player_acc_cmb_sys.hpp>
+#include <ase/player/systems/anticheat/player_acc_com_sys.hpp>
+#include <ase/player/systems/anticheat/player_acc_eco_sys.hpp>
+#include <ase/player/systems/anticheat/player_acc_inv_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_cht_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_act_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_com_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_eco_sys.hpp>
 #include <ase/player/systems/reception/player_spwn_rcv_sys.hpp>
 
 namespace ase::player {
@@ -81,11 +89,22 @@ struct PlayerModule {
             .run_after("PlayerCtrlInpSystem");
 
         /**
-         * CHEAT SIMULATION (SERVER-ONLY, Phase 13 / Task 13.10)
+         * CHEAT SIMULATION (SERVER-ONLY, Phase 13 / Task 13.10 + AP-3)
          * Overrides the input-capped velocity for a backend-driven cheating player (speed-hack), so
          * PlayerSimPhysSystem applies it and PlayerAccMovSystem flags it. No-op for normal players.
+         * The AP-3 archetype levers induce realised activity/communication/economy rates the same way
+         * (real state on the real player entity, never a fabricated topic inject).
          */
         app.add_system_with<PlayerSimChtSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerCtrlMovSystem");
+
+        app.add_system_with<PlayerSimActSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerCtrlMovSystem");
+
+        app.add_system_with<PlayerSimComSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerCtrlMovSystem");
+
+        app.add_system_with<PlayerSimEcoSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlMovSystem");
 
         app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
@@ -101,12 +120,31 @@ struct PlayerModule {
             .run_after("PlayerStaChnkSystem");
 
         /**
-         * ANTI-CHEAT (SERVER-ONLY authority, Phase 13 / Task 13.10)
+         * ANTI-CHEAT (SERVER-ONLY authority, Phase 13 / Task 13.10 + AP-3)
          * Reads the realised post-physics velocity and flags speed-hacks on the Hub
          * as the contract trigger "PLAYER_MOVEMENT_SUSPICIOUS" (Replica forwards to MovementValidator).
+         * The AP-3 archetype detectors flag the remaining contract topics from the realised rates the
+         * induction systems drive (exact-hash literals incl. `*`, ANTI_CHEAT_COMPONENT_CONTRACT.md):
+         * PLAYER_ACTION_* + COMBAT_EVENT_* (BehaviorWatcher), PLAYER_COMMUNICATION_*
+         * (CoordinationDetector), ECONOMY_TRANSACTION_* + INVENTORY_MODIFICATION_* (EconomyAuditor).
          */
         app.add_system_with<PlayerAccMovSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerHubPosSystem");
+
+        app.add_system_with<PlayerAccActSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimActSystem");
+
+        app.add_system_with<PlayerAccCmbSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimActSystem");
+
+        app.add_system_with<PlayerAccComSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimComSystem");
+
+        app.add_system_with<PlayerAccEcoSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimEcoSystem");
+
+        app.add_system_with<PlayerAccInvSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimEcoSystem");
 
         /**
          * PRESERVATION (Schedule::Preservation, 1Hz)

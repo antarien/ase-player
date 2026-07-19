@@ -128,6 +128,28 @@ constexpr float PLR_AC_TELEPORT_STEP = PLR_AC_MAX_HORIZONTAL_SPEED;  // Max plau
 constexpr float PLR_AC_TELEPORT_STEP_SQ = PLR_AC_TELEPORT_STEP * PLR_AC_TELEPORT_STEP;  // Squared bound vs dx*dx + dz*dz
 
 /**
+ * ANTI-CHEAT ARCHETYPE AUTHORITIES (Phase 13 AP-3)
+ * Engine-level deterministic bounds on the realised per-player activity RATES of the remaining
+ * contract-topic families (ANTI_CHEAT_COMPONENT_CONTRACT.md): a realised rate above the bound cannot
+ * come from legitimate play — human input, chat cadence and economy flow are all physically capped.
+ * Each detector compares its realised rate component against ONE bound and drives ONE contract topic
+ * (exact-hash literal, the `*` is PART of the topic name per the contract):
+ *   PlayerStaActComponent.action_rate        > PLR_AC_MAX_ACTION_RATE       → "PLAYER_ACTION_*"        (BehaviorWatcher)
+ *   PlayerStaCmbComponent.combat_rate        > PLR_AC_MAX_COMBAT_RATE       → "COMBAT_EVENT_*"         (BehaviorWatcher)
+ *   PlayerStaComComponent.message_rate       > PLR_AC_MAX_MESSAGE_RATE      → "PLAYER_COMMUNICATION_*" (CoordinationDetector)
+ *   PlayerStaEcoComponent.transaction_rate   > PLR_AC_MAX_TRANSACTION_RATE  → "ECONOMY_TRANSACTION_*"  (EconomyAuditor)
+ *   PlayerStaInvComponent.modification_rate  > PLR_AC_MAX_INVENTORY_RATE    → "INVENTORY_MODIFICATION_*" (EconomyAuditor)
+ * The realised rates are driven by the game simulation; the backend cheat levers (PLR_CHEAT_ACTIONS /
+ * PLR_CHEAT_CHAT / PLR_CHEAT_DUPE, frame 76) induce them deterministically on the REAL player entity —
+ * never a fabricated topic inject (same honesty rule as the speed lever).
+ */
+constexpr float PLR_AC_MAX_ACTION_RATE      = 20.0f;  // Max plausible player actions/sec (human input cap)
+constexpr float PLR_AC_MAX_COMBAT_RATE      = 10.0f;  // Max plausible combat events/sec a player can cause
+constexpr float PLR_AC_MAX_MESSAGE_RATE     = 5.0f;   // Max plausible chat messages/sec (human typing cap)
+constexpr float PLR_AC_MAX_TRANSACTION_RATE = 8.0f;   // Max plausible economy transactions/sec
+constexpr float PLR_AC_MAX_INVENTORY_RATE   = 15.0f;  // Max plausible inventory modifications/sec
+
+/**
  * BACKEND-DRIVEN SPAWN WIRE (Phase 13 / Task 13.10)
  * The Replica forwards the ase-cli spawn frame VERBATIM to the World publisher; PlayerSpwnRcvSystem drains
  * transport::LANE_SPW and creates a PlayerReqSpawnComponent so PlayerLifeSpwnSystem spawns the real entity
