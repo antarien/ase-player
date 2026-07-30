@@ -41,3 +41,26 @@ set_target_properties(${PROJECT_NAME}-test PROPERTIES
 )
 
 add_test(NAME ${PROJECT_NAME}-test COMMAND ${PROJECT_NAME}-test)
+
+#[[
+MIGRATE-SERIALIZER TEST TARGET (PLAN_ASE_COMPUTE_PHASE_06_WORLD WS-H.4)
+Drives the REAL PlayerMigSerSystem: frozen 42-byte PlayerSnap layout from the live player_st_*
+components, monotonic per-player epoch bump (the migrate idempotency source), staged-buffer
+re-entry block. Standalone doctest executable next to the module test.
+]]
+add_executable(${PROJECT_NAME}-mig-test
+    test_player_mig.cpp
+)
+
+target_link_libraries(${PROJECT_NAME}-mig-test
+    PRIVATE
+        ase::player
+        ase::types        # region_wire.hpp contract constants (PlayerSnap offsets)
+        doctest::doctest
+)
+
+set_target_properties(${PROJECT_NAME}-mig-test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+add_test(NAME ${PROJECT_NAME}-mig-test COMMAND ${PROJECT_NAME}-mig-test)

@@ -277,6 +277,14 @@ add_library(${PROJECT_NAME} SHARED
     src/persistence/player_pst_ser_sys.cpp
 
     #[[
+    SOURCE FILES - MIGRATION (Compute Phase 06, WS-H.4)
+    PlayerSnap serializer for the boundary migrate: bumps the per-player monotonic epoch and
+    encodes the frozen 42-byte PlayerSnap (ase/types/region_wire.hpp) from the live
+    player_st_* components into PlayerBufMigComponent; the World tier ships frame 100.
+    ]]
+    src/migration/player_mig_ser_sys.cpp
+
+    #[[
     SOURCE FILES - SYNC
     Input synchronization from network.
     ]]

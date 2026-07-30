@@ -29,7 +29,7 @@
  * [ ] Communication only via Components
  * [ ] Helpers in anonymous namespace (in .cpp, NOT static functions!)
  * [ ] Math functions from ase-math (Layer 0)
- * [ ] NO file-level static/constexpr (constants -> types.hpp)
+ * [ ] NO file-level static/constexpr (constants → types.hpp)
  * [ ] Registered in Module with correct Schedule
  * [ ] Filename matches convention
  * [ ] Class name derived from filename

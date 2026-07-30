@@ -11,8 +11,8 @@
  * @category    entity/actor/player
  * @schedule    Preservation
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     2.0.0
+ * @modified    2026-07-30
+ * @version     2.1.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_PST_SER: Player Persistence Serialization)
  *
@@ -35,6 +35,7 @@
  *   │    - PlayerBufPstComponent (persistence buf)│
  *   │    - SerialBufJsnComponent (JSON buffer)    │
  *   │    - SerialJsnPndTag (serialization pnd)    │
+ *   │    - SerialJsnResourceManager (source blob) │
  *   │    - Hub: REP_PST_SER, REP_PST_SYN          │
  *   │    - Removes PlayerPstDtyTag                │
  *   └─────────────────────────────────────────────┘
@@ -96,7 +97,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -179,7 +180,7 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerPstSerSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerPstSerSystem] Started");
+    log::debug("[PlayerPstSerSystem] Started");
 }
 
 void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
@@ -195,6 +196,12 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         PlayerStVelComponent,
         PlayerStStsComponent
     >();
+
+    /**
+     * Blob store owning the source data addresses for ase-serial.
+     * ctx().emplace is idempotent (EnTT try_emplace), so the start order does not matter.
+     */
+    auto& blobs = registry.ctx().emplace<serial::SerialJsnResourceManager>();
 
     /**
      * Use iterator pattern for entity creation during iteration
@@ -214,7 +221,7 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         auto ser = registry.create();
 
         auto& jsn_buf = registry.emplace<serial::SerialBufJsnComponent>(ser);
-        jsn_buf.src_ptr = reinterpret_cast<uint64_t>(&pos);
+        jsn_buf.src_id = blobs.store_blob(&pos, sizeof(PlayerStPosComponent));
         jsn_buf.src_typ = SERIAL_TYP_PLR_STA;
         jsn_buf.src_siz = sizeof(PlayerStPosComponent);
         jsn_buf.st = serial::SERIAL_ST_PND;
@@ -250,7 +257,7 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
 }
 
 void PlayerPstSerSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerPstSerSystem] Stopped");
+    log::debug("[PlayerPstSerSystem] Stopped");
 }
 
 }  // namespace ase::player

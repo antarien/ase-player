@@ -94,7 +94,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -176,7 +176,7 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerCtrlInpSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerCtrlInpSystem] Started");
+    log::debug("[PlayerCtrlInpSystem] Started");
 }
 
 void PlayerCtrlInpSystem::tick(ecs::Registry& registry, float dt) {
@@ -235,7 +235,7 @@ void PlayerCtrlInpSystem::tick(ecs::Registry& registry, float dt) {
 }
 
 void PlayerCtrlInpSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerCtrlInpSystem] Stopped");
+    log::debug("[PlayerCtrlInpSystem] Stopped");
 }
 
 }  // namespace ase::player

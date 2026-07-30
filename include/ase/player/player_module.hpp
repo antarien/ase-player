@@ -50,6 +50,7 @@
 #include <ase/player/systems/simulation/player_sim_com_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_eco_sys.hpp>
 #include <ase/player/systems/reception/player_spwn_rcv_sys.hpp>
+#include <ase/player/systems/migration/player_mig_ser_sys.hpp>
 
 namespace ase::player {
 
@@ -145,6 +146,18 @@ struct PlayerModule {
 
         app.add_system_with<PlayerAccInvSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimEcoSystem");
+
+        /**
+         * OBSERVATION (Schedule::Observation, 1Hz standing-watch)
+         * WS-H.4 boundary-migrate serializer: answers the PlayerReqMigComponent the World
+         * boundary watch (WorldPlrBndSystem, ase-world, same schedule) armed - bumps the
+         * per-player monotonic migrate epoch and stages the frozen 42-byte PlayerSnap into
+         * PlayerBufMigComponent. run_after orders it behind the watch so an armed migrate
+         * serializes the SAME standing-watch tick; on a non-World tier the name resolves to
+         * nothing and the edge is a no-op (dependency_sorter skips unknown names).
+         */
+        app.add_system_with<PlayerMigSerSystem>(ecs::Schedule::Observation)
+            .run_after("WorldPlrBndSystem");
 
         /**
          * PRESERVATION (Schedule::Preservation, 1Hz)

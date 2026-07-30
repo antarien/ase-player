@@ -1,5 +1,6 @@
 #include <ase/player/player.hpp>
 #include <ase/terrain/terrain.hpp>
+#include <ase/terrain/terrain_chunk_layer_resource_manager.hpp>
 #include <ase/ecs/system.hpp>
 #include <ase/containers/vector.hpp>
 #include <ase/containers/hash_map.hpp>
@@ -81,17 +82,29 @@ ase::containers::Vector<ase::containers::Pair<std::string, ase::ecs::Entity>> do
 }
 
 void setup_terrain_chunk(ase::ecs::Registry& registry, int32_t chunk_x, int32_t chunk_y, float height) {
+    // The layer arrays live in the ResourceManager, reachable through registry.ctx(); the chunk
+    // entity id is the slot, exactly as TerrainChkSystem assigns it in production.
+    static terrain::TerrainChunkLayerResourceManager layer_mgr;
+    if (registry.ctx().find<terrain::TerrainChunkLayerResourceManager>() == nullptr) {
+        registry.ctx().emplace<terrain::TerrainChunkLayerResourceManager&>(layer_mgr);
+    }
+
     auto chunk = registry.create();
-    auto& crd = registry.emplace<terrain::TerrainStChkCrdComponent>(chunk);
+    auto& crd = registry.emplace<terrain::TerrainStaChkCrdComponent>(chunk);
     crd.x = chunk_x;
     crd.y = chunk_y;
 
-    auto& lyr = registry.emplace<terrain::TerrainStChkLyrComponent>(chunk);
-    auto* hgt = new float[terrain::MACRO_RESOLUTION * terrain::MACRO_RESOLUTION];
+    auto& lyr = registry.emplace<terrain::TerrainStaChkLyrComponent>(chunk);
+    lyr.lyr_slot = static_cast<uint32_t>(chunk);
+
+    auto& mgr = registry.ctx().get<terrain::TerrainChunkLayerResourceManager&>();
+    mgr.store_layers(lyr.lyr_slot, terrain::MACRO_RESOLUTION * terrain::MACRO_RESOLUTION);
+
+    float* hgt = mgr.get_macro_heights(lyr.lyr_slot);
+    assert(hgt != nullptr);
     for (size_t i = 0; i < terrain::MACRO_RESOLUTION * terrain::MACRO_RESOLUTION; ++i) {
         hgt[i] = height;
     }
-    lyr.hgt_ptr = reinterpret_cast<uint64_t>(hgt);
 }
 
 }  // anonymous namespace
