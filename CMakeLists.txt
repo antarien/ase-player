@@ -154,6 +154,7 @@ add_library(${PROJECT_NAME} SHARED
     Hub communication systems for cross-module data.
     ]]
     include/ase/player/systems/hub/player_hub_pos_sys.hpp
+    include/ase/player/systems/hub/player_hub_sess_reg_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (anticheat/)
@@ -255,8 +256,11 @@ add_library(${PROJECT_NAME} SHARED
     SOURCE FILES - HUB (Star Topology)
     Cross-module communication via Hub pattern.
     Write positions for L4 plugins (PLAN_ASE_SDK_V2).
+    Publish the session index register so consumers can discover live players (Hub has no
+    iteration API): PLR_ACTIVE_COUNT + PLR_OWNER per slot.
     ]]
     src/hub/player_hub_pos_sys.cpp
+    src/hub/player_hub_sess_reg_sys.cpp
 
     #[[
     SOURCE FILES - ANTICHEAT

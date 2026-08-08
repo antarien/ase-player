@@ -165,6 +165,21 @@ constexpr uint32_t PLR_SPW_Z_OFF            = 69u; // spawn z:f32 offset
 constexpr uint32_t PLR_SPW_RCV_BATCH_MAX    = 32u; // max spawn frames drained per tick (bounded)
 
 /**
+ * SESSION INDEX REGISTER (PlayerHubSessRegSystem)
+ *
+ * Hub v2.0 has no iteration API, so live players are addressed through registered index slots:
+ * PLR_ACTIVE_COUNT (GLOBAL) says how many are live, the owner of slot i is the hash of
+ * "PLR_ACTIVE_<i>", and PLR_OWNER read at that owner yields the player entity id. The slot bound
+ * is a WIRE CONTRACT with the consumers - it must not exceed what they walk per pass
+ * (ase-terrain TRN_OBS_SES_SLOT_MAX, terrain/types.hpp:208); a larger value here would publish
+ * slots that no consumer ever reads. L3 modules may not include each other, so the bound is
+ * restated rather than shared.
+ */
+constexpr uint32_t PLR_SESS_SLOT_MAX        = 256u; // max published PLR_ACTIVE_<i> index slots
+constexpr uint32_t PLR_SESS_KEY_MAX         = 32u;  // char[N] capacity of a built "PLR_ACTIVE_<i>" key
+constexpr uint32_t PLR_SESS_DIGIT_MAX       = 10u;  // decimal digits a uint32 slot index can carry
+
+/**
  * DEFAULT VALUES - CAMERA/VIEW
  * Camera and view parameters.
  */

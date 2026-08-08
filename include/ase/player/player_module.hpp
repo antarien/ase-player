@@ -36,6 +36,7 @@
 #include <ase/player/systems/state/player_sta_sts_sys.hpp>
 #include <ase/player/systems/state/player_sta_chnk_sys.hpp>
 #include <ase/player/systems/hub/player_hub_pos_sys.hpp>
+#include <ase/player/systems/hub/player_hub_sess_reg_sys.hpp>
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
@@ -119,6 +120,15 @@ struct PlayerModule {
 
         app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerStaChnkSystem");
+
+        /**
+         * SESSION INDEX REGISTER (producer of PLR_ACTIVE_COUNT + PLR_OWNER)
+         * Hub v2.0 cannot iterate, so consumers outside ase-player discover live players only
+         * through these index slots. Runs after PlayerHubPosSystem so a slot a consumer resolves
+         * already carries its PLR_POS_* under the same owner.
+         */
+        app.add_system_with<PlayerHubSessRegSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerHubPosSystem");
 
         /**
          * ANTI-CHEAT (SERVER-ONLY authority, Phase 13 / Task 13.10 + AP-3)
