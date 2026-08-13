@@ -14,7 +14,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_STA_CHNK: Player Chunk Tracking)
  *
- *   [PlayerStPosComponent from PlayerSimPhysSystem]
+ *   [PlayerStaPosComponent from PlayerSimPhysSystem]
  *          │
  *          │ position updated
  *          ▼
@@ -22,13 +22,13 @@
  *   │  THIS SYSTEM: PlayerStaChnkSystem           │
  *   │                                             │
  *   │  READS:                                     │
- *   │    → PlayerStPosComponent (x, z)            │
- *   │    → PlayerStChkComponent (current chunk)   │
+ *   │    → PlayerStaPosComponent (x, z)            │
+ *   │    → PlayerStaChkComponent (current chunk)   │
  *   │    → PlayerStMovComponent (chunk_size)      │
  *   │                                             │
  *   │  WRITES:                                    │
- *   │    → PlayerStChkComponent (chunk_x, chunk_y)│
- *   │    → PlayerChunkChangedTag (if changed)     │
+ *   │    → PlayerStaChkComponent (chunk_x, chunk_y)│
+ *   │    → PlayerChnkChgdTag (if changed)     │
  *   │    → "PLR_CHK_CHG"_hs (Hub - notify terrain)│
  *   └─────────────────────────────────────────────┘
  *          │
@@ -39,8 +39,8 @@
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Components):
- *   PlayerStPosComponent → Current position
- *   PlayerStChkComponent → Current chunk
+ *   PlayerStaPosComponent → Current position
+ *   PlayerStaChkComponent → Current chunk
  *
  * WRITES (to Hub for other modules):
  *   "PLR_CHK_X"_hs   → Player chunk X coordinate (float)
@@ -90,7 +90,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -140,10 +140,10 @@
 // Own header FIRST
 #include <ase/player/systems/state/player_sta_chnk_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_chk_component.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_chk_comp.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
-#include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
+#include <ase/player/components/tag/player_chnk_chgd_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Hub for HUB Pattern
@@ -173,33 +173,27 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerStaChnkSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerStaChnkSystem] Started");
+    log::debug("[PlayerStaChnkSystem] Started");
 }
 
 void PlayerStaChnkSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Get chunk size from manager
+     * STEP 1 ENTFALLEN (S2b 2026-08-11): die Wabenadresse steht exakt in der Position -
+     * dieses System braucht die Kantenlaenge nicht mehr, es liest die Adresse direkt ab.
      */
-    float chunk_size = MOVEMENT_DEFAULT_CHUNK_SIZE;
-
-    auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, mov] : mov_view.each()) {
-        (void)e;
-        chunk_size = mov.chunk_size;
-        break;
-    }
 
     /**
      * STEP 2: Process each player entity
      */
-    auto view = registry.view<PlayerStPosComponent, PlayerStChkComponent>();
+    auto view = registry.view<PlayerStaPosComponent, PlayerStaChkComponent>();
 
     for (auto [entity, pos, chunk] : view.each()) {
         /**
-         * STEP 3: Calculate new chunk coordinates using ase-math floor
+         * STEP 3: Die Wabenadresse steht seit S2b (2026-08-11) EXAKT in der Position -
+         * keine floor-Ableitung aus Weltmetern mehr, kein Praezisionsverlust.
          */
-        int32_t new_chunk_x = static_cast<int32_t>(math::floor(pos.x / chunk_size));
-        int32_t new_chunk_z = static_cast<int32_t>(math::floor(pos.z / chunk_size));
+        int32_t new_chunk_x = pos.chunk_x;
+        int32_t new_chunk_z = pos.chunk_z;
 
         /**
          * STEP 4: Check if chunk changed
@@ -211,7 +205,7 @@ void PlayerStaChnkSystem::tick(ecs::Registry& registry, float /*dt*/) {
             /**
              * STEP 5: Mark player as having changed chunks
              */
-            registry.emplace_or_replace<PlayerChunkChangedTag>(entity);
+            registry.emplace_or_replace<PlayerChnkChgdTag>(entity);
 
             /**
              * STEP 6: Notify terrain module via Hub (HUB Pattern - WRITES)
@@ -226,7 +220,7 @@ void PlayerStaChnkSystem::tick(ecs::Registry& registry, float /*dt*/) {
 }
 
 void PlayerStaChnkSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerStaChnkSystem] Stopped");
+    log::debug("[PlayerStaChnkSystem] Stopped");
 }
 
 }  // namespace ase::player

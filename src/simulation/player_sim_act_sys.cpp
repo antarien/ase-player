@@ -21,7 +21,7 @@
  *   │  THIS SYSTEM: PlayerSimActSystem (SERVER-ONLY)            │
  *   │                                                          │
  *   │  READS:                                                  │
- *   │    → PlayerStIdComponent (player identity)               │
+ *   │    → PlayerStaIdntComponent (player identity)               │
  *   │    → Hub "PLR_CHEAT_ACTIONS" (induced actions/sec)       │
  *   │                                                          │
  *   │  WRITES:                                                 │
@@ -139,7 +139,7 @@
 // Own header FIRST
 #include <ase/player/systems/simulation/player_sim_act_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_act_comp.hpp>
 #include <ase/player/components/state/player_sta_cmb_comp.hpp>
 // types.hpp for constants
@@ -177,11 +177,11 @@ void PlayerSimActSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * Per player: the backend cheat lever (ase player cheat --actions) sets the Hub value
      * PLR_CHEAT_ACTIONS owned by hash(player_id). For each real player, resolve that owner from
-     * PlayerStIdComponent.player_id and, when a positive induced rate is set, drive the realised
+     * PlayerStaIdntComponent.player_id and, when a positive induced rate is set, drive the realised
      * action_rate AND combat_rate to it — a real activity-hack on the real player entity. A cleared
      * lever (0.0) drops both realised rates back to zero so the detector flags clear.
      */
-    auto view = registry.view<PlayerStIdComponent>();
+    auto view = registry.view<PlayerStaIdntComponent>();
 
     for (auto [entity, id] : view.each()) {
         uint32_t plr_owner = entt::hashed_string(id.player_id).value();

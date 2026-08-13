@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerStVelComponent ──> PlayerStaStsSystem ──> PlayerStStsComponent
+ *   PlayerStaVelComponent ──> PlayerStaStsSystem ──> PlayerStaStsComponent
  *   (velocity)               (determines state)      (state updated)
  *
  * ECS SYSTEM HEADER COMPLIANCE
@@ -44,8 +44,8 @@ namespace ase::player {
  * @brief Determine player movement state (SHARED)
  *
  * @schedule Dynamics - determines state after physics
- * @reads    PlayerInpExtComponent, PlayerStVelComponent, PlayerStPhysComponent
- * @writes   PlayerStStsComponent (state value)
+ * @reads    PlayerInpExtComponent, PlayerStaVelComponent, PlayerStaPhysComponent
+ * @writes   PlayerStaStsComponent (state value)
  */
 class PlayerStaStsSystem : public ecs::System {
 public:

@@ -16,7 +16,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_HUB_SESS_REG: Session Index Register Publishing)
  *
- *   [PlayerStIdComponent + PlayerStPosComponent]
+ *   [PlayerStaIdntComponent + PlayerStaPosComponent]
  *          │
  *          │ the live player entities of this tier
  *          ▼
@@ -24,8 +24,8 @@
  *   │  THIS SYSTEM: PlayerHubSessRegSystem        │
  *   │                                             │
  *   │  READS:                                     │
- *   │    → PlayerStIdComponent (identity)         │
- *   │    → PlayerStPosComponent (position)        │
+ *   │    → PlayerStaIdntComponent (identity)         │
+ *   │    → PlayerStaPosComponent (position)        │
  *   │    → "PLR_ACTIVE_COUNT"_hs (previous count) │
  *   │                                             │
  *   │  WRITES:                                    │
@@ -40,8 +40,8 @@
  * HUB Pattern (MIG_ASE_HUB_API O(1)):
  *
  * READS (from player module via Components):
- *   PlayerStIdComponent  → Player identity for iteration
- *   PlayerStPosComponent → Only live, positioned players belong in the register
+ *   PlayerStaIdntComponent  → Player identity for iteration
+ *   PlayerStaPosComponent → Only live, positioned players belong in the register
  *
  * READS (from Hub):
  *   "PLR_ACTIVE_COUNT"_hs → previous count, so the summary line is emitted on CHANGE only
@@ -148,8 +148,8 @@
 // Own header FIRST
 #include <ase/player/systems/hub/player_hub_sess_reg_sys.hpp>
 // Components from same module
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
 // Module constants
 #include <ase/player/types.hpp>
 // Hub for O(1) API
@@ -230,11 +230,11 @@ void PlayerHubSessRegSystem::tick(ecs::Registry& registry, float /*dt*/) {
 
     /**
      * STEP 2: Walk the live players and stamp one index slot each.
-     * Views are created on demand, not stored as member variables. PlayerStPosComponent is part of
+     * Views are created on demand, not stored as member variables. PlayerStaPosComponent is part of
      * the view because a player without a position cannot serve any consumer of this register -
      * every one of them resolves the slot to PLR_POS_X/Y/Z.
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaPosComponent>();
 
     uint32_t slot = 0;
     for (auto [entity, id, pos] : view.each()) {
@@ -246,6 +246,19 @@ void PlayerHubSessRegSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
 
         const uint32_t owner = static_cast<uint32_t>(entity);
+        /**
+         * SABOTAGE-BESTAND (Betreiber 2026-08-10): Identitaet im Hub-float - muss behoben werden.
+         * Register: docs/ase-docs/tech/servers/plans/compute/audits/05-TASKREGISTER.md:1297.
+         *
+         * PLR_OWNER traegt eine Entitaetsnummer in einem f32-Werteslot. Eine Identitaet ist kein
+         * Wert in einem Bereich: die 12 entt-Versionsbits heben den u32 ueber die 2^24-Mantisse,
+         * als Zahl gelesen kommt die Nummer GERUNDET zurueck (live 2026-08-10 21:44 auf
+         * world-9102: "session adoption refused: ... pos_miss=1"). Die legitimen Kanaele sind
+         * Tag, Konstante oder Telemetrie-Laufzeitwert; Hashes reisen ueber Almanach/Snapshot.
+         * Der Terrain-Beobachtergang liest dieses Register seit dem Kanalentscheid NICHT mehr
+         * (Tag-View ueber LifecycleAlivTag); der letzte Leser ist die Webserver-Route
+         * world_player_routes.cpp, deren Almanach-Umbau im Register gefuehrt ist.
+         */
         hub::set(registry, session_slot_owner(slot), "PLR_OWNER"_hs, static_cast<float>(owner));
         ++slot;
     }

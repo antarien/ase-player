@@ -24,7 +24,7 @@
  *   │  THIS SYSTEM: PlayerAccCmbSystem (SERVER-ONLY)            │
  *   │                                                          │
  *   │  READS:                                                  │
- *   │    → PlayerStIdComponent (player identity)               │
+ *   │    → PlayerStaIdntComponent (player identity)               │
  *   │    → PlayerStaCmbComponent (realised combat rate)        │
  *   │                                                          │
  *   │  WRITES (Hub):                                           │
@@ -141,7 +141,7 @@
 // Own header FIRST
 #include <ase/player/systems/anticheat/player_acc_cmb_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_cmb_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -180,7 +180,7 @@ void PlayerAccCmbSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * trigger. hub::set is change-based (broadcast on transition only), and the warn logs ONLY on
      * the rising edge — the flag ONSET is the event, not each tick it persists.
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStaCmbComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaCmbComponent>();
 
     for (auto [entity, id, cmb] : view.each()) {
         (void)id;  // identity component selects player entities; fields unused here

@@ -46,7 +46,7 @@ namespace ase::player {
  * @brief Engine-level anti-cheat communication-rate detector (SERVER-ONLY)
  *
  * @schedule Dynamics — after PlayerSimComSystem so it reads the realised induced rate
- * @reads    PlayerStIdComponent (player identity), PlayerStaComComponent (realised message rate)
+ * @reads    PlayerStaIdntComponent (player identity), PlayerStaComComponent (realised message rate)
  * @writes   Hub "PLAYER_COMMUNICATION_*" (per-player flag; the Replica forwards it as the CoordinationDetector trigger)
  */
 class PlayerAccComSystem : public ecs::System {

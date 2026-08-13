@@ -15,7 +15,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_HUB_POS: Player Position Hub Publishing)
  *
- *   [PlayerStPosComponent]
+ *   [PlayerStaPosComponent]
  *          │
  *          │ position data (x, y, z)
  *          ▼
@@ -23,8 +23,8 @@
  *   │  THIS SYSTEM: PlayerHubPosSystem            │
  *   │                                             │
  *   │  READS:                                     │
- *   │    → PlayerStIdComponent (identity)         │
- *   │    → PlayerStPosComponent (position)        │
+ *   │    → PlayerStaIdntComponent (identity)         │
+ *   │    → PlayerStaPosComponent (position)        │
  *   │                                             │
  *   │  WRITES:                                    │
  *   │    → "PLR_POS_X"_hs (Hub)                   │
@@ -41,8 +41,8 @@
  * HUB Pattern (MIG_ASE_HUB_API O(1)):
  *
  * READS (from player module via Components):
- *   PlayerStIdComponent  → Player identity for iteration
- *   PlayerStPosComponent → Position data (x, y, z)
+ *   PlayerStaIdntComponent  → Player identity for iteration
+ *   PlayerStaPosComponent → Position data (x, y, z)
  *
  * WRITES (to Hub for other modules):
  *   "PLR_POS_X"_hs       → Player X position (float)
@@ -94,7 +94,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -144,8 +144,10 @@
 // Own header FIRST
 #include <ase/player/systems/hub/player_hub_pos_sys.hpp>
 // Components from same module
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
+// types.hpp for constants (chunk edge for the world-metre sum)
+#include <ase/player/types.hpp>
 // Hub for O(1) API
 #include <ase/hub/api.hpp>
 // Logging
@@ -171,16 +173,16 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerHubPosSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerHubPosSystem] Started");
+    log::debug("[PlayerHubPosSystem] Started");
 }
 
 void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * STEP 1: Create view and iterate player entities
      * Views are created on demand, not stored as member variables.
-     * PlayerStIdComponent identifies player entities.
+     * PlayerStaIdntComponent identifies player entities.
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaPosComponent>();
 
     for (auto [entity, id, pos] : view.each()) {
         uint32_t owner = static_cast<uint32_t>(entity);
@@ -189,17 +191,23 @@ void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
          * STEP 2: Write position to Hub (HUB Pattern - WRITES)
          * Publish position data for L4 plugins to consume via sdk::hub::get().
          * This enables loose coupling - plugins read from Hub, not direct components.
+         *
+         * WELTMETER ALS SUMME (S2b 2026-08-11): der Hub-Kanal bleibt Weltmeter (f32) -
+         * die Summe chunk * Kante + local ist an Wabenkanten exakt; gefuehrt wird die
+         * Position chunk-relativ, nur die SICHT ist die Summe (Muster spatial_hub_bct).
          */
-        hub::set(registry, owner, "PLR_POS_X"_hs, pos.x);
+        hub::set(registry, owner, "PLR_POS_X"_hs,
+                 static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x);
         hub::set(registry, owner, "PLR_POS_Y"_hs, pos.y);
-        hub::set(registry, owner, "PLR_POS_Z"_hs, pos.z);
+        hub::set(registry, owner, "PLR_POS_Z"_hs,
+                 static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_z);
         hub::set(registry, owner, "PLR_ENTITY_ID"_hs, static_cast<float>(owner));
         hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
     }
 }
 
 void PlayerHubPosSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerHubPosSystem] Stopped");
+    log::debug("[PlayerHubPosSystem] Stopped");
 }
 
 }  // namespace ase::player

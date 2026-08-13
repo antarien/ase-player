@@ -46,7 +46,7 @@ namespace ase::player {
  * @brief Engine-level anti-cheat combat-rate detector (SERVER-ONLY)
  *
  * @schedule Dynamics — after PlayerSimActSystem so it reads the realised induced rate
- * @reads    PlayerStIdComponent (player identity), PlayerStaCmbComponent (realised combat rate)
+ * @reads    PlayerStaIdntComponent (player identity), PlayerStaCmbComponent (realised combat rate)
  * @writes   Hub "COMBAT_EVENT_*" (per-player flag; the Replica forwards it as the BehaviorWatcher trigger)
  */
 class PlayerAccCmbSystem : public ecs::System {

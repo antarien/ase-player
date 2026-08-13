@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE:
  *
- *   PlayerStPosComponent ──> PlayerHubPosSystem ──> Hub
+ *   PlayerStaPosComponent ──> PlayerHubPosSystem ──> Hub
  *   (position data)         (writes to Hub)        PLR_POS_X, PLR_POS_Y, PLR_POS_Z
  *                                                  PLR_ENTITY_ID
  *
@@ -45,7 +45,7 @@ namespace ase::player {
  * @brief Write player positions to Hub for L4 plugins
  *
  * @schedule Integration - after position updates
- * @reads    PlayerStPosComponent, PlayerStIdComponent
+ * @reads    PlayerStaPosComponent, PlayerStaIdntComponent
  * @writes   Hub values: PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_ENTITY_ID
  */
 class PlayerHubPosSystem : public ecs::System {

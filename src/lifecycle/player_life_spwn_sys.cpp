@@ -9,12 +9,13 @@
  * @category    ecs/entity/entitylifecycle
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-08-09
+ * @version     1.2.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_LIFE_SPWN: Player Lifecycle Management)
  *
- *   [PlayerReqSpawnComponent / PlayerReqDespComponent]
+ *   [PlayerReqSpwnComponent / PlayerReqDespComponent, and on a spawn request that asked for a
+ *    walker its companion PlayerReqRoamComponent]
  *          │
  *          │ spawn/despawn requests from Integration Layer
  *          ▼
@@ -22,25 +23,29 @@
  *   │  THIS SYSTEM: PlayerLifeSpwnSystem          │
  *   │                                             │
  *   │  READS:                                     │
- *   │    - PlayerReqSpawnComponent (requests)     │
+ *   │    - PlayerReqSpwnComponent (requests)     │
+ *   │    - PlayerReqRoamComponent (the errand)    │
  *   │    - PlayerReqDespComponent (requests)      │
- *   │    - PlayerStIdComponent (existing check)   │
+ *   │    - PlayerStaIdntComponent (existing check)   │
  *   │    - "TRN_HGT_AT_POS"_hs (Hub - height)     │
  *   │                                             │
  *   │  WRITES:                                    │
- *   │    - PlayerStIdComponent (create)           │
- *   │    - PlayerStPosComponent (create)          │
- *   │    - PlayerStVelComponent (create)          │
- *   │    - PlayerStPhysComponent (create)         │
- *   │    - PlayerStStsComponent (create)          │
- *   │    - PlayerStChkComponent (create)          │
- *   │    - PlayerSpawnedTag (create)              │
- *   │    - PlayerDirtyTag (create)                │
- *   │    - PlayerReqSpawnResComponent (result)    │
+ *   │    - PlayerStaIdntComponent (create)           │
+ *   │    - PlayerStaPosComponent (create)          │
+ *   │    - PlayerStaVelComponent (create)          │
+ *   │    - PlayerStaPhysComponent (create)         │
+ *   │    - PlayerStaStsComponent (create)          │
+ *   │    - PlayerStaChkComponent (create)          │
+ *   │    - PlayerStaRoamComponent (walkers only)  │
+ *   │    - PlayerRoamRestTag (walkers only)       │
+ *   │    - PlayerRoamRunTag (fast walkers only)   │
+ *   │    - PlayerSpndTag (create)              │
+ *   │    - PlayerDrtyTag (create)                │
+ *   │    - PlayerReqSpwnResComponent (result)    │
  *   │    - PlayerReqDespResComponent (result)     │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ player entities created with PlayerSpawnedTag
+ *          │ player entities created with PlayerSpndTag
  *          ▼
  *   Observer systems in other modules add their components
  *   (InputSpawnObserver, CameraSpawnObserver, etc.)
@@ -51,10 +56,10 @@
  *   "TRN_HGT_AT_POS"_hs → Terrain height at position (set by terrain module)
  *
  * WRITES (to Hub for other modules):
- *   (none - observer systems read PlayerSpawnedTag directly)
+ *   (none - observer systems read PlayerSpndTag directly)
  *
  * NOTE: This system ONLY creates player components. Other modules observe
- * PlayerSpawnedTag and add their own components (input, camera, terrain streaming).
+ * PlayerSpndTag and add their own components (input, camera, terrain streaming).
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -99,7 +104,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -149,21 +154,32 @@
 // Own header FIRST
 #include <ase/player/systems/lifecycle/player_life_spwn_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/request/player_req_spawn_component.hpp>
-#include <ase/player/components/request/player_req_desp_component.hpp>
-#include <ase/player/components/request/player_req_spawn_res_component.hpp>
-#include <ase/player/components/request/player_req_desp_res_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_phys_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
-#include <ase/player/components/state/player_st_chk_component.hpp>
+#include <ase/player/components/request/player_req_spwn_comp.hpp>
+#include <ase/player/components/request/player_req_roam_comp.hpp>
+#include <ase/player/components/request/player_req_desp_comp.hpp>
+#include <ase/player/components/request/player_req_spwn_res_comp.hpp>
+#include <ase/player/components/request/player_req_desp_res_comp.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_yaw_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_phys_comp.hpp>
+#include <ase/player/components/state/player_sta_sts_comp.hpp>
+#include <ase/player/components/state/player_sta_chk_comp.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
-#include <ase/player/components/tag/player_tag_dirty_component.hpp>
-#include <ase/player/components/tag/player_tag_spawned_component.hpp>
-#include <ase/player/components/tag/player_tag_mgr_component.hpp>
-#include <ase/player/components/tag/player_tag_desp_pnd_component.hpp>
+#include <ase/player/components/state/player_sta_roam_comp.hpp>
+#include <ase/player/components/tag/player_drty_tag.hpp>
+#include <ase/player/components/tag/player_spnd_tag.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
+#include <ase/player/components/tag/player_desp_pnd_tag.hpp>
+#include <ase/player/components/tag/player_roam_rest_tag.hpp>
+#include <ase/player/components/tag/player_roam_run_tag.hpp>
+// Cross-module POD header shared via the include path (HARD RULE: header-only POD tags may be
+// shared; the loader writes them into the SAME World registry - no compiled cross-link):
+//   lifecycle::LifecycleAlivTag - the living marker the observer adoptions filter on
+//   (TerrainStrmObsSyncSystem PASS 2, Betreiber-Kanalentscheid 2026-08-10; Muster
+//   character_life_spwn_sys.cpp)
+#include <ase/lifecycle/components/tag/status/lifecycle_tag_aliv_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Hub for HUB Pattern (cross-module reads)
@@ -187,7 +203,9 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
  */
 namespace {
 
-// No helper functions needed - all logic inlined in system methods
+// No helper functions needed - all logic inlined in system methods. The draw sequence a walker's
+// first pause and first course come from is ONE statement in types.hpp (plr_roam_fraction,
+// plr_roam_span), shared with the two phase systems.
 
 }  // anonymous namespace
 
@@ -195,7 +213,7 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerLifeSpwnSystem::on_start(ecs::Registry& registry) {
-    log::info("[PlayerLifeSpwnSystem] Started");
+    log::debug("[PlayerLifeSpwnSystem] Started");
 
     auto view = registry.view<PlayerMgrTag>();
     bool mgr_exists = false;
@@ -255,20 +273,20 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * STEP 2: Process local spawn requests (iterator pattern for entity creation)
      */
-    auto spawn_view = registry.view<PlayerReqSpawnComponent>();
+    auto spawn_view = registry.view<PlayerReqSpwnComponent>();
     auto spawn_it = spawn_view.begin();
     auto spawn_end = spawn_view.end();
     while (spawn_it != spawn_end) {
         auto request_entity = *spawn_it;
         ++spawn_it;
 
-        auto& request = registry.get<PlayerReqSpawnComponent>(request_entity);
+        auto& request = registry.get<PlayerReqSpwnComponent>(request_entity);
         ecs::Entity result_entity = ecs::NullEntity;
         bool success = false;
 
         // Check if player already exists
         bool player_exists = false;
-        auto player_view = registry.view<PlayerStIdComponent>();
+        auto player_view = registry.view<PlayerStaIdntComponent>();
         for (auto [pe, identity] : player_view.each()) {
             (void)pe;
             if (std::strncmp(identity.player_id, request.player_id,
@@ -293,36 +311,95 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             // Create player entity with ONLY player components
             result_entity = registry.create();
 
-            auto& identity = registry.emplace<PlayerStIdComponent>(result_entity);
+            auto& identity = registry.emplace<PlayerStaIdntComponent>(result_entity);
             std::strncpy(identity.player_id, request.player_id, sizeof(identity.player_id) - 1);
             identity.player_id[sizeof(identity.player_id) - 1] = '\0';
             // Timestamps initialized to 0 - can be set via Hub or request if needed
             identity.spawned_at_ms = 0;
             identity.last_input_ms = 0;
 
-            auto& pos = registry.emplace<PlayerStPosComponent>(result_entity);
-            pos.x = request.x;
+            /**
+             * CHUNK-RELATIV (S2b 2026-08-11): der Draht liefert Weltmeter (f32), gefuehrt wird
+             * die Wabenadresse exakt plus kleine lokale Meter - an Ort 7 (204 Mio Weltmeter,
+             * ULP 16 m) verpuffte sonst jeder Schritt (Muster character_life_spwn_sys.cpp).
+             */
+            auto& pos = registry.emplace<PlayerStaPosComponent>(result_entity);
+            pos.chunk_x = static_cast<int32_t>(math::floor(request.x / mov.chunk_size));
+            pos.chunk_z = static_cast<int32_t>(math::floor(request.z / mov.chunk_size));
+            pos.local_x = request.x - static_cast<float>(pos.chunk_x) * mov.chunk_size;
+            pos.local_z = request.z - static_cast<float>(pos.chunk_z) * mov.chunk_size;
             pos.y = ground_y;
-            pos.z = request.z;
-            pos.yaw = 0.0f;
 
-            registry.emplace<PlayerStVelComponent>(result_entity);
+            registry.emplace<PlayerStaYawComponent>(result_entity);
 
-            auto& physics = registry.emplace<PlayerStPhysComponent>(result_entity);
+            registry.emplace<PlayerStaVelComponent>(result_entity);
+
+            auto& physics = registry.emplace<PlayerStaPhysComponent>(result_entity);
             physics.on_ground = true;
             physics.gravity_enabled = true;
 
-            auto& sts = registry.emplace<PlayerStStsComponent>(result_entity);
+            auto& sts = registry.emplace<PlayerStaStsComponent>(result_entity);
             sts.sts = PLAYER_STATE_IDLE;
 
-            auto& chunk = registry.emplace<PlayerStChkComponent>(result_entity);
-            chunk.chunk_x = static_cast<int32_t>(math::floor(request.x / mov.chunk_size));
-            chunk.chunk_y = static_cast<int32_t>(math::floor(request.z / mov.chunk_size));
+            auto& chunk = registry.emplace<PlayerStaChkComponent>(result_entity);
+            chunk.chunk_x = pos.chunk_x;
+            chunk.chunk_y = pos.chunk_z;
 
             // Lifecycle tags - observer systems in other modules will see these
             // and add their own components (input, camera, terrain streaming)
-            registry.emplace<PlayerSpawnedTag>(result_entity);
-            registry.emplace<PlayerDirtyTag>(result_entity);
+            registry.emplace<PlayerSpndTag>(result_entity);
+            registry.emplace<PlayerDrtyTag>(result_entity);
+
+            /**
+             * DIE LEBENSMARKE - ein Siedler LEBT, und wer lebt, wird beobachtet: die
+             * Beobachter-Adoption (TerrainStrmObsSyncSystem PASS 2) sieht ausschliesslich
+             * lifecycle::LifecycleAlivTag (Betreiber-Kanalentscheid 2026-08-10). Ohne die Marke
+             * wanderte der Siedler unsichtbar - 381 Wabenuebertritte, null Zellmarkierungen
+             * (gemessen 2026-08-11). Seine Seele fuehrt die SITZUNG (MS/PC): BdiAgtRegSystem
+             * excluded player::PlayerSpndTag, damit hier kein zweiter Wille entsteht.
+             */
+            registry.emplace<lifecycle::LifecycleAlivTag>(result_entity);
+
+            /**
+             * THE ERRAND IS BORN WITH THE PLAYER, and this is the ONE place where a requested
+             * speed meets the movement authority. Above the walking gear the errand rides the
+             * running one; above the running gear there is no gear left, so the magnitude caps
+             * and the request is answered with a warning rather than silently obeyed - a speed
+             * beyond the authority is what the cheat lever next door exists for, and a walker
+             * that quietly became one would falsify every measurement taken downstream.
+             *
+             * The walker starts in the RESTING phase: it arrives, stands, and PlayerSimRestSystem
+             * decides its first course when that first pause runs out. Setting off mid-stride
+             * would need an initial heading decided here as well, and the course of a leg already
+             * has exactly one decision maker.
+             */
+            const auto* errand = registry.try_get<PlayerReqRoamComponent>(request_entity);
+            if (errand != nullptr) {
+                const uint32_t owner = static_cast<uint32_t>(result_entity);
+                const bool runs = errand->speed > mov.walk_speed;
+                const float gear = runs ? mov.run_speed : mov.walk_speed;
+                if (errand->speed > mov.run_speed) {
+                    log::warn("[PlayerLifeSpwnSystem] Errand asked for {} m/s, the movement "
+                              "authority carries {} m/s - the walker is capped, not exempted",
+                              errand->speed, mov.run_speed);
+                }
+                auto& roam = registry.emplace<PlayerStaRoamComponent>(result_entity);
+                roam.speed = errand->speed;
+                roam.forward = math::min(errand->speed / gear, PLR_ROAM_INPUT_ENGAGED);
+                roam.heading =
+                    plr_roam_span(plr_roam_fraction(owner, roam.leg_index, PLR_ROAM_MIX_TURN),
+                                  0.0f, math::TWO_PI);
+                roam.leg_sec =
+                    plr_roam_span(plr_roam_fraction(owner, roam.leg_index, PLR_ROAM_MIX_REST),
+                                  PLR_ROAM_REST_MIN_SEC, PLR_ROAM_REST_MAX_SEC);
+                registry.emplace<PlayerRoamRestTag>(result_entity);
+                if (runs) {
+                    registry.emplace<PlayerRoamRunTag>(result_entity);
+                }
+                log::info("[PlayerLifeSpwnSystem] Walker set on an errand at {} m/s "
+                          "(input {}, first pause {} s)",
+                          roam.speed, roam.forward, roam.leg_sec);
+            }
 
             success = true;
             log::debug("[PlayerLifeSpwnSystem] Spawned player");
@@ -330,11 +407,14 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             log::debug("[PlayerLifeSpwnSystem] Player already exists");
         }
 
-        auto& result = registry.emplace<PlayerReqSpawnResComponent>(request_entity);
+        auto& result = registry.emplace<PlayerReqSpwnResComponent>(request_entity);
         result.spawned_entity = result_entity;
         result.success = success;
 
-        registry.remove<PlayerReqSpawnComponent>(request_entity);
+        registry.remove<PlayerReqSpwnComponent>(request_entity);
+        // The errand travelled WITH the request and is consumed with it: leaving it behind would
+        // let a later pass read an errand whose player already exists.
+        registry.remove<PlayerReqRoamComponent>(request_entity);
     }
 
     /**
@@ -351,7 +431,7 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         bool success = false;
 
         // Find and mark player for deletion
-        auto player_view = registry.view<PlayerStIdComponent>();
+        auto player_view = registry.view<PlayerStaIdntComponent>();
         for (auto [pe, identity] : player_view.each()) {
             if (std::strncmp(identity.player_id, request.player_id,
                              sizeof(identity.player_id) - 1) == 0) {
@@ -389,7 +469,7 @@ void PlayerLifeSpwnSystem::on_stop(ecs::Registry& registry) {
     log::info("[PlayerLifeSpwnSystem] Stopping");
 
     // Tag all players for despawn
-    auto view = registry.view<PlayerStIdComponent>();
+    auto view = registry.view<PlayerStaIdntComponent>();
     uint32_t count = 0;
     for (auto entity : view) {
         registry.emplace_or_replace<PlayerDespPndTag>(entity);
@@ -410,7 +490,7 @@ void PlayerLifeSpwnSystem::on_stop(ecs::Registry& registry) {
         log::info("[PlayerLifeSpwnSystem] Despawned {} players on shutdown", count);
     }
 
-    log::info("[PlayerLifeSpwnSystem] Stopped");
+    log::debug("[PlayerLifeSpwnSystem] Stopped");
 }
 
 }  // namespace ase::player

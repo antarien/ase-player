@@ -16,7 +16,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_ACC_MOV: realised velocity → anti-cheat flag)
  *
- *   [PlayerStVelComponent — realised velocity after PlayerSimPhysSystem]
+ *   [PlayerStaVelComponent — realised velocity after PlayerSimPhysSystem]
  *          │
  *          │ vx, vz (horizontal)
  *          ▼
@@ -24,8 +24,8 @@
  *   │  THIS SYSTEM: PlayerAccMovSystem (SERVER-ONLY)            │
  *   │                                                          │
  *   │  READS:                                                  │
- *   │    → PlayerStIdComponent (player identity)               │
- *   │    → PlayerStVelComponent (realised velocity)            │
+ *   │    → PlayerStaIdntComponent (player identity)               │
+ *   │    → PlayerStaVelComponent (realised velocity)            │
  *   │                                                          │
  *   │  WRITES (Hub):                                           │
  *   │    → "PLAYER_MOVEMENT_SUSPICIOUS"_hs (1.0 / 0.0)         │
@@ -140,9 +140,9 @@
 // Own header FIRST
 #include <ase/player/systems/anticheat/player_acc_mov_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_acmp_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -180,7 +180,7 @@ void PlayerAccMovSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * speed above run_speed * margin cannot come from legitimate input — it is a speed-hack.
      * Flag it on the Hub; the Replica forwards it as the MovementValidator contract trigger.
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStVelComponent, PlayerStPosComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaVelComponent, PlayerStaPosComponent>();
 
     for (auto [entity, id, vel, pos] : view.each()) {
         (void)id;  // identity component selects player entities; fields unused here
@@ -195,17 +195,31 @@ void PlayerAccMovSystem::tick(ecs::Registry& registry, float /*dt*/) {
         // (no boolean field) — the first observed tick records the baseline and never false-positives.
         auto* acmp = registry.try_get<PlayerStaAcmpComponent>(entity);
         if (acmp != nullptr) {
-            const float dx = pos.x - acmp->last_x;
-            const float dz = pos.z - acmp->last_z;
+            /**
+             * Delta chunk-relativ (S2b 2026-08-11): Wabendifferenz exakt in int, Restmeter in
+             * kleinen floats - die fruehere Differenz zweier absoluter f32-Weltmeter war bei
+             * grossen Adressen auf die ULP (bis 16 m) gerastert und damit als Teleport-Mass
+             * unbrauchbar.
+             */
+            const float dx = static_cast<float>(pos.chunk_x - acmp->last_chunk_x) *
+                                 MOVEMENT_DEFAULT_CHUNK_SIZE +
+                             (pos.local_x - acmp->last_local_x);
+            const float dz = static_cast<float>(pos.chunk_z - acmp->last_chunk_z) *
+                                 MOVEMENT_DEFAULT_CHUNK_SIZE +
+                             (pos.local_z - acmp->last_local_z);
             if (dx * dx + dz * dz > PLR_AC_TELEPORT_STEP_SQ) {
                 suspicious = true;
             }
-            acmp->last_x = pos.x;
-            acmp->last_z = pos.z;
+            acmp->last_chunk_x = pos.chunk_x;
+            acmp->last_chunk_z = pos.chunk_z;
+            acmp->last_local_x = pos.local_x;
+            acmp->last_local_z = pos.local_z;
         } else {
             auto& baseline = registry.emplace<PlayerStaAcmpComponent>(entity);
-            baseline.last_x = pos.x;
-            baseline.last_z = pos.z;
+            baseline.last_chunk_x = pos.chunk_x;
+            baseline.last_chunk_z = pos.chunk_z;
+            baseline.last_local_x = pos.local_x;
+            baseline.last_local_z = pos.local_z;
         }
 
         // The detector MUST run in Dynamics (30Hz) — the teleport check above compares the per-tick

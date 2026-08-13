@@ -24,11 +24,11 @@
  *   │  THIS SYSTEM: PlayerSimChtSystem (SERVER-ONLY)            │
  *   │                                                          │
  *   │  READS:                                                  │
- *   │    → PlayerStIdComponent (player_id → hub owner)         │
+ *   │    → PlayerStaIdntComponent (player_id → hub owner)         │
  *   │    → Hub "PLR_CHEAT_SPEED" (forced speed)                │
  *   │                                                          │
  *   │  WRITES:                                                 │
- *   │    → PlayerStVelComponent (vx forced, vz = 0)            │
+ *   │    → PlayerStaVelComponent (vx forced, vz = 0)            │
  *   │    → PlayerStaChtComponent (forced_speed marker)         │
  *   └──────────────────────────────────────────────────────────┘
  *          │
@@ -141,8 +141,8 @@
 // Own header FIRST
 #include <ase/player/systems/simulation/player_sim_cht_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_cht_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -178,11 +178,11 @@ void PlayerSimChtSystem::on_start(ecs::Registry& /*registry*/) {
 void PlayerSimChtSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * Per player: the backend cheat lever (POST /api/player/cheat) sets the Hub value PLR_CHEAT_SPEED
-     * owned by hash(player_id). For each real player, resolve that owner from PlayerStIdComponent.player_id
+     * owned by hash(player_id). For each real player, resolve that owner from PlayerStaIdntComponent.player_id
      * and, when a positive cheat speed is set, override the velocity above the movement authority — a real
      * speed-hack on the real player entity. PlayerStaChtComponent records the active forced speed.
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStVelComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaVelComponent>();
 
     for (auto [entity, id, vel] : view.each()) {
         uint32_t plr_owner = entt::hashed_string(id.player_id).value();

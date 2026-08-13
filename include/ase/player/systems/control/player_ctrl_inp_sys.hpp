@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerInpExtComponent ──> PlayerCtrlInpSystem ──> PlayerStPosComponent
+ *   PlayerInpExtComponent ──> PlayerCtrlInpSystem ──> PlayerStaPosComponent
  *   (from PlayerSyncInpSystem)  (processes input)       (yaw rotation)
  *
  * ECS SYSTEM HEADER COMPLIANCE
@@ -45,8 +45,8 @@ namespace ase::player {
  *
  * @schedule Dynamics - processes input for movement
  * @reads    PlayerInpExtComponent (input bridge from SyncSystem)
- * @reads    PlayerStIdComponent, PlayerStPosComponent, PlayerStMovComponent
- * @writes   PlayerStPosComponent (yaw rotation towards movement)
+ * @reads    PlayerStaIdntComponent, PlayerStaPosComponent, PlayerStMovComponent
+ * @writes   PlayerStaPosComponent (yaw rotation towards movement)
  */
 class PlayerCtrlInpSystem : public ecs::System {
 public:

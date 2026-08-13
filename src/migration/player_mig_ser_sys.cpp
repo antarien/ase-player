@@ -24,10 +24,10 @@
  *   │                                                             │
  *   │  READS:                                                     │
  *   │    - PlayerReqMigComponent (the armed migrate)              │
- *   │    - PlayerStPosComponent (x, y, z, yaw)                    │
- *   │    - PlayerStVelComponent (vx, vy, vz)                      │
- *   │    - PlayerStStsComponent (status, widened u8→u32)          │
- *   │    - PlayerStIdComponent (UUID string → FNV-1a32 wire id)   │
+ *   │    - PlayerStaPosComponent (x, y, z, yaw)                    │
+ *   │    - PlayerStaVelComponent (vx, vy, vz)                      │
+ *   │    - PlayerStaStsComponent (status, widened u8→u32)          │
+ *   │    - PlayerStaIdntComponent (UUID string → FNV-1a32 wire id)   │
  *   │                                                             │
  *   │  WRITES:                                                    │
  *   │    - PlayerStaEpchComponent (seed player_ref, bump epoch)   │
@@ -145,10 +145,13 @@
 #include <ase/types/region_wire.hpp>
 // Components: the armed request, the live state sources, epoch + staged buffer
 #include <ase/player/components/request/player_req_mig_comp.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_yaw_comp.hpp>
+// types.hpp for constants (chunk edge for the world-metre wire sum)
+#include <ase/player/types.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_sts_comp.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_epch_comp.hpp>
 #include <ase/player/components/buffer/player_buf_mig_comp.hpp>
 // Logging
@@ -210,9 +213,9 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * the epoch bumps exactly once per migrate. player_ref seeds lazily from the UUID string
      * (FNV-1a32 - the u32 identity the frozen PlayerSnap carries).
      */
-    for (auto [plr_ent, req, pos, vel, sts, idc] :
-         registry.view<PlayerReqMigComponent, PlayerStPosComponent, PlayerStVelComponent,
-                       PlayerStStsComponent, PlayerStIdComponent>(
+    for (auto [plr_ent, req, pos, yaw, vel, sts, idc] :
+         registry.view<PlayerReqMigComponent, PlayerStaPosComponent, PlayerStaYawComponent,
+                       PlayerStaVelComponent, PlayerStaStsComponent, PlayerStaIdntComponent>(
              entt::exclude<PlayerBufMigComponent>).each()) {
         auto& epch = registry.get_or_emplace<PlayerStaEpchComponent>(plr_ent);
         if (epch.player_ref == 0u) {
@@ -220,10 +223,18 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
         ++epch.player_epoch;
 
+        /**
+         * DER DRAHT BLEIBT WELTMETER (eingefrorener PlayerSnap, 4x f32): die Summe
+         * chunk * Kante + local ist an Wabenkanten exakt (S2b 2026-08-11); das Wire-v2
+         * mit (chunk:i32, local:f32) ist TASKREGISTER:1724, Entscheidungsklasse Betreiber.
+         */
         auto& snap_buf = registry.emplace<PlayerBufMigComponent>(plr_ent);
-        snap_buf.snap_len = encode_player_snap(snap_buf.snap, epch.player_ref, epch.player_epoch,
-                                               pos.x, pos.y, pos.z, pos.yaw,
-                                               vel.vx, vel.vy, vel.vz, sts.sts);
+        snap_buf.snap_len = encode_player_snap(
+            snap_buf.snap, epch.player_ref, epch.player_epoch,
+            static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x,
+            pos.y,
+            static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_z,
+            yaw.yaw, vel.vx, vel.vy, vel.vz, sts.sts);
         log::info("[PlayerMigSer] PlayerSnap staged: player_ref={} epoch={} dst_region={} proj_hash={} ({} bytes)",
                   epch.player_ref, epch.player_epoch, req.dst_region, req.proj_hash,
                   snap_buf.snap_len);

@@ -1,28 +1,30 @@
 #pragma once
 
 /**
- * =============================================================================
- * ASE ECS COMPONENT (REQUEST)
- * =============================================================================
+ * ASE ECS COMPONENT (STATE)
  *
- * @file        player_req_spawn_component.hpp
- * @brief       Request to spawn a new player entity
- * @description Created by REST handlers, processed by PlayerLifecycleSystem
+ * @file        player_sta_yaw_comp.hpp
+ * @brief       PlayerStaYawComponent - wohin die Figur schaut
+ * @description Die Blickrichtung einer Spielerfigur um die Senkrechte. Aus PlayerStaPosComponent
+ *              herausgeloest (2026-08-11, S2b-Schnitt): Blick ist nicht Ort - der Ort wurde
+ *              chunk-relativ (5 Felder), und der Gierwinkel ist ein eigener Sachverhalt mit
+ *              eigenen Schreibern (Kamera-Folge, Steuerung), nie Teil der Adressrechnung.
  *
- * -----------------------------------------------------------------------------
- * META
- * -----------------------------------------------------------------------------
  * @module      ase-player
- * @layer       3 (Module)
- * @category    request
- * @created     2025-12-25
- * @modified    2025-12-25
- * @version     1.0.0
- * @author      Jan Ohlmann (ADG/ASE/AOW)
+ * @layer       3 (Modules)
+ * @category    state
+ * @parity      server_only
+ * @created     2026-08-11
+ * @modified    2026-08-11
+ * @version     00.00.00.00000 [seed]
  *
- * -----------------------------------------------------------------------------
+ * Der Winkel stand bewusst beim Ort und nicht beim Tempo: eine Figur kann stehen und sich
+ * trotzdem umsehen, und sie kann seitwaerts laufen, ohne die Blickrichtung zu aendern. Beides
+ * bleibt wahr - nur wohnt der Blick jetzt in seiner eigenen Zeile, exakt wie die Ausdehnung
+ * im P22-Schnitt (SpatialIdxRadComponent, "extent is not location").
+ *
  * ECS COMPONENT COMPLIANCE
- * -----------------------------------------------------------------------------
+ *
  * [ ] DATA fields ONLY - No methods
  * [ ] NO .cpp file - Header-only
  * [ ] ONLY zero-initialization (= 0, = 0.0f, = false, = {})
@@ -31,16 +33,20 @@
  * [ ] Single responsibility (one data category)
  * [ ] No God-Component (unrelated fields)
  * [ ] Large data uses pointer pattern (uint64_t ptr = 0)
+ * [ ] Large data in registry.ctx()? (component has only lookup ID!)
  * [ ] Tag structs end with Tag suffix - N/A (not a tag)
+ * [ ] Filename: player_sta_yaw_comp.hpp (module FULL, tax 3-4 chars)
  * [ ] Filename: prefix/suffix NOT abbreviated, words between = 3-4 chars
  * [ ] Struct name derived from filename (snake_case to PascalCase)
  * [ ] 1 File = 1 Component
  * [ ] File in correct category subfolder
+ * [ ] Per-entity runtime values use state/ components (NOT types.hpp!)
  * [ ] SHARED components listed in codegen.json components.shared
  * [ ] Pointer components in codegen.json components.server_only
  * [ ] Strings < 64 bytes use char[N] fixed arrays
  * [ ] Strings 64-256 bytes use appropriately sized char[N]
  * [ ] Strings > 256 bytes use Pointer Pattern (uint64_t ptr, uint16_t len)
+ * [ ] Strings > 256 bytes use registry.ctx() mit Lookup-ID?
  * [ ] NO Entity-per-Character (strings are single attributes, not N-Items!)
  * [ ] Lookup-only strings use uint32_t hash (entt::hashed_string)
  * [ ] NO std::shared_ptr in components (use Flyweight Pattern via ctx!)
@@ -48,16 +54,15 @@
  * [ ] NO uint64_t as pointer concept (use uint32_t ID + ResourceManager via ctx!)
  * [ ] External library objects (shared_ptr, handles) in ResourceManager via ctx()
  * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
- *
- * =============================================================================
  */
 
 namespace ase::player {
 
-struct PlayerReqSpawnComponent {
-    char player_id[64] = {};
-    float x = 0.0f;
-    float z = 0.0f;
+/**
+ * @brief PlayerStaYawComponent - Blickrichtung dieses Taktes
+ */
+struct PlayerStaYawComponent {
+    float yaw = 0.0f;    // Blickrichtung um die Senkrechte, Bogenmass
 };
 
 }  // namespace ase::player

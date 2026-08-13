@@ -2,21 +2,25 @@
 
 /**
  * =============================================================================
- * ASE ECS COMPONENT (REQUEST)
+ * ASE ECS COMPONENT
  * =============================================================================
  *
- * @file        player_req_spawn_res_component.hpp
- * @brief       Result of a spawn request
- * @description Added by PlayerLifecycleSystem after processing request
+ * @file        player_req_roam_comp.hpp
+ * @brief       The errand a spawn request carries - the speed the new player is to walk at
+ * @description SERVER-ONLY companion of a spawn request. It sits on the SAME request entity the
+ *              spawn request sits on, and it is there only when the caller asked for a walker.
+ *              A spawn WITHOUT an errand is therefore the plain spawn it always was - composition
+ *              says it, not a sentinel value in the position row, because a zero speed in a
+ *              spawn request would be indistinguishable from a caller that forgot the field.
  *
  * -----------------------------------------------------------------------------
  * META
  * -----------------------------------------------------------------------------
  * @module      ase-player
  * @layer       3 (Module)
- * @category    request
- * @created     2025-12-25
- * @modified    2025-12-25
+ * @category    communication/request
+ * @created     2026-08-09
+ * @modified    2026-08-09
  * @version     1.0.0
  * @author      Jan Ohlmann (ADG/ASE/AOW)
  *
@@ -30,7 +34,7 @@
  * [ ] Entity references initialized to = 0 (systems set values)
  * [ ] Single responsibility (one data category)
  * [ ] No God-Component (unrelated fields)
- * [ ] Large data uses pointer pattern (uint64_t ptr = 0)
+ * [ ] Large data in registry.ctx()? (component has only lookup ID!)
  * [ ] Tag structs end with Tag suffix - N/A (not a tag)
  * [ ] Filename: prefix/suffix NOT abbreviated, words between = 3-4 chars
  * [ ] Struct name derived from filename (snake_case to PascalCase)
@@ -40,7 +44,7 @@
  * [ ] Pointer components in codegen.json components.server_only
  * [ ] Strings < 64 bytes use char[N] fixed arrays
  * [ ] Strings 64-256 bytes use appropriately sized char[N]
- * [ ] Strings > 256 bytes use Pointer Pattern (uint64_t ptr, uint16_t len)
+ * [ ] Strings > 256 bytes use registry.ctx() mit Lookup-ID?
  * [ ] NO Entity-per-Character (strings are single attributes, not N-Items!)
  * [ ] Lookup-only strings use uint32_t hash (entt::hashed_string)
  * [ ] NO std::shared_ptr in components (use Flyweight Pattern via ctx!)
@@ -52,13 +56,17 @@
  * =============================================================================
  */
 
-#include <ase/ecs/system.hpp>
-
 namespace ase::player {
 
-struct PlayerReqSpawnResComponent {
-    ecs::Entity spawned_entity = ecs::NullEntity;
-    bool success = false;
+/**
+ * @brief The errand of a spawn request - the speed the new player is to walk at (SERVER-ONLY).
+ *
+ * speed is metres per second as the caller asked for it, unjudged: PlayerLifeSpwnSystem is where
+ * it meets the movement authority and becomes an input magnitude and a gear. Present only on
+ * spawn requests that asked for a walker.
+ */
+struct PlayerReqRoamComponent {
+    float speed = 0.0f;  // Walking speed the caller asked for (m/s), before the authority is applied
 };
 
 }  // namespace ase::player

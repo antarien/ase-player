@@ -24,7 +24,7 @@
  *   │  THIS SYSTEM: PlayerAccActSystem (SERVER-ONLY)            │
  *   │                                                          │
  *   │  READS:                                                  │
- *   │    → PlayerStIdComponent (player identity)               │
+ *   │    → PlayerStaIdntComponent (player identity)               │
  *   │    → PlayerStaActComponent (realised action rate)        │
  *   │                                                          │
  *   │  WRITES (Hub):                                           │
@@ -141,7 +141,7 @@
 // Own header FIRST
 #include <ase/player/systems/anticheat/player_acc_act_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_act_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -180,7 +180,7 @@ void PlayerAccActSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * BehaviorWatcher contract trigger. hub::set is change-based (broadcast on transition only), and
      * the warn logs ONLY on the rising edge — the flag ONSET is the event, not each tick it persists.
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStaActComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaActComponent>();
 
     for (auto [entity, id, act] : view.each()) {
         (void)id;  // identity component selects player entities; fields unused here

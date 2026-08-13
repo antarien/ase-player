@@ -22,7 +22,7 @@ ase::ecs::Entity do_spawn_request(
     float x, float z
 ) {
     auto request_entity = registry.create();
-    auto& request = registry.emplace<PlayerReqSpawnComponent>(request_entity);
+    auto& request = registry.emplace<PlayerReqSpwnComponent>(request_entity);
     std::strncpy(request.player_id, player_id, sizeof(request.player_id) - 1);
     request.player_id[sizeof(request.player_id) - 1] = '\0';
     request.x = x;
@@ -31,7 +31,7 @@ ase::ecs::Entity do_spawn_request(
     lifecycle.tick(registry, 0.0f);
 
     ase::ecs::Entity spawned_entity = ase::ecs::NullEntity;
-    auto* result = registry.try_get<PlayerReqSpawnResComponent>(request_entity);
+    auto* result = registry.try_get<PlayerReqSpwnResComponent>(request_entity);
     if (result && result->success) {
         spawned_entity = result->spawned_entity;
     }
@@ -63,7 +63,7 @@ bool do_despawn_request(
 }
 
 ase::ecs::Entity do_find_player(ase::ecs::Registry& registry, const char* player_id) {
-    auto view = registry.view<PlayerStIdComponent>();
+    auto view = registry.view<PlayerStaIdntComponent>();
     for (auto [entity, identity] : view.each()) {
         if (std::strcmp(identity.player_id, player_id) == 0) {
             return entity;
@@ -74,7 +74,7 @@ ase::ecs::Entity do_find_player(ase::ecs::Registry& registry, const char* player
 
 ase::containers::Vector<ase::containers::Pair<std::string, ase::ecs::Entity>> do_get_all_players(ase::ecs::Registry& registry) {
     ase::containers::Vector<ase::containers::Pair<std::string, ase::ecs::Entity>> result;
-    auto view = registry.view<PlayerStIdComponent>();
+    auto view = registry.view<PlayerStaIdntComponent>();
     for (auto [entity, identity] : view.each()) {
         result.emplace_back(identity.player_id, entity);
     }
@@ -115,46 +115,53 @@ void test_player_components() {
     ase::ecs::Registry registry;
     auto entity = registry.create();
 
-    // Add PlayerStIdComponent
-    auto& identity = registry.emplace<PlayerStIdComponent>(entity);
+    // Add PlayerStaIdntComponent
+    auto& identity = registry.emplace<PlayerStaIdntComponent>(entity);
     std::strncpy(identity.player_id, "test_player_1", sizeof(identity.player_id) - 1);
     identity.player_id[sizeof(identity.player_id) - 1] = '\0';
     identity.spawned_at_ms = 1000;
     identity.last_input_ms = identity.spawned_at_ms;
     assert(std::strcmp(identity.player_id, "test_player_1") == 0);
 
-    // Add PlayerStPosComponent
-    auto& pos = registry.emplace<PlayerStPosComponent>(entity);
-    pos.x = 10.0f;
+    // Add PlayerStaPosComponent (chunk-relativ seit S2b 2026-08-11: 10 m = Wabe 0, lokal 10)
+    auto& pos = registry.emplace<PlayerStaPosComponent>(entity);
+    pos.chunk_x = 0;
+    pos.local_x = 10.0f;
     pos.y = 5.0f;
-    pos.z = 20.0f;
-    pos.yaw = 1.57f;
-    assert(pos.x == 10.0f);
+    pos.chunk_z = 0;
+    pos.local_z = 20.0f;
+    assert(pos.chunk_x == 0);
+    assert(pos.local_x == 10.0f);
     assert(pos.y == 5.0f);
-    assert(pos.z == 20.0f);
+    assert(pos.local_z == 20.0f);
 
-    // Add PlayerStVelComponent
-    auto& vel = registry.emplace<PlayerStVelComponent>(entity);
+    // Der Blick wohnt seit S2b in der eigenen Komponente
+    auto& yaw = registry.emplace<PlayerStaYawComponent>(entity);
+    yaw.yaw = 1.57f;
+    assert(yaw.yaw == 1.57f);
+
+    // Add PlayerStaVelComponent
+    auto& vel = registry.emplace<PlayerStaVelComponent>(entity);
     vel.vx = 1.0f;
     vel.vy = -9.8f;
     vel.vz = 0.5f;
     assert(vel.vx == 1.0f);
     assert(vel.vy == -9.8f);
 
-    // Add PlayerStPhysComponent
-    auto& physics = registry.emplace<PlayerStPhysComponent>(entity);
+    // Add PlayerStaPhysComponent
+    auto& physics = registry.emplace<PlayerStaPhysComponent>(entity);
     physics.on_ground = false;
     physics.gravity_enabled = true;
     assert(!physics.on_ground);
     assert(physics.gravity_enabled);
 
-    // Add PlayerStStsComponent
-    auto& state = registry.emplace<PlayerStStsComponent>(entity);
+    // Add PlayerStaStsComponent
+    auto& state = registry.emplace<PlayerStaStsComponent>(entity);
     state.sts = PLAYER_STATE_RUNNING;
     assert(state.sts == PLAYER_STATE_RUNNING);
 
-    // Add PlayerStChkComponent
-    auto& chunk = registry.emplace<PlayerStChkComponent>(entity);
+    // Add PlayerStaChkComponent
+    auto& chunk = registry.emplace<PlayerStaChkComponent>(entity);
     chunk.chunk_x = 2;
     chunk.chunk_y = 3;
     assert(chunk.chunk_x == 2);
@@ -214,17 +221,17 @@ void test_spawn_via_lifecycle_system() {
     assert(found == entity);
 
     // Verify components
-    auto* identity = registry.try_get<PlayerStIdComponent>(entity);
+    auto* identity = registry.try_get<PlayerStaIdntComponent>(entity);
     assert(identity != nullptr);
     assert(std::strcmp(identity->player_id, "spawn_test") == 0);
 
-    auto* pos = registry.try_get<PlayerStPosComponent>(entity);
+    auto* pos = registry.try_get<PlayerStaPosComponent>(entity);
     assert(pos != nullptr);
     assert(pos->x == 100.0f);
     assert(pos->y == 10.0f);  // From terrain height
     assert(pos->z == 200.0f);
 
-    auto* physics = registry.try_get<PlayerStPhysComponent>(entity);
+    auto* physics = registry.try_get<PlayerStaPhysComponent>(entity);
     assert(physics != nullptr);
     assert(physics->on_ground == true);
 

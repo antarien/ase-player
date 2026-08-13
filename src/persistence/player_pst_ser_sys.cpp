@@ -16,7 +16,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_PST_SER: Player Persistence Serialization)
  *
- *   [PlayerPstDtyTag + PlayerSpawnedTag]
+ *   [PlayerPstDtyTag + PlayerSpndTag]
  *          │
  *          │ player dirty, needs persistence
  *          ▼
@@ -25,11 +25,11 @@
  *   │                                             │
  *   │  READS:                                     │
  *   │    - PlayerPstDtyTag (dirty flag)           │
- *   │    - PlayerSpawnedTag (spawned flag)        │
- *   │    - PlayerStIdComponent (identity)         │
- *   │    - PlayerStPosComponent (position)        │
- *   │    - PlayerStVelComponent (velocity)        │
- *   │    - PlayerStStsComponent (status)          │
+ *   │    - PlayerSpndTag (spawned flag)        │
+ *   │    - PlayerStaIdntComponent (identity)         │
+ *   │    - PlayerStaPosComponent (position)        │
+ *   │    - PlayerStaVelComponent (velocity)        │
+ *   │    - PlayerStaStsComponent (status)          │
  *   │                                             │
  *   │  WRITES:                                    │
  *   │    - PlayerBufPstComponent (persistence buf)│
@@ -47,8 +47,8 @@
  * HUB Pattern (MIG_ASE_HUB_API v2.0):
  *
  * READS (from Components):
- *   PlayerStIdComponent → Player identity
- *   PlayerStPosComponent → Position data
+ *   PlayerStaIdntComponent → Player identity
+ *   PlayerStaPosComponent → Position data
  *
  * WRITES (to Hub for ase-replication):
  *   "REP_PST_SER"_hs → Serialization entity reference
@@ -147,13 +147,13 @@
 // Own header FIRST
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 // Components from same module
-#include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
-#include <ase/player/components/buffer/player_buf_pst_component.hpp>
-#include <ase/player/components/tag/player_tag_pst_dty_component.hpp>
-#include <ase/player/components/tag/player_tag_spawned_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_sts_comp.hpp>
+#include <ase/player/components/buffer/player_buf_pst_comp.hpp>
+#include <ase/player/components/tag/player_pst_dty_tag.hpp>
+#include <ase/player/components/tag/player_spnd_tag.hpp>
 #include <ase/player/types.hpp>
 // Serialization (Layer 2)
 #include <ase/serial/serial.hpp>
@@ -190,11 +190,11 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
      */
     auto view = registry.view<
         PlayerPstDtyTag,
-        PlayerSpawnedTag,
-        PlayerStIdComponent,
-        PlayerStPosComponent,
-        PlayerStVelComponent,
-        PlayerStStsComponent
+        PlayerSpndTag,
+        PlayerStaIdntComponent,
+        PlayerStaPosComponent,
+        PlayerStaVelComponent,
+        PlayerStaStsComponent
     >();
 
     /**
@@ -212,8 +212,8 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         auto entity = *it;
         ++it;
 
-        auto& id = registry.get<PlayerStIdComponent>(entity);
-        auto& pos = registry.get<PlayerStPosComponent>(entity);
+        auto& id = registry.get<PlayerStaIdntComponent>(entity);
+        auto& pos = registry.get<PlayerStaPosComponent>(entity);
 
         /**
          * STEP 2: Create serialization request entity
@@ -221,9 +221,9 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         auto ser = registry.create();
 
         auto& jsn_buf = registry.emplace<serial::SerialBufJsnComponent>(ser);
-        jsn_buf.src_id = blobs.store_blob(&pos, sizeof(PlayerStPosComponent));
+        jsn_buf.src_id = blobs.store_blob(&pos, sizeof(PlayerStaPosComponent));
         jsn_buf.src_typ = SERIAL_TYP_PLR_STA;
-        jsn_buf.src_siz = sizeof(PlayerStPosComponent);
+        jsn_buf.src_siz = sizeof(PlayerStaPosComponent);
         jsn_buf.st = serial::SERIAL_ST_PND;
 
         registry.emplace<serial::SerialJsnPndTag>(ser);
@@ -237,15 +237,18 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         hub::set(registry, owner, "REP_PST_SYN"_hs, 1.0f);
 
         /**
-         * STEP 4: Update persistence buffer with player_id pointer
-         * Uses pointer pattern, stores reference to id.player_id
+         * STEP 4: Update persistence buffer with the player_id BLOB ID
+         *
+         * Die Kennung wandert nicht als Adresse in die Komponente, sondern als Blob-Kennung
+         * desselben Verwalters, der oben schon die Quelldaten benennt. Erst die Laenge messen,
+         * dann hinterlegen: store_blob weist eine Kennung nur einem NICHT leeren Puffer zu.
          */
         auto& buf = registry.get_or_emplace<PlayerBufPstComponent>(entity);
-        buf.plr_id_ptr = reinterpret_cast<uint64_t>(id.player_id);
         buf.plr_id_len = 0;
         while (buf.plr_id_len < sizeof(id.player_id) && id.player_id[buf.plr_id_len] != '\0') {
             ++buf.plr_id_len;
         }
+        buf.plr_id_ref = blobs.store_blob(id.player_id, buf.plr_id_len);
 
         /**
          * STEP 5: Remove dirty tag (processed)

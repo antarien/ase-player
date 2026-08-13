@@ -48,7 +48,7 @@ namespace ase::player {
  * @brief Backend cheat-induction for the economy axes (SERVER-ONLY)
  *
  * @schedule Dynamics — alongside PlayerSimChtSystem, before the anti-cheat detectors
- * @reads    PlayerStIdComponent (player identity), Hub "PLR_CHEAT_DUPE" (owner = hash(player_id))
+ * @reads    PlayerStaIdntComponent (player identity), Hub "PLR_CHEAT_DUPE" (owner = hash(player_id))
  * @writes   PlayerStaEcoComponent.transaction_rate, PlayerStaInvComponent.modification_rate (realised rates)
  */
 class PlayerSimEcoSystem : public ecs::System {

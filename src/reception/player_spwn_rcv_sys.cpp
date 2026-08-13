@@ -23,12 +23,12 @@
  *   │                                                               │
  *   │  READS:  transport::InboundQueueResourceManager (pop LANE_SPW)│
  *   │                                                               │
- *   │  WRITES: PlayerReqSpawnComponent (one request entity created) │
+ *   │  WRITES: PlayerReqSpwnComponent (one request entity created) │
  *   └───────────────────────────────────────────────────────────────┘
  *          │
- *          │ PlayerLifeSpwnSystem consumes PlayerReqSpawnComponent
+ *          │ PlayerLifeSpwnSystem consumes PlayerReqSpwnComponent
  *          ▼
- *   [real ase-player entity spawned (PlayerStId/Pos/Vel/Phys + PlayerSpawnedTag)]
+ *   [real ase-player entity spawned (PlayerStId/Pos/Vel/Phys + PlayerSpndTag)]
  *
  * HUB Pattern (transport lane, websocket-FREE)
  *
@@ -36,7 +36,7 @@
  *   transport::InboundQueueResourceManager: pop LANE_SPW frames
  *
  * WRITES (to ECS):
- *   PlayerReqSpawnComponent: player_id + x + z (one request entity per frame)
+ *   PlayerReqSpwnComponent: player_id + x + z (one request entity per frame)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -136,7 +136,9 @@
 // Module constants (the local BIN_MSG mirror + frame offsets/bounds)
 #include <ase/player/types.hpp>
 // Spawn request component (same module — PlayerLifeSpwnSystem consumes it)
-#include <ase/player/components/request/player_req_spawn_component.hpp>
+#include <ase/player/components/request/player_req_spwn_comp.hpp>
+// The errand companion of a spawn request - present only when the frame asked for a walker
+#include <ase/player/components/request/player_req_roam_comp.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
@@ -197,14 +199,25 @@ void PlayerSpwnRcvSystem::tick(ecs::Registry& registry, float /*dt*/) {
         // Create the spawn request the same shape the REST/integration path documents: player_id[64] + x + z.
         // PlayerLifeSpwnSystem (same module, Dynamics) consumes it next tick and creates the real entity.
         auto request_entity = registry.create();
-        auto& request = registry.emplace<PlayerReqSpawnComponent>(request_entity);
+        auto& request = registry.emplace<PlayerReqSpwnComponent>(request_entity);
         std::memcpy(request.player_id, buf + PLR_SPW_PLAYER_ID_OFF, PLR_SPW_PLAYER_ID_LEN);
         request.player_id[PLR_SPW_PLAYER_ID_LEN - 1u] = '\0';
         std::memcpy(&request.x, buf + PLR_SPW_X_OFF, 4);
         std::memcpy(&request.z, buf + PLR_SPW_Z_OFF, 4);
 
-        log::info("[PlayerSpwnRcv] backend spawn request created (player_id={} x={} z={})",
-                  request.player_id, request.x, request.z);
+        // THE ERRAND IS A COMPANION, NOT A FIELD. A frame that asks for a walker gets a second
+        // component on the SAME request entity; a frame that asks for a plain spawn gets none, and
+        // the spawn stays exactly what it always was. That is what keeps "no speed given" apart
+        // from "speed given as zero" without either of them needing a sentinel.
+        float roam_speed = PLR_SPW_SPEED_NONE;
+        std::memcpy(&roam_speed, buf + PLR_SPW_SPEED_OFF, 4);
+        if (roam_speed > PLR_SPW_SPEED_NONE) {
+            auto& errand = registry.emplace<PlayerReqRoamComponent>(request_entity);
+            errand.speed = roam_speed;
+        }
+
+        log::info("[PlayerSpwnRcv] backend spawn request created (player_id={} x={} z={} speed={})",
+                  request.player_id, request.x, request.z, roam_speed);
         msg_len = 0;
     }
 }

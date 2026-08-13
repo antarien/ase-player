@@ -23,15 +23,15 @@
  *   │                                             │
  *   │  READS:                                     │
  *   │    → PlayerMgrTag (manager entity)          │
- *   │    → PlayerStIdComponent (count players)    │
- *   │    → PlayerStStsComponent (state counts)    │
- *   │    → PlayerSpawnedTag (spawned count)       │
- *   │    → PlayerDirtyTag (dirty count)           │
- *   │    → PlayerChunkChangedTag (chunk changes)  │
+ *   │    → PlayerStaIdntComponent (count players)    │
+ *   │    → PlayerStaStsComponent (state counts)    │
+ *   │    → PlayerSpndTag (spawned count)       │
+ *   │    → PlayerDrtyTag (dirty count)           │
+ *   │    → PlayerChnkChgdTag (chunk changes)  │
  *   │    → "LOG_CONST_DEFAULT_INTERVAL"_hs (Hub)  │
  *   │                                             │
  *   │  WRITES:                                    │
- *   │    → PlayerCacheObsComponent (timer/cache)  │
+ *   │    → PlayerCchObsComponent (timer/cache)  │
  *   │    → log::debug (periodic output)           │
  *   └─────────────────────────────────────────────┘
  *          │
@@ -143,13 +143,12 @@
 // Own header FIRST
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 // Components from same module
-#include <ase/player/components/cache/player_cache_obs_component.hpp>
-#include <ase/player/components/tag/player_tag_mgr_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
-#include <ase/player/components/tag/player_tag_spawned_component.hpp>
-#include <ase/player/components/tag/player_tag_dirty_component.hpp>
-#include <ase/player/components/tag/player_tag_chunk_changed_component.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
+#include <ase/player/components/state/player_sta_sts_comp.hpp>
+#include <ase/player/components/tag/player_spnd_tag.hpp>
+#include <ase/player/components/tag/player_drty_tag.hpp>
+#include <ase/player/components/tag/player_chnk_chgd_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Hub for HUB Pattern
@@ -171,21 +170,7 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
  */
 namespace {
 
-/**
- * @brief Map player state index to human-readable name
- * @param idx State index (PLAYER_STATE_* from types.hpp)
- * @return Human-readable state name
- */
-const char* state_name(uint8_t idx) {
-    if (idx == PLAYER_STATE_IDLE) return "idle";
-    if (idx == PLAYER_STATE_WALKING) return "walk";
-    if (idx == PLAYER_STATE_RUNNING) return "run";
-    if (idx == PLAYER_STATE_JUMPING) return "jump";
-    if (idx == PLAYER_STATE_FALLING) return "fall";
-    if (idx == PLAYER_STATE_SWIMMING) return "swim";
-    if (idx == PLAYER_STATE_DEAD) return "dead";
-    return "???";
-}
+// No helper functions - the heartbeat line carries counters, never names.
 
 }  // anonymous namespace
 
@@ -197,6 +182,7 @@ void PlayerLogObsvSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
+    (void)dt;  // Der Takt kommt aus Observation (1 Hz), nie aus einer dt-Summe.
     /**
      * STEP 1: Find player manager entity
      * PlayerMgrTag identifies the singleton manager entity.
@@ -204,18 +190,19 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
     auto mgr_view = registry.view<PlayerMgrTag>();
 
     for (auto mgr : mgr_view) {
-        auto& cache = registry.get_or_emplace<PlayerCacheObsComponent>(mgr);
-
+        (void)mgr;
         /**
-         * STEP 2: Update timer
-         */
-        cache.log_interval_timer += dt;
-
-        /**
-         * STEP 3: Count total players
+         * KEIN TIMER, KEIN AENDERUNGS-TRIGGER, KEIN INTERVALL-WERT (Betreiber-Entscheid
+         * 2026-08-11): dieses System laeuft in Observation (1 Hz) - der Schedule IST der
+         * Herzschlag. Die fruehere Fassung tickte in Conclusion (60 Hz), drosselte sich per
+         * log_interval_timer/significant_change auf dem Manager-Cache und fiel bei fehlendem
+         * Hub-Wert auf eine stille Konstante zurueck - drei Kruecken fuer eine falsche
+         * Herzzahl, und die Aenderungs-Abkuerzung konnte trotzdem mehrmals je Sekunde feuern.
+         *
+         * STEP 2: Count total players
          */
         uint32_t player_count = 0;
-        auto player_view = registry.view<PlayerStIdComponent>();
+        auto player_view = registry.view<PlayerStaIdntComponent>();
         for (auto e : player_view) {
             (void)e;
             ++player_count;
@@ -231,7 +218,7 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
         uint32_t jumping_count = 0;
         uint32_t falling_count = 0;
 
-        auto status_view = registry.view<PlayerStStsComponent>();
+        auto status_view = registry.view<PlayerStaStsComponent>();
         for (auto [e, status] : status_view.each()) {
             (void)e;
             if (status.sts == PLAYER_STATE_IDLE) { ++idle_count; continue; }
@@ -241,69 +228,39 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
             if (status.sts == PLAYER_STATE_FALLING) { ++falling_count; continue; }
         }
 
-        uint32_t moving_count = player_count - idle_count;
-
         /**
-         * STEP 5: Detect significant change
+         * STEP 3: Count tag-based states
          */
-        bool significant_change =
-            player_count != cache.last_player_count ||
-            moving_count != cache.last_moving_count;
+        uint32_t spawned_count = 0;
+        auto spawned_view = registry.view<PlayerSpndTag>();
+        for (auto e : spawned_view) {
+            (void)e;
+            ++spawned_count;
+        }
 
-        /**
-         * STEP 6: Read log interval from Hub (HUB Pattern - READS)
-         * INLINED: No get_*() helper with Registry allowed.
-         * Tick-system: silent fallback on NOT_FOUND. Missing constants are an
-         * expected state when no replica/almanach is online — logging ERR every
-         * tick would spam the log. Fallback to PLR_LOG_INTERVAL_FALLBACK.
-         */
-        float log_interval = hub::get(registry, hub::GLOBAL, "LOG_CONST_DEFAULT_INTERVAL"_hs);
-        if (types::is_not_found(log_interval)) {
-            log_interval = PLR_LOG_INTERVAL_FALLBACK;
+        uint32_t dirty_count = 0;
+        auto dirty_view = registry.view<PlayerDrtyTag>();
+        for (auto e : dirty_view) {
+            (void)e;
+            ++dirty_count;
+        }
+
+        uint32_t chunk_changed_count = 0;
+        auto chunk_view = registry.view<PlayerChnkChgdTag>();
+        for (auto e : chunk_view) {
+            (void)e;
+            ++chunk_changed_count;
         }
 
         /**
-         * STEP 7: Log on interval or significant change
+         * STEP 4: Output debug log - genau eine Zeile je Herzschlag
          */
-        if (cache.log_interval_timer >= log_interval || significant_change) {
-            cache.log_interval_timer = 0.0f;
-            cache.last_player_count = player_count;
-            cache.last_moving_count = moving_count;
-
-            /**
-             * STEP 8: Count tag-based states
-             */
-            uint32_t spawned_count = 0;
-            auto spawned_view = registry.view<PlayerSpawnedTag>();
-            for (auto e : spawned_view) {
-                (void)e;
-                ++spawned_count;
-            }
-
-            uint32_t dirty_count = 0;
-            auto dirty_view = registry.view<PlayerDirtyTag>();
-            for (auto e : dirty_view) {
-                (void)e;
-                ++dirty_count;
-            }
-
-            uint32_t chunk_changed_count = 0;
-            auto chunk_view = registry.view<PlayerChunkChangedTag>();
-            for (auto e : chunk_view) {
-                (void)e;
-                ++chunk_changed_count;
-            }
-
-            /**
-             * STEP 9: Output debug log
-             */
-            log::debug("\x1b[38;5;141m[ase-player]\x1b[0m [PlayerLogObsvSystem] "
-                       "players:{} -> idle:{} -> walk:{} -> run:{} -> jump:{} -> fall:{} -> "
-                       "dirty:{} -> spawned:{} -> chk_chg:{}",
-                       player_count, idle_count, walking_count, running_count,
-                       jumping_count, falling_count, dirty_count, spawned_count,
-                       chunk_changed_count);
-        }
+        log::debug("\x1b[38;5;141m[ase-player]\x1b[0m [PlayerLogObsvSystem] "
+                   "players:{} -> idle:{} -> walk:{} -> run:{} -> jump:{} -> fall:{} -> "
+                   "dirty:{} -> spawned:{} -> chk_chg:{}",
+                   player_count, idle_count, walking_count, running_count,
+                   jumping_count, falling_count, dirty_count, spawned_count,
+                   chunk_changed_count);
     }
 }
 

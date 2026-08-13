@@ -14,13 +14,16 @@
 #include <ase/player/player_module.hpp>
 #include <ase/player/systems/migration/player_mig_ser_sys.hpp>
 #include <ase/player/components/request/player_req_mig_comp.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_yaw_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_sts_comp.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_epch_comp.hpp>
 #include <ase/player/components/buffer/player_buf_mig_comp.hpp>
 #include <ase/types/region_wire.hpp>
+#include <ase/player/types.hpp>
+#include <ase/math/math.hpp>
 #include <ase/ecs/system.hpp>
 
 #include <entt/core/hashed_string.hpp>
@@ -37,22 +40,27 @@ namespace {
 ecs::Entity add_player(ecs::Registry& reg, const char* uuid, float x, float y, float z,
                        float yaw, float vx, float vy, float vz, uint8_t sts) {
     auto e = reg.create();
-    auto& idc = reg.emplace<player::PlayerStIdComponent>(e);
+    auto& idc = reg.emplace<player::PlayerStaIdntComponent>(e);
     uint32_t n = 0;
     while (uuid[n] != '\0' && n < 63u) {
         idc.player_id[n] = uuid[n];
         ++n;
     }
-    auto& pos = reg.emplace<player::PlayerStPosComponent>(e);
-    pos.x = x;
+    // Chunk-relativ (S2b 2026-08-11): der Helfer nimmt weiter Weltmeter und zerlegt per
+    // floor/Rest - exakt wie der produktive Spawn (player_life_spwn_sys.cpp).
+    auto& pos = reg.emplace<player::PlayerStaPosComponent>(e);
+    pos.chunk_x = static_cast<int32_t>(math::floor(x / player::MOVEMENT_DEFAULT_CHUNK_SIZE));
+    pos.chunk_z = static_cast<int32_t>(math::floor(z / player::MOVEMENT_DEFAULT_CHUNK_SIZE));
+    pos.local_x = x - static_cast<float>(pos.chunk_x) * player::MOVEMENT_DEFAULT_CHUNK_SIZE;
+    pos.local_z = z - static_cast<float>(pos.chunk_z) * player::MOVEMENT_DEFAULT_CHUNK_SIZE;
     pos.y = y;
-    pos.z = z;
-    pos.yaw = yaw;
-    auto& vel = reg.emplace<player::PlayerStVelComponent>(e);
+    auto& yaw_row = reg.emplace<player::PlayerStaYawComponent>(e);
+    yaw_row.yaw = yaw;
+    auto& vel = reg.emplace<player::PlayerStaVelComponent>(e);
     vel.vx = vx;
     vel.vy = vy;
     vel.vz = vz;
-    auto& sta = reg.emplace<player::PlayerStStsComponent>(e);
+    auto& sta = reg.emplace<player::PlayerStaStsComponent>(e);
     sta.sts = sts;
     return e;
 }

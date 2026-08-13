@@ -83,32 +83,33 @@ add_library(${PROJECT_NAME} SHARED
     HEADER FILES - COMPONENTS (cache/)
     Cached data for observer patterns.
     ]]
-    include/ase/player/components/cache/player_cache_obs_component.hpp
 
     #[[
     HEADER FILES - COMPONENTS (request/)
     Request components for spawn/despawn operations.
     ]]
-    include/ase/player/components/request/player_req_desp_component.hpp
-    include/ase/player/components/request/player_req_desp_res_component.hpp
-    include/ase/player/components/request/player_req_spawn_component.hpp
-    include/ase/player/components/request/player_req_spawn_res_component.hpp
+    include/ase/player/components/request/player_req_desp_comp.hpp
+    include/ase/player/components/request/player_req_desp_res_comp.hpp
+    include/ase/player/components/request/player_req_spwn_comp.hpp
+    include/ase/player/components/request/player_req_roam_comp.hpp
+    include/ase/player/components/request/player_req_spwn_res_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (state/)
     Runtime player state data.
     ]]
-    include/ase/player/components/state/player_st_chk_component.hpp
-    include/ase/player/components/state/player_st_id_component.hpp
+    include/ase/player/components/state/player_sta_chk_comp.hpp
+    include/ase/player/components/state/player_sta_idnt_comp.hpp
     include/ase/player/components/state/player_st_inp_cam_component.hpp
-    include/ase/player/components/state/player_st_inp_mov_component.hpp
+    include/ase/player/components/state/player_sta_inp_mov_comp.hpp
     include/ase/player/components/state/player_st_inp_net_component.hpp
     include/ase/player/components/state/player_st_mov_component.hpp
-    include/ase/player/components/state/player_st_phys_component.hpp
-    include/ase/player/components/state/player_st_pos_component.hpp
-    include/ase/player/components/state/player_st_sts_component.hpp
-    include/ase/player/components/state/player_st_vel_component.hpp
+    include/ase/player/components/state/player_sta_phys_comp.hpp
+    include/ase/player/components/state/player_sta_pos_comp.hpp
+    include/ase/player/components/state/player_sta_sts_comp.hpp
+    include/ase/player/components/state/player_sta_vel_comp.hpp
     include/ase/player/components/state/player_sta_cht_comp.hpp
+    include/ase/player/components/state/player_sta_roam_comp.hpp
     include/ase/player/components/state/player_sta_acmp_comp.hpp
     include/ase/player/components/state/player_sta_act_comp.hpp
     include/ase/player/components/state/player_sta_cmb_comp.hpp
@@ -126,21 +127,24 @@ add_library(${PROJECT_NAME} SHARED
     HEADER FILES - COMPONENTS (buffer/)
     Buffer components for persistence.
     ]]
-    include/ase/player/components/buffer/player_buf_pst_component.hpp
+    include/ase/player/components/buffer/player_buf_pst_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (tag/)
     Tag components for entity classification.
     ]]
-    include/ase/player/components/tag/player_tag_chunk_changed_component.hpp
-    include/ase/player/components/tag/player_tag_desp_pnd_component.hpp
-    include/ase/player/components/tag/player_tag_dirty_component.hpp
-    include/ase/player/components/tag/player_tag_init_component.hpp
-    include/ase/player/components/tag/player_tag_inp_rmv_component.hpp
-    include/ase/player/components/tag/player_tag_local_component.hpp
-    include/ase/player/components/tag/player_tag_mgr_component.hpp
-    include/ase/player/components/tag/player_tag_pst_dty_component.hpp
-    include/ase/player/components/tag/player_tag_spawned_component.hpp
+    include/ase/player/components/tag/player_chnk_chgd_tag.hpp
+    include/ase/player/components/tag/player_desp_pnd_tag.hpp
+    include/ase/player/components/tag/player_drty_tag.hpp
+    include/ase/player/components/tag/player_init_tag.hpp
+    include/ase/player/components/tag/player_inp_rmv_tag.hpp
+    include/ase/player/components/tag/player_locl_tag.hpp
+    include/ase/player/components/tag/player_mgr_tag.hpp
+    include/ase/player/components/tag/player_pst_dty_tag.hpp
+    include/ase/player/components/tag/player_spnd_tag.hpp
+    include/ase/player/components/tag/player_roam_wand_tag.hpp
+    include/ase/player/components/tag/player_roam_rest_tag.hpp
+    include/ase/player/components/tag/player_roam_run_tag.hpp
 
     #[[
     HEADER FILES - SYSTEMS (control/)
@@ -154,6 +158,7 @@ add_library(${PROJECT_NAME} SHARED
     Hub communication systems for cross-module data.
     ]]
     include/ase/player/systems/hub/player_hub_pos_sys.hpp
+    include/ase/player/systems/hub/player_hub_roam_sys.hpp
     include/ase/player/systems/hub/player_hub_sess_reg_sys.hpp
 
     #[[
@@ -177,7 +182,7 @@ add_library(${PROJECT_NAME} SHARED
     #[[
     HEADER FILES - SYSTEMS (reception/)
     Backend-driven spawn: drain the Replica-forwarded BIN_MSG_PLAYER_SPAWN=77 (LANE_SPW) into a
-    PlayerReqSpawnComponent (Phase 13 Task 13.10).
+    PlayerReqSpwnComponent (Phase 13 Task 13.10).
     ]]
     include/ase/player/systems/reception/player_spwn_rcv_sys.hpp
 
@@ -202,6 +207,8 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/simulation/player_sim_act_sys.hpp
     include/ase/player/systems/simulation/player_sim_com_sys.hpp
     include/ase/player/systems/simulation/player_sim_eco_sys.hpp
+    include/ase/player/systems/simulation/player_sim_wand_sys.hpp
+    include/ase/player/systems/simulation/player_sim_rest_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (state/)
@@ -218,7 +225,7 @@ add_library(${PROJECT_NAME} SHARED
 
     #[[
     SOURCE FILES - RECEPTION
-    Backend-driven spawn: drain BIN_MSG_PLAYER_SPAWN=77 (LANE_SPW) → PlayerReqSpawnComponent (Task 13.10).
+    Backend-driven spawn: drain BIN_MSG_PLAYER_SPAWN=77 (LANE_SPW) → PlayerReqSpwnComponent (Task 13.10).
     ]]
     src/reception/player_spwn_rcv_sys.cpp
 
@@ -244,6 +251,8 @@ add_library(${PROJECT_NAME} SHARED
     src/simulation/player_sim_act_sys.cpp
     src/simulation/player_sim_com_sys.cpp
     src/simulation/player_sim_eco_sys.cpp
+    src/simulation/player_sim_wand_sys.cpp
+    src/simulation/player_sim_rest_sys.cpp
 
     #[[
     SOURCE FILES - STATE
@@ -260,6 +269,7 @@ add_library(${PROJECT_NAME} SHARED
     iteration API): PLR_ACTIVE_COUNT + PLR_OWNER per slot.
     ]]
     src/hub/player_hub_pos_sys.cpp
+    src/hub/player_hub_roam_sys.cpp
     src/hub/player_hub_sess_reg_sys.cpp
 
     #[[
@@ -330,6 +340,7 @@ target_link_libraries(${PROJECT_NAME}
         ase::types        # Layer 0 - Type definitions (sentinel checks)
         ase::input        # Input types and components
         ase::terrain      # Terrain components
+        ase::lifecycle    # Layer 3 - LifecycleAlivTag: die Lebensmarke der Beobachter-Adoption
     PRIVATE
         ase::hub          # Layer 3 - Star Topology (write positions for L4 plugins)
         ase::transport    # Layer 1 - ctx-shared inbound FIFO lanes (PlayerSpwnRcvSystem drains LANE_SPW; websocket-FREE, L3→L1 allowed)

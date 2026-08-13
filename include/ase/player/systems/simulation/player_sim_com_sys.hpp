@@ -47,7 +47,7 @@ namespace ase::player {
  * @brief Backend cheat-induction for the communication axis (SERVER-ONLY)
  *
  * @schedule Dynamics — alongside PlayerSimChtSystem, before the anti-cheat detectors
- * @reads    PlayerStIdComponent (player identity), Hub "PLR_CHEAT_CHAT" (owner = hash(player_id))
+ * @reads    PlayerStaIdntComponent (player identity), Hub "PLR_CHEAT_CHAT" (owner = hash(player_id))
  * @writes   PlayerStaComComponent.message_rate (realised chat rate)
  */
 class PlayerSimComSystem : public ecs::System {

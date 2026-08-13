@@ -18,9 +18,9 @@
  * ARCHITECTURE:
  *
  *   Request Flow:
- *   REST Handler ──> creates request entity with PlayerReqSpawnComponent
+ *   REST Handler ──> creates request entity with PlayerReqSpwnComponent
  *   PlayerLifeSpwnSystem ──> processes request, creates player, adds result
- *   REST Handler ──> reads result from PlayerReqSpawnResComponent
+ *   REST Handler ──> reads result from PlayerReqSpwnResComponent
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -45,8 +45,8 @@ namespace ase::player {
  * @brief Processes spawn/despawn requests
  *
  * @schedule Dynamics - processes lifecycle events
- * @reads    PlayerReqSpawnComponent, PlayerReqDespComponent
- * @writes   PlayerReqSpawnResComponent, creates/destroys player entities
+ * @reads    PlayerReqSpwnComponent, PlayerReqDespComponent
+ * @writes   PlayerReqSpwnResComponent, creates/destroys player entities
  */
 class PlayerLifeSpwnSystem : public ecs::System {
 public:

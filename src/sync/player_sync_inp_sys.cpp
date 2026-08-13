@@ -11,7 +11,7 @@
  * @category    input
  * @schedule    Synchronization
  * @created     2026-01-22
- * @modified    2026-01-29
+ * @modified    2026-08-10
  * @version     1.1.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_SYNC_INP: Player Input Synchronization)
@@ -54,6 +54,17 @@
  *
  * WRITES (to Components only - no Hub writes):
  *   (none)
+ *
+ * ABWESENHEIT IST HIER KEIN FEHLER, SONDERN DER NORMALFALL.
+ *
+ * Ein Hub-Wert, den noch niemand geschrieben hat, kommt als Fehlanzeige zurueck. Fuer die
+ * Eingabe heisst das schlicht: diese Figur bewegt sich in diesem Takt nicht - deshalb tritt
+ * hier eine Ruhelage an die Stelle des Wertes und KEINE Fehlermeldung. Die Abfrage laeuft ueber
+ * types::is_not_found (foundation/ase-types/include/ase/types/types.hpp:65) statt ueber einen
+ * Vergleich von Hand: die Fehlanzeige ist ein Bereich (v <= FloatNotFound), kein einzelner
+ * Wert, und ein Gleichheitsvergleich auf Fliesskommazahlen wuerde eine knapp danebenliegende
+ * Fehlanzeige als gueltige Eingabe durchlassen - die Figur wuerde mit dem Sentinelwert im Ruecken
+ * losstuermen, statt stehenzubleiben.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -98,7 +109,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -149,9 +160,12 @@
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
 // Components from same module
 #include <ase/player/components/input/player_inp_ext_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_yaw_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
+// Foundation types for the NOT_FOUND predicate (SSOT)
+#include <ase/types/types.hpp>
 // Hub for HUB Pattern (SERVER-ONLY sync system)
 #include <ase/hub/api.hpp>
 // Logging
@@ -177,7 +191,7 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerSyncInpSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerSyncInpSystem] Started");
+    log::debug("[PlayerSyncInpSystem] Started");
 }
 
 void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
@@ -185,52 +199,64 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * STEP 1: Process each player entity with position (all players)
      * Sync Hub input values to PlayerInpExtComponent
      */
-    auto view = registry.view<PlayerStPosComponent>();
+    auto view = registry.view<PlayerStaPosComponent, PlayerStaYawComponent>();
 
-    for (auto [entity, pos] : view.each()) {
+    for (auto [entity, pos, yaw] : view.each()) {
         uint32_t owner = static_cast<uint32_t>(entity);
 
         /**
          * STEP 2: Read all input values from Hub (HUB Pattern - READS)
+         * Fehlanzeige = die Figur gibt in diesem Takt nichts vor, also Ruhelage.
          */
         float inp_fwd = hub::get(registry, owner, "PLR_INP_FWD"_hs);
-        if (inp_fwd == hub::NOT_FOUND) {
+        if (types::is_not_found(inp_fwd)) {
             inp_fwd = 0.0f;
         }
 
         float inp_str = hub::get(registry, owner, "PLR_INP_STR"_hs);
-        if (inp_str == hub::NOT_FOUND) {
+        if (types::is_not_found(inp_str)) {
             inp_str = 0.0f;
         }
 
         float inp_sprint = hub::get(registry, owner, "PLR_INP_SPRINT"_hs);
-        if (inp_sprint == hub::NOT_FOUND) {
+        if (types::is_not_found(inp_sprint)) {
             inp_sprint = 0.0f;
         }
 
         float inp_jump = hub::get(registry, owner, "PLR_INP_JUMP"_hs);
-        if (inp_jump == hub::NOT_FOUND) {
+        if (types::is_not_found(inp_jump)) {
             inp_jump = 0.0f;
         }
 
+        /**
+         * Ohne Kameravorgabe schaut die Figur weiter dorthin, wo sie schon hinsah - eine
+         * Fehlanzeige darf den Blick niemals auf Null reissen.
+         */
         float cam_yaw = hub::get(registry, owner, "PLR_CAM_YAW"_hs);
-        if (cam_yaw == hub::NOT_FOUND) {
-            cam_yaw = pos.yaw;
+        if (types::is_not_found(cam_yaw)) {
+            cam_yaw = yaw.yaw;
         }
 
         float cam_orb = hub::get(registry, owner, "PLR_CAM_ORB"_hs);
-        if (cam_orb == hub::NOT_FOUND) {
+        if (types::is_not_found(cam_orb)) {
             cam_orb = 0.0f;
         }
 
         /**
          * STEP 3: Read terrain height from Hub
          */
+        /**
+         * Der Hash-Eingang bleibt WELTMETER (Summe chunk*Kante+local), damit er den
+         * TRN_HGT_AT_POS-Produzenten weiter trifft (S2b 2026-08-11: gefuehrt wird
+         * chunk-relativ, die Sicht ist die Summe).
+         */
         uint32_t pos_hash = static_cast<uint32_t>(
-            static_cast<int32_t>(pos.x) * 73856093 ^
-            static_cast<int32_t>(pos.z) * 19349663);
+            static_cast<int32_t>(static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE +
+                                 pos.local_x) * 73856093 ^
+            static_cast<int32_t>(static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE +
+                                 pos.local_z) * 19349663);
         float trn_hgt = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
-        if (trn_hgt == hub::NOT_FOUND) {
+        if (types::is_not_found(trn_hgt)) {
             trn_hgt = 0.0f;
         }
 
@@ -249,7 +275,7 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
 }
 
 void PlayerSyncInpSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerSyncInpSystem] Stopped");
+    log::debug("[PlayerSyncInpSystem] Stopped");
 }
 
 }  // namespace ase::player

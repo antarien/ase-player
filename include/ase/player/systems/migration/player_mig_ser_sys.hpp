@@ -10,8 +10,8 @@
  *              watch) and no staged buffer yet, it bumps the player's monotonic migrate epoch
  *              (PlayerStaEpchComponent - seeded from the FNV-1a32 of the UUID string on first
  *              use) and encodes the frozen 42-byte PlayerSnap layout (ase/types/region_wire.hpp)
- *              from the REAL live components - PlayerStPosComponent (x,y,z,yaw),
- *              PlayerStVelComponent (vx,vy,vz), PlayerStStsComponent (status, widened u8→u32) -
+ *              from the REAL live components - PlayerStaPosComponent (x,y,z,yaw),
+ *              PlayerStaVelComponent (vx,vy,vz), PlayerStaStsComponent (status, widened u8→u32) -
  *              into PlayerBufMigComponent. The World send system wraps the buffer into the
  *              frame-100 header and ships it; serialization and egress stay separate modules.
  *
@@ -51,8 +51,8 @@ namespace ase::player {
  *     seed/bump PlayerStaEpchComponent → encode PlayerSnap → stage PlayerBufMigComponent
  *
  * @schedule Observation
- * @reads    PlayerReqMigComponent, PlayerStPosComponent, PlayerStVelComponent,
- *           PlayerStStsComponent, PlayerStIdComponent
+ * @reads    PlayerReqMigComponent, PlayerStaPosComponent, PlayerStaVelComponent,
+ *           PlayerStaStsComponent, PlayerStaIdntComponent
  * @writes   PlayerStaEpchComponent (epoch bump), PlayerBufMigComponent (staged snap bytes)
  */
 class PlayerMigSerSystem : public ecs::System {

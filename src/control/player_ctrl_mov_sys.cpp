@@ -26,14 +26,14 @@
  *   │                                             │
  *   │  READS (from Components):                   │
  *   │    - PlayerInpExtComponent (input bridge)   │
- *   │    - PlayerStPosComponent (yaw)             │
- *   │    - PlayerStVelComponent (current vel)     │
- *   │    - PlayerStPhysComponent (on_ground)      │
+ *   │    - PlayerStaPosComponent (yaw)             │
+ *   │    - PlayerStaVelComponent (current vel)     │
+ *   │    - PlayerStaPhysComponent (on_ground)      │
  *   │    - PlayerStMovComponent (speed settings)  │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStVelComponent (vx, vy, vz)      │
- *   │    - PlayerStPhysComponent (on_ground)      │
+ *   │    - PlayerStaVelComponent (vx, vy, vz)      │
+ *   │    - PlayerStaPhysComponent (on_ground)      │
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ velocity calculated
@@ -95,7 +95,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -146,9 +146,9 @@
 #include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
 // Components from same module ONLY
 #include <ase/player/components/input/player_inp_ext_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_phys_component.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -177,7 +177,7 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerCtrlMovSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerCtrlMovSystem] Started");
+    log::debug("[PlayerCtrlMovSystem] Started");
 }
 
 void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
@@ -205,9 +205,9 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
      */
     auto view = registry.view<
         PlayerInpExtComponent,
-        PlayerStPosComponent,
-        PlayerStVelComponent,
-        PlayerStPhysComponent
+        PlayerStaPosComponent,
+        PlayerStaVelComponent,
+        PlayerStaPhysComponent
     >();
 
     for (auto [entity, inp, pos, vel, physics] : view.each()) {
@@ -278,7 +278,7 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
 }
 
 void PlayerCtrlMovSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerCtrlMovSystem] Stopped");
+    log::debug("[PlayerCtrlMovSystem] Stopped");
 }
 
 }  // namespace ase::player

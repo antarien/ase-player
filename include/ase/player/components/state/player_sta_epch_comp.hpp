@@ -6,7 +6,7 @@
  * @file        player_sta_epch_comp.hpp
  * @brief       PlayerStaEpchComponent - the player's wire identity + monotonic migrate epoch
  * @description WS-H.4 idempotency anchor. player_ref is the FNV-1a32 of the player's UUID string
- *              (PlayerStIdComponent.player_id) - the u32 identity PlayerSnap carries on the wire.
+ *              (PlayerStaIdntComponent.player_id) - the u32 identity PlayerSnap carries on the wire.
  *              epoch is the per-player monotonic migrate counter: the serializer bumps it once
  *              per armed migrate, the destination World drops any frame whose epoch is not newer
  *              than the epoch it already holds for that player_ref - a duplicate or late

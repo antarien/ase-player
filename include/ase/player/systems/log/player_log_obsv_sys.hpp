@@ -6,12 +6,12 @@
  * @file        player_log_obsv_sys.hpp
  * @brief       PlayerLogObsvSystem - Logs player state observation
  * @description Consistent with SkyLogCausalitySystem and TerrainLogCausalitySystem.
- *              ECS STATELESS: Uses PlayerCacheObsComponent for tracking.
+ *              ECS STATELESS: pure counting views, one line per Observation heartbeat.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    error/logging/output
- * @schedule    Conclusion
+ * @schedule    Observation
  * @created     2026-01-22
  * @modified    2026-01-29
  * @version     1.1.0
@@ -20,11 +20,11 @@
  *
  *   Reads:
  *   - PlayerMgrTag (manager entity)
- *   - PlayerStIdComponent (all players)
- *   - PlayerStStsComponent (player states)
- *   - PlayerSpawnedTag (just spawned)
- *   - PlayerDirtyTag (position changed)
- *   - PlayerChunkChangedTag (chunk changed)
+ *   - PlayerStaIdntComponent (all players)
+ *   - PlayerStaStsComponent (player states)
+ *   - PlayerSpndTag (just spawned)
+ *   - PlayerDrtyTag (position changed)
+ *   - PlayerChnkChgdTag (chunk changed)
  *
  *   Example output:
  *   [ase-player] [PlayerLogObsvSystem]
@@ -52,9 +52,11 @@ namespace ase::player {
 /**
  * @brief Logs player state observation
  *
- * @schedule Conclusion - logs at end of frame
- * @reads    PlayerMgrTag, PlayerStIdComponent, PlayerStStsComponent, PlayerSpawnedTag,
- *           PlayerDirtyTag, PlayerChunkChangedTag
+ * @schedule Observation - one heartbeat, one line (Betreiber-Entscheid 2026-08-11: der
+ *           Schedule traegt die Frequenz; die fruehere Conclusion-Registrierung tickte 60 Hz
+ *           und drosselte sich per Timer-Kruecke - genau die Klasse, die die Platte fuellte)
+ * @reads    PlayerMgrTag, PlayerStaIdntComponent, PlayerStaStsComponent, PlayerSpndTag,
+ *           PlayerDrtyTag, PlayerChnkChgdTag
  * @writes   Log output
  */
 class PlayerLogObsvSystem : public ecs::System {

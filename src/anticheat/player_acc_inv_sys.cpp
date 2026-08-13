@@ -25,7 +25,7 @@
  *   │  THIS SYSTEM: PlayerAccInvSystem (SERVER-ONLY)            │
  *   │                                                          │
  *   │  READS:                                                  │
- *   │    → PlayerStIdComponent (player identity)               │
+ *   │    → PlayerStaIdntComponent (player identity)               │
  *   │    → PlayerStaInvComponent (realised mod rate)           │
  *   │                                                          │
  *   │  WRITES (Hub):                                           │
@@ -142,7 +142,7 @@
 // Own header FIRST
 #include <ase/player/systems/anticheat/player_acc_inv_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_inv_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -182,7 +182,7 @@ void PlayerAccInvSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * (broadcast on transition only), and the warn logs ONLY on the rising edge — the flag ONSET is
      * the event, not each tick it persists.
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStaInvComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaInvComponent>();
 
     for (auto [entity, id, inv] : view.each()) {
         (void)id;  // identity component selects player entities; fields unused here

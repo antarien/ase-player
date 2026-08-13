@@ -20,7 +20,7 @@
  *
  * ARCHITECTURE (SERVER-ONLY cheat simulation, runs after PlayerCtrlMovSystem caps legit velocity):
  *
- *   Hub "PLR_CHEAT_SPEED" → PlayerSimChtSystem → PlayerStVelComponent (forced) + PlayerStaChtComponent
+ *   Hub "PLR_CHEAT_SPEED" → PlayerSimChtSystem → PlayerStaVelComponent (forced) + PlayerStaChtComponent
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -45,8 +45,8 @@ namespace ase::player {
  * @brief Backend cheat-simulation driver (SERVER-ONLY)
  *
  * @schedule Dynamics — runs after PlayerCtrlMovSystem so it overrides the input-capped velocity
- * @reads    PlayerStIdComponent (player_id → Hub owner), Hub "PLR_CHEAT_SPEED"
- * @writes   PlayerStVelComponent (forced superhuman velocity), PlayerStaChtComponent (cheat-state marker)
+ * @reads    PlayerStaIdntComponent (player_id → Hub owner), Hub "PLR_CHEAT_SPEED"
+ * @writes   PlayerStaVelComponent (forced superhuman velocity), PlayerStaChtComponent (cheat-state marker)
  */
 class PlayerSimChtSystem : public ecs::System {
 public:

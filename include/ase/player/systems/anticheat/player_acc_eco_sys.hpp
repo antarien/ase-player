@@ -46,7 +46,7 @@ namespace ase::player {
  * @brief Engine-level anti-cheat economy-transaction detector (SERVER-ONLY)
  *
  * @schedule Dynamics — after PlayerSimEcoSystem so it reads the realised induced rate
- * @reads    PlayerStIdComponent (player identity), PlayerStaEcoComponent (realised transaction rate)
+ * @reads    PlayerStaIdntComponent (player identity), PlayerStaEcoComponent (realised transaction rate)
  * @writes   Hub "ECONOMY_TRANSACTION_*" (per-player flag; the Replica forwards it as the EconomyAuditor trigger)
  */
 class PlayerAccEcoSystem : public ecs::System {

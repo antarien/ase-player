@@ -21,8 +21,8 @@
  *
  * ARCHITECTURE:
  *
- *   PlayerStIdComponent  ──> PlayerHubSessRegSystem ──> Hub
- *   PlayerStPosComponent     (writes the register)      PLR_ACTIVE_COUNT (GLOBAL)
+ *   PlayerStaIdntComponent  ──> PlayerHubSessRegSystem ──> Hub
+ *   PlayerStaPosComponent     (writes the register)      PLR_ACTIVE_COUNT (GLOBAL)
  *   (the live players)                                  PLR_OWNER (owner = hash "PLR_ACTIVE_<i>")
  *
  *   Consumers, purely over Hub values, no ase-player dependency:
@@ -66,7 +66,7 @@ namespace ase::player {
  *
  * @schedule Dynamics - after PlayerHubPosSystem, so a slot a consumer resolves already carries
  *           its PLR_POS_* under the same owner
- * @reads    PlayerStIdComponent, PlayerStPosComponent
+ * @reads    PlayerStaIdntComponent, PlayerStaPosComponent
  * @writes   Hub values: PLR_ACTIVE_COUNT (GLOBAL), PLR_OWNER (owner = hash of "PLR_ACTIVE_<i>")
  */
 class PlayerHubSessRegSystem : public ecs::System {

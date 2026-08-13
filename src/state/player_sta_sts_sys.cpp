@@ -16,7 +16,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_STS: Player State Determination)
  *
- *   [PlayerStVelComponent + PlayerStPhysComponent]
+ *   [PlayerStaVelComponent + PlayerStaPhysComponent]
  *          │
  *          │ velocity and physics data
  *          ▼
@@ -26,12 +26,12 @@
  *   │                                             │
  *   │  READS (from Components):                   │
  *   │    - PlayerInpExtComponent (inp_sprint)     │
- *   │    - PlayerStVelComponent (vx, vy, vz)      │
- *   │    - PlayerStPhysComponent (on_ground)      │
+ *   │    - PlayerStaVelComponent (vx, vy, vz)      │
+ *   │    - PlayerStaPhysComponent (on_ground)      │
  *   │    - PlayerStMovComponent (min_speed)       │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStStsComponent (sts)             │
+ *   │    - PlayerStaStsComponent (sts)             │
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ state value updated
@@ -93,7 +93,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -144,11 +144,11 @@
 #include <ase/player/systems/state/player_sta_sts_sys.hpp>
 // Components from same module
 #include <ase/player/components/input/player_inp_ext_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_phys_component.hpp>
-#include <ase/player/components/state/player_st_sts_component.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_phys_comp.hpp>
+#include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -176,7 +176,7 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerStaStsSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerStaStsSystem] Started");
+    log::debug("[PlayerStaStsSystem] Started");
 }
 
 void PlayerStaStsSystem::tick(ecs::Registry& registry, float /*dt*/) {
@@ -198,10 +198,10 @@ void PlayerStaStsSystem::tick(ecs::Registry& registry, float /*dt*/) {
      */
     auto view = registry.view<
         PlayerInpExtComponent,
-        PlayerStIdComponent,
-        PlayerStVelComponent,
-        PlayerStPhysComponent,
-        PlayerStStsComponent
+        PlayerStaIdntComponent,
+        PlayerStaVelComponent,
+        PlayerStaPhysComponent,
+        PlayerStaStsComponent
     >();
 
     for (auto [entity, inp, id, vel, physics, state] : view.each()) {
@@ -244,7 +244,7 @@ void PlayerStaStsSystem::tick(ecs::Registry& registry, float /*dt*/) {
 }
 
 void PlayerStaStsSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerStaStsSystem] Stopped");
+    log::debug("[PlayerStaStsSystem] Stopped");
 }
 
 }  // namespace ase::player

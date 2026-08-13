@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerInpExtComponent ──> PlayerCtrlMovSystem ──> PlayerStVelComponent
+ *   PlayerInpExtComponent ──> PlayerCtrlMovSystem ──> PlayerStaVelComponent
  *   (from PlayerSyncInpSystem)  (calculates velocity)   (vx, vy, vz)
  *
  * ECS SYSTEM HEADER COMPLIANCE
@@ -45,8 +45,8 @@ namespace ase::player {
  *
  * @schedule Dynamics - processes input for movement
  * @reads    PlayerInpExtComponent (input bridge from SyncSystem)
- * @reads    PlayerStPosComponent, PlayerStVelComponent, PlayerStPhysComponent, PlayerStMovComponent
- * @writes   PlayerStVelComponent (velocity from input)
+ * @reads    PlayerStaPosComponent, PlayerStaVelComponent, PlayerStaPhysComponent, PlayerStMovComponent
+ * @writes   PlayerStaVelComponent (velocity from input)
  */
 class PlayerCtrlMovSystem : public ecs::System {
 public:

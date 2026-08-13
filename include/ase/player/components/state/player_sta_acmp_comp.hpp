@@ -57,6 +57,8 @@
  * =============================================================================
  */
 
+#include <cstdint>
+
 namespace ase::player {
 
 /**
@@ -67,8 +69,10 @@ namespace ase::player {
  * player is never flagged before a baseline exists.
  */
 struct PlayerStaAcmpComponent {
-    float last_x = 0.0f;  // Previous observed X position (m)
-    float last_z = 0.0f;  // Previous observed Z position (m)
+    int32_t last_chunk_x = 0;   // Wabenadresse X der letzten Beobachtung (exakt, S2b 2026-08-11)
+    int32_t last_chunk_z = 0;   // Wabenadresse Z der letzten Beobachtung (exakt)
+    float last_local_x = 0.0f;  // Meter in der Wabe X der letzten Beobachtung
+    float last_local_z = 0.0f;  // Meter in der Wabe Z der letzten Beobachtung
 };
 
 }  // namespace ase::player

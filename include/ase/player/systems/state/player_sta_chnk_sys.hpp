@@ -18,8 +18,8 @@
  *
  * ARCHITECTURE:
  *
- *   PlayerStPosComponent ──> PlayerStaChnkSystem ──> PlayerStChkComponent
- *   (position)              (tracks chunks)         PlayerChunkChangedTag
+ *   PlayerStaPosComponent ──> PlayerStaChnkSystem ──> PlayerStaChkComponent
+ *   (position)              (tracks chunks)         PlayerChnkChgdTag
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -44,8 +44,8 @@ namespace ase::player {
  * @brief Track player chunk presence
  *
  * @schedule Dynamics - after position updates
- * @reads    PlayerStPosComponent
- * @writes   PlayerStChkComponent, PlayerChunkChangedTag
+ * @reads    PlayerStaPosComponent
+ * @writes   PlayerStaChkComponent, PlayerChnkChgdTag
  */
 class PlayerStaChnkSystem : public ecs::System {
 public:

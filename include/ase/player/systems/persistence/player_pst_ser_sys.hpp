@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE:
  *
- *   PlayerPstDtyTag + PlayerSpawnedTag → PlayerPstSerSystem → Hub + SerialJsnPndTag
+ *   PlayerPstDtyTag + PlayerSpndTag → PlayerPstSerSystem → Hub + SerialJsnPndTag
  *   (dirty player)                       (serialize)          REP_PST_*
  *
  * ECS SYSTEM HEADER COMPLIANCE
@@ -44,7 +44,7 @@ namespace ase::player {
  * @brief Player persistence serialization system
  *
  * @schedule Preservation
- * @reads    PlayerPstDtyTag, PlayerSpawnedTag, PlayerSt*Component
+ * @reads    PlayerPstDtyTag, PlayerSpndTag, PlayerSt*Component
  * @writes   Hub: REP_PST_SER, REP_PST_SYN, SerialBufJsnComponent, SerialJsnPndTag
  */
 class PlayerPstSerSystem : public ecs::System {

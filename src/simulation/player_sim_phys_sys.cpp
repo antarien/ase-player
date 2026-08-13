@@ -16,7 +16,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_SIM_PHYS: Player Physics Simulation)
  *
- *   [PlayerStVelComponent from PlayerCtrlMovSystem]
+ *   [PlayerStaVelComponent from PlayerCtrlMovSystem]
  *          │
  *          │ velocity calculated
  *          ▼
@@ -26,16 +26,16 @@
  *   │                                             │
  *   │  READS (from Components):                   │
  *   │    - PlayerInpExtComponent (trn_hgt)        │
- *   │    - PlayerStPosComponent (position)        │
- *   │    - PlayerStVelComponent (velocity)        │
- *   │    - PlayerStPhysComponent (physics state)  │
+ *   │    - PlayerStaPosComponent (position)        │
+ *   │    - PlayerStaVelComponent (velocity)        │
+ *   │    - PlayerStaPhysComponent (physics state)  │
  *   │    - PlayerStMovComponent (settings)        │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStPosComponent (x, y, z)         │
- *   │    - PlayerStVelComponent (vy on ground)    │
- *   │    - PlayerStPhysComponent (on_ground)      │
- *   │    - PlayerDirtyTag (if moving)             │
+ *   │    - PlayerStaPosComponent (x, y, z)         │
+ *   │    - PlayerStaVelComponent (vy on ground)    │
+ *   │    - PlayerStaPhysComponent (on_ground)      │
+ *   │    - PlayerDrtyTag (if moving)             │
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ position updated
@@ -97,7 +97,7 @@
  * [ ] hub::set() for writes
  * [ ] Method order: on_start → tick → on_stop
  * [ ] ALL THREE METHODS implemented
- * [ ] on_start/on_stop: log::info with system name
+ * [ ] on_start/on_stop: log::debug with system name
  * [ ] log::warn() if value EXISTS but invalid (e.g., health < 0, temp > 1000)
  * [ ] log::error() for EVERY NOT_FOUND check (see ase-log/log.hpp ERR::CAT::*)
  * [ ] Unused params: (void)dt; or commented parameter name
@@ -148,11 +148,11 @@
 #include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
 // Components from same module ONLY
 #include <ase/player/components/input/player_inp_ext_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
-#include <ase/player/components/state/player_st_vel_component.hpp>
-#include <ase/player/components/state/player_st_phys_component.hpp>
+#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
-#include <ase/player/components/tag/player_tag_dirty_component.hpp>
+#include <ase/player/components/tag/player_drty_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -172,7 +172,24 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
  */
 namespace {
 
-// No helper functions needed - all logic inlined in tick()
+/**
+ * @brief Einen Meterschritt auf die chunk-relative Bahn addieren, Uebertrag in die Wabenadresse
+ *
+ * S2b 2026-08-11 (Spiegel des P22-Schnitts, bdi_act_mov_sys.cpp): der Schritt trifft IMMER die
+ * kleinen lokalen Meter mit voller float-Praezision - `pos += vel*dt` auf absolute Weltmeter
+ * verschluckte bei 204 Mio Metern (Ort 7, ULP 16 m) jeden 0.04-m-Schritt, die Ort-Siedler
+ * standen still (live gemessen 2026-08-11 14:09).
+ *
+ * @param chunk    Wabenadresse der Achse (exakt, wird bei Kanten-Uebertritt fortgeschrieben)
+ * @param local    Meter in der Wabe [0, edge)
+ * @param delta_m  Schritt in Metern
+ * @param edge     Wabenkante in Metern (PlayerStMovComponent.chunk_size)
+ */
+void advance_local(int32_t& chunk, float& local, float delta_m, float edge) {
+    local += delta_m;
+    while (local >= edge) { local -= edge; ++chunk; }
+    while (local < 0.0f)  { local += edge; --chunk; }
+}
 
 }  // anonymous namespace
 
@@ -180,7 +197,7 @@ namespace {
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
 void PlayerSimPhysSystem::on_start(ecs::Registry& /*registry*/) {
-    log::info("[PlayerSimPhysSystem] Started");
+    log::debug("[PlayerSimPhysSystem] Started");
 }
 
 void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
@@ -189,12 +206,14 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
      */
     float ground_snap = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
     float vel_eps = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
+    float chunk_edge = MOVEMENT_DEFAULT_CHUNK_SIZE;
 
     auto mov_view = registry.view<PlayerStMovComponent>();
     for (auto [e, mov] : mov_view.each()) {
         (void)e;
         ground_snap = mov.ground_snap_dist;
         vel_eps = mov.velocity_epsilon;
+        chunk_edge = mov.chunk_size;
         break;
     }
 
@@ -204,18 +223,20 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
      */
     auto view = registry.view<
         PlayerInpExtComponent,
-        PlayerStPosComponent,
-        PlayerStVelComponent,
-        PlayerStPhysComponent
+        PlayerStaPosComponent,
+        PlayerStaVelComponent,
+        PlayerStaPhysComponent
     >();
 
     for (auto [entity, inp, pos, vel, physics] : view.each()) {
         /**
-         * STEP 3: Apply velocity to position
+         * STEP 3: Apply velocity to position (chunk-relativ, S2b 2026-08-11)
+         * Die Ebene laeuft ueber die lokale Bahn und verpufft nie; die Senkrechte bleibt
+         * kleine Meter und darf direkt integrieren.
          */
-        pos.x += vel.vx * dt;
+        advance_local(pos.chunk_x, pos.local_x, vel.vx * dt, chunk_edge);
+        advance_local(pos.chunk_z, pos.local_z, vel.vz * dt, chunk_edge);
         pos.y += vel.vy * dt;
-        pos.z += vel.vz * dt;
 
         /**
          * STEP 4: Get terrain height from PlayerInpExtComponent (SYN Pattern)
@@ -239,13 +260,13 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
          */
         float vel_len = math::sqrt(vel.vx * vel.vx + vel.vz * vel.vz);
         if (vel_len > vel_eps) {
-            registry.emplace_or_replace<PlayerDirtyTag>(entity);
+            registry.emplace_or_replace<PlayerDrtyTag>(entity);
         }
     }
 }
 
 void PlayerSimPhysSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::info("[PlayerSimPhysSystem] Stopped");
+    log::debug("[PlayerSimPhysSystem] Stopped");
 }
 
 }  // namespace ase::player

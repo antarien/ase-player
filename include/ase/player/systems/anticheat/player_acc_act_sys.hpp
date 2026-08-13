@@ -46,7 +46,7 @@ namespace ase::player {
  * @brief Engine-level anti-cheat action-rate detector (SERVER-ONLY)
  *
  * @schedule Dynamics — after PlayerSimActSystem so it reads the realised induced rate
- * @reads    PlayerStIdComponent (player identity), PlayerStaActComponent (realised action rate)
+ * @reads    PlayerStaIdntComponent (player identity), PlayerStaActComponent (realised action rate)
  * @writes   Hub "PLAYER_ACTION_*" (per-player flag; the Replica forwards it as the BehaviorWatcher trigger)
  */
 class PlayerAccActSystem : public ecs::System {

@@ -47,7 +47,7 @@ namespace ase::player {
  * @brief Backend cheat-induction for the activity axes (SERVER-ONLY)
  *
  * @schedule Dynamics — alongside PlayerSimChtSystem, before the anti-cheat detectors
- * @reads    PlayerStIdComponent (player identity), Hub "PLR_CHEAT_ACTIONS" (owner = hash(player_id))
+ * @reads    PlayerStaIdntComponent (player identity), Hub "PLR_CHEAT_ACTIONS" (owner = hash(player_id))
  * @writes   PlayerStaActComponent.action_rate, PlayerStaCmbComponent.combat_rate (realised rates)
  */
 class PlayerSimActSystem : public ecs::System {

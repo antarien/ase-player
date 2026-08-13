@@ -7,7 +7,7 @@
  * @brief       PlayerSpwnRcvSystem - creates a spawn request from the Replica-forwarded backend spawn frame
  * @description Drains transport::LANE_SPW (the Replica forwards BIN_MSG_PLAYER_SPAWN here verbatim from the
  *              ase-cli frontdoor), decodes [77][player_id:char[64]][x:f32][z:f32], and creates one
- *              PlayerReqSpawnComponent request entity. PlayerLifeSpwnSystem then turns it into the real
+ *              PlayerReqSpwnComponent request entity. PlayerLifeSpwnSystem then turns it into the real
  *              ase-player entity — a backend-driven spawn with NO human WebRTC client, induced over the
  *              correct WS transport (never a World-HTTP path). Phase 13 / Task 13.10.
  *

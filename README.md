@@ -40,14 +40,14 @@ The **ase-player** module manages all aspects of player entities in the ASE engi
 ```
 Spawn Request → Create Entity → Apply Components → Active Player
      ↓                                                    ↓
-NetworkPlrReqSpawn ────────────────────────────────→ PlayerStIdComponent
-                                                        PlayerStPosComponent
-                                                        PlayerStVelComponent
-                                                        PlayerStPhysComponent
+NetworkPlrReqSpawn ────────────────────────────────→ PlayerStaIdntComponent
+                                                        PlayerStaPosComponent
+                                                        PlayerStaVelComponent
+                                                        PlayerStaPhysComponent
                                                         PlayerStMovComponent
-                                                        PlayerStStsComponent
-                                                        PlayerStChkComponent
-                                                        PlayerSpawnedTag
+                                                        PlayerStaStsComponent
+                                                        PlayerStaChkComponent
+                                                        PlayerSpndTag
                                                         ↓
                                             Movement/Physics Loop (30Hz)
                                                         ↓
@@ -58,27 +58,27 @@ NetworkPlrReqSpawn ────────────────────�
 
 ### State Components
 
-#### PlayerStIdComponent
+#### PlayerStaIdntComponent
 ```cpp
-struct PlayerStIdComponent {
+struct PlayerStaIdntComponent {
     uint32_t client_id = 0;      // Network client ID
     uint64_t player_id = 0;      // Unique player ID
     char name[32] = {};          // Player name
 };
 ```
 
-#### PlayerStPosComponent
+#### PlayerStaPosComponent
 ```cpp
-struct PlayerStPosComponent {
+struct PlayerStaPosComponent {
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
 };
 ```
 
-#### PlayerStVelComponent
+#### PlayerStaVelComponent
 ```cpp
-struct PlayerStVelComponent {
+struct PlayerStaVelComponent {
     float dx = 0.0f;
     float dy = 0.0f;
     float dz = 0.0f;
@@ -97,9 +97,9 @@ struct PlayerStMovComponent {
 };
 ```
 
-#### PlayerStPhysComponent
+#### PlayerStaPhysComponent
 ```cpp
-struct PlayerStPhysComponent {
+struct PlayerStaPhysComponent {
     bool on_ground = false;
     float ground_height = 0.0f;
     float gravity = -9.81f;      // m/s²
@@ -108,9 +108,9 @@ struct PlayerStPhysComponent {
 };
 ```
 
-#### PlayerStStsComponent
+#### PlayerStaStsComponent
 ```cpp
-struct PlayerStStsComponent {
+struct PlayerStaStsComponent {
     float health = 100.0f;
     float max_health = 100.0f;
     bool is_alive = true;
@@ -118,9 +118,9 @@ struct PlayerStStsComponent {
 };
 ```
 
-#### PlayerStChkComponent
+#### PlayerStaChkComponent
 ```cpp
-struct PlayerStChkComponent {
+struct PlayerStaChkComponent {
     int32_t chunk_x = 0;
     int32_t chunk_y = 0;
     int32_t chunk_z = 0;
@@ -132,9 +132,9 @@ struct PlayerStChkComponent {
 
 ### Request Components
 
-#### PlayerReqSpawnComponent
+#### PlayerReqSpwnComponent
 ```cpp
-struct PlayerReqSpawnComponent {
+struct PlayerReqSpwnComponent {
     uint32_t client_id = 0;
     float spawn_x = 0.0f;
     float spawn_y = 0.0f;
@@ -143,7 +143,7 @@ struct PlayerReqSpawnComponent {
 };
 ```
 
-#### PlayerReqSpawnResComponent
+#### PlayerReqSpwnResComponent
 Result of spawn request (entity ID, success flag).
 
 #### PlayerReqDespComponent
@@ -152,29 +152,24 @@ Despawn request (player entity to destroy).
 #### PlayerReqDespResComponent
 Result of despawn request.
 
-### Cache Components
-
-#### PlayerCacheObsComponent
-Cached observer data for terrain chunk streaming.
-
 ### Tag Components
 
 #### PlayerManagerTag
 Marks the player manager singleton entity.
 
-#### PlayerSpawnedTag
+#### PlayerSpndTag
 Marks player as successfully spawned and active.
 
-#### PlayerLocalTag
+#### PlayerLoclTag
 Marks player as locally controlled (client-side authority).
 
 #### PlayerInitTag
 Marks player as initialized.
 
-#### PlayerDirtyTag
+#### PlayerDrtyTag
 Marks player state as dirty (needs network broadcast).
 
-#### PlayerChunkChangedTag
+#### PlayerChnkChgdTag
 Marks player as having changed chunks (triggers observer update).
 
 ## Systems
@@ -219,13 +214,13 @@ Updates player status:
 Tracks which terrain chunk player occupies:
 - Converts world position to chunk coordinates
 - Detects chunk boundary crossings
-- Sets `PlayerChunkChangedTag` on chunk change
+- Sets `PlayerChnkChgdTag` on chunk change
 - Updates previous chunk tracking
 
 ### PlayerNetBroadcastSystem
 Marks dirty players for network synchronization:
 - Detects state changes (position, velocity, health)
-- Sets `PlayerDirtyTag` for replication system
+- Sets `PlayerDrtyTag` for replication system
 - Throttles updates to 20Hz (replication schedule)
 
 ### PlayerLogCausalitySystem
@@ -253,7 +248,7 @@ ase::ecs::App()
 ```cpp
 // Create spawn request
 auto request = registry.create();
-registry.emplace<PlayerReqSpawnComponent>(request,
+registry.emplace<PlayerReqSpwnComponent>(request,
     client_id,
     spawn_x, spawn_y, spawn_z,
     "PlayerName"
@@ -261,7 +256,7 @@ registry.emplace<PlayerReqSpawnComponent>(request,
 
 // PlayerLifeSpawnSystem processes on next FixedUpdate
 // Check for response
-auto* response = registry.try_get<PlayerReqSpawnResComponent>(request);
+auto* response = registry.try_get<PlayerReqSpwnResComponent>(request);
 if (response && response->success) {
     Entity player_entity = response->player_entity;
     // Player spawned successfully
@@ -292,7 +287,7 @@ for (auto [entity, mov] : view.each()) {
 ### Accessing Player Position
 
 ```cpp
-auto view = registry.view<PlayerStPosComponent, PlayerStIdComponent>();
+auto view = registry.view<PlayerStaPosComponent, PlayerStaIdntComponent>();
 for (auto [entity, pos, id] : view.each()) {
     spdlog::info("Player {} at ({:.2f}, {:.2f}, {:.2f})",
                  id.name, pos.x, pos.y, pos.z);

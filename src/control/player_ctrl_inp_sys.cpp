@@ -26,13 +26,13 @@
  *   │                                             │
  *   │  READS (from Components):                   │
  *   │    - PlayerInpExtComponent (input bridge)   │
- *   │    - PlayerStIdComponent (identity)         │
- *   │    - PlayerStPosComponent (position/yaw)    │
+ *   │    - PlayerStaIdntComponent (identity)         │
+ *   │    - PlayerStaPosComponent (position/yaw)    │
  *   │    - PlayerStMovComponent (turn speed)      │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStPosComponent (yaw)             │
- *   │    - PlayerDirtyTag (if changed)            │
+ *   │    - PlayerStaPosComponent (yaw)             │
+ *   │    - PlayerDrtyTag (if changed)            │
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ player facing updated
@@ -145,10 +145,10 @@
 #include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
 // Components from same module ONLY
 #include <ase/player/components/input/player_inp_ext_component.hpp>
-#include <ase/player/components/state/player_st_id_component.hpp>
-#include <ase/player/components/state/player_st_pos_component.hpp>
+#include <ase/player/components/state/player_sta_idnt_comp.hpp>
+#include <ase/player/components/state/player_sta_yaw_comp.hpp>
 #include <ase/player/components/state/player_st_mov_component.hpp>
-#include <ase/player/components/tag/player_tag_dirty_component.hpp>
+#include <ase/player/components/tag/player_drty_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -195,9 +195,9 @@ void PlayerCtrlInpSystem::tick(ecs::Registry& registry, float dt) {
      * STEP 2: Process each player entity with input data (SYN Pattern)
      * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
-    auto view = registry.view<PlayerStIdComponent, PlayerStPosComponent, PlayerInpExtComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaYawComponent, PlayerInpExtComponent>();
 
-    for (auto [entity, identity, pos, inp] : view.each()) {
+    for (auto [entity, identity, yaw, inp] : view.each()) {
         (void)identity;
 
         /**
@@ -215,21 +215,21 @@ void PlayerCtrlInpSystem::tick(ecs::Registry& registry, float dt) {
          * STEP 4: Update player facing based on camera yaw (if moving and not in orbit mode)
          */
         if (is_moving && !is_orbit) {
-            float delta = cam_yaw - pos.yaw;
+            float delta = cam_yaw - yaw.yaw;
             while (delta > math::PI) delta -= math::TWO_PI;
             while (delta < -math::PI) delta += math::TWO_PI;
 
             float max_turn = turn_speed * dt;
             if (math::abs(delta) < max_turn) {
-                pos.yaw = cam_yaw;
+                yaw.yaw = cam_yaw;
             } else {
-                pos.yaw += (delta > 0.0f ? max_turn : -max_turn);
+                yaw.yaw += (delta > 0.0f ? max_turn : -max_turn);
             }
 
-            while (pos.yaw < 0.0f) pos.yaw += math::TWO_PI;
-            while (pos.yaw >= math::TWO_PI) pos.yaw -= math::TWO_PI;
+            while (yaw.yaw < 0.0f) yaw.yaw += math::TWO_PI;
+            while (yaw.yaw >= math::TWO_PI) yaw.yaw -= math::TWO_PI;
 
-            registry.emplace_or_replace<PlayerDirtyTag>(entity);
+            registry.emplace_or_replace<PlayerDrtyTag>(entity);
         }
     }
 }

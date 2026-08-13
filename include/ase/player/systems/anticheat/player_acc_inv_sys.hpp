@@ -47,7 +47,7 @@ namespace ase::player {
  * @brief Engine-level anti-cheat inventory-modification detector (SERVER-ONLY)
  *
  * @schedule Dynamics — after PlayerSimEcoSystem so it reads the realised induced rate
- * @reads    PlayerStIdComponent (player identity), PlayerStaInvComponent (realised modification rate)
+ * @reads    PlayerStaIdntComponent (player identity), PlayerStaInvComponent (realised modification rate)
  * @writes   Hub "INVENTORY_MODIFICATION_*" (per-player flag; the Replica forwards it as the EconomyAuditor trigger)
  */
 class PlayerAccInvSystem : public ecs::System {

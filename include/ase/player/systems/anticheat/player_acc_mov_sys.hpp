@@ -19,7 +19,7 @@
  *
  * ARCHITECTURE (SERVER-ONLY authority — never transpiled to the client):
  *
- *   PlayerStVelComponent → PlayerAccMovSystem → Hub "PLAYER_MOVEMENT_SUSPICIOUS"
+ *   PlayerStaVelComponent → PlayerAccMovSystem → Hub "PLAYER_MOVEMENT_SUSPICIOUS"
  *   (realised velocity)     (vx*vx+vz*vz vs bound)  (1.0 suspicious / 0.0 clear)
  *
  * ECS SYSTEM HEADER COMPLIANCE
@@ -45,7 +45,7 @@ namespace ase::player {
  * @brief Engine-level anti-cheat movement detector (SERVER-ONLY)
  *
  * @schedule Dynamics — runs after PlayerHubPosSystem so it reads the realised post-physics velocity
- * @reads    PlayerStIdComponent (player identity), PlayerStVelComponent (realised velocity)
+ * @reads    PlayerStaIdntComponent (player identity), PlayerStaVelComponent (realised velocity)
  * @writes   Hub "PLAYER_MOVEMENT_SUSPICIOUS" (per-player flag; the Replica forwards it as the MovementValidator trigger)
  */
 class PlayerAccMovSystem : public ecs::System {

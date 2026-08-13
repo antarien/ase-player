@@ -36,6 +36,7 @@
 #include <ase/player/systems/state/player_sta_sts_sys.hpp>
 #include <ase/player/systems/state/player_sta_chnk_sys.hpp>
 #include <ase/player/systems/hub/player_hub_pos_sys.hpp>
+#include <ase/player/systems/hub/player_hub_roam_sys.hpp>
 #include <ase/player/systems/hub/player_hub_sess_reg_sys.hpp>
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
@@ -47,6 +48,8 @@
 #include <ase/player/systems/anticheat/player_acc_eco_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_inv_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_cht_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_wand_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_rest_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_act_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_com_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_eco_sys.hpp>
@@ -72,7 +75,7 @@ struct PlayerModule {
         /**
          * RECEPTION (Schedule::Reception)
          * Drain the Replica-forwarded backend spawn frame (BIN_MSG_PLAYER_SPAWN=77, LANE_SPW) and create a
-         * PlayerReqSpawnComponent request. Runs in Reception (before Dynamics) so PlayerLifeSpwnSystem spawns
+         * PlayerReqSpwnComponent request. Runs in Reception (before Dynamics) so PlayerLifeSpwnSystem spawns
          * the entity the SAME tick — a backend-driven spawn with no human WebRTC client (Phase 13 Task 13.10).
          */
         app.add_system<PlayerSpwnRcvSystem>(ecs::Schedule::Reception);
@@ -108,6 +111,27 @@ struct PlayerModule {
 
         app.add_system_with<PlayerSimEcoSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlMovSystem");
+
+        /**
+         * THE JOURNEY OF A BACKEND-DRIVEN WALKER (the phases first, the hub write after them)
+         *
+         * Two phases, two systems, two tags - a leg held on one heading and a pause that ends
+         * with a new one. Neither touches velocity or position: PlayerHubRoamSystem lays the
+         * decision on PLR_INP_FWD / PLR_CAM_YAW / PLR_INP_SPRINT and from there a walker is
+         * indistinguishable from a human client, because it travels the identical seam.
+         *
+         * They run BEFORE PlayerCtrlMovSystem in the same tier is NOT what happens and must not
+         * be arranged: the input reaches the mover through PlayerSyncInpSystem (Integration),
+         * exactly as a human client's does, so a walker is one tick behind its own decision -
+         * the same tick a human is behind their keyboard.
+         */
+        app.add_system<PlayerSimWandSystem>(ecs::Schedule::Dynamics);
+
+        app.add_system_with<PlayerSimRestSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimWandSystem");
+
+        app.add_system_with<PlayerHubRoamSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimRestSystem");
 
         app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimChtSystem");
@@ -179,7 +203,14 @@ struct PlayerModule {
          * CONCLUSION (Schedule::Conclusion)
          * Debug/logging runs after all other schedules.
          */
-        app.add_system<PlayerLogObsvSystem>(ecs::Schedule::Conclusion);
+        /**
+         * HERZSCHLAG STATT TIMER-KRUECKE (Betreiber-Entscheid 2026-08-11): ein Zustands-Log
+         * lebt im Takt seiner Aussage. In Conclusion (60 Hz Frame-Tier) tickte dieses System
+         * sechzigmal je Sekunde und drosselte sich selbst per log_interval_timer - die Platte
+         * ist heute an genau dieser Klasse vollgelaufen. Observation (1 Hz) IST das
+         * Monitoring-Herz; der Schedule traegt die Frequenz, kein Gate, kein Timer.
+         */
+        app.add_system<PlayerLogObsvSystem>(ecs::Schedule::Observation);
 
         /**
          * INTEGRATION (Schedule::Integration)

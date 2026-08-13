@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerStVelComponent ──> PlayerSimPhysSystem ──> PlayerStPosComponent
+ *   PlayerStaVelComponent ──> PlayerSimPhysSystem ──> PlayerStaPosComponent
  *   (velocity)                (applies physics)       (position updated)
  *
  * ECS SYSTEM HEADER COMPLIANCE
@@ -44,8 +44,8 @@ namespace ase::player {
  * @brief Apply physics simulation to player entities (SHARED)
  *
  * @schedule Dynamics - applies physics simulation
- * @reads    PlayerInpExtComponent (terrain height), PlayerStVelComponent
- * @writes   PlayerStPosComponent (position), PlayerStPhysComponent (on_ground)
+ * @reads    PlayerInpExtComponent (terrain height), PlayerStaVelComponent
+ * @writes   PlayerStaPosComponent (position), PlayerStaPhysComponent (on_ground)
  */
 class PlayerSimPhysSystem : public ecs::System {
 public:
