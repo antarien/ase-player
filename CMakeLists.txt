@@ -142,6 +142,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/tag/player_mgr_tag.hpp
     include/ase/player/components/tag/player_pst_dty_tag.hpp
     include/ase/player/components/tag/player_spnd_tag.hpp
+    include/ase/player/components/tag/player_mig_stg_pnd_tag.hpp
     include/ase/player/components/tag/player_roam_wand_tag.hpp
     include/ase/player/components/tag/player_roam_rest_tag.hpp
     include/ase/player/components/tag/player_roam_run_tag.hpp

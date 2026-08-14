@@ -9,7 +9,7 @@
  * @category    entity/actor/player
  * @schedule    Observation
  * @created     2026-07-28
- * @modified    2026-07-28
+ * @modified    2026-08-14
  * @version     1.0.0
  *
  * CAUSAL CHAIN (PLR_MIG_SER: armed migrate request → staged PlayerSnap bytes)
@@ -31,12 +31,27 @@
  *   │                                                             │
  *   │  WRITES:                                                    │
  *   │    - PlayerStaEpchComponent (seed player_ref, bump epoch)   │
- *   │    - PlayerBufMigComponent (the staged 42-byte PlayerSnap)  │
+ *   │    - PlayerMigStgPndTag (watch pass, hand-over marker)      │
+ *   │    - PlayerBufMigComponent (stage pass, after the walk -    │
+ *   │      the watch pass excludes this very type)                │
  *   └─────────────────────────────────────────────────────────────┘
  *          │
  *          │ exactly one staged image per armed request (buffer excluded from re-entry)
  *          ▼
  *   [WorldPlrMigSndSystem wraps the buffer into [100][epoch][proj][dst] and ships it]
+ *
+ *   TWO PASSES, and the exclude did NOT move: the buffer exclusion is the re-entry barrier ACROSS
+ *   ticks (it is what makes the epoch bump exactly once per armed migrate), the marker is the
+ *   hand-over WITHIN one tick. Merging them would let the next tick re-enter the walk and bump the
+ *   epoch a second time - test_player_mig.cpp:110 covers exactly that.
+ *
+ *   LOG ORDER, measured 2026-08-14: the stage pass walks the marker pool, and EnTT iterates a pool
+ *   BACKWARDS (storage.hpp:553 - begin() starts at size() and counts down). With several players
+ *   migrating in the same tick the "PlayerSnap staged" lines therefore appear in a different order
+ *   than before. No order was ever guaranteed: the watch pass runs over six pools and EnTT drives
+ *   the SMALLEST one, which shifts with the population. Line text, line count and every value are
+ *   unchanged - only the sequence among simultaneous migrates. Noted here so nobody diffs two logs
+ *   and hunts a ghost.
  *
  * HUB Pattern (ARCH_ASE_HUB_API v2.0)
  *
@@ -154,6 +169,10 @@
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_epch_comp.hpp>
 #include <ase/player/components/buffer/player_buf_mig_comp.hpp>
+// Transient marker of the watch pass: PlayerBufMigComponent sits in that walk's entt::exclude, so
+// the buffer is staged by the pass after the walk. The exclude itself is untouched - it is the
+// re-entry barrier across ticks, this marker is the hand-over within one.
+#include <ase/player/components/tag/player_mig_stg_pnd_tag.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
@@ -213,22 +232,40 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * the epoch bumps exactly once per migrate. player_ref seeds lazily from the UUID string
      * (FNV-1a32 - the u32 identity the frozen PlayerSnap carries).
      */
-    for (auto [plr_ent, req, pos, yaw, vel, sts, idc] :
+    for (auto plr_ent :
          registry.view<PlayerReqMigComponent, PlayerStaPosComponent, PlayerStaYawComponent,
                        PlayerStaVelComponent, PlayerStaStsComponent, PlayerStaIdntComponent>(
-             entt::exclude<PlayerBufMigComponent>).each()) {
+             entt::exclude<PlayerBufMigComponent>)) {
         auto& epch = registry.get_or_emplace<PlayerStaEpchComponent>(plr_ent);
         if (epch.player_ref == 0u) {
-            epch.player_ref = entt::hashed_string::value(idc.player_id);
+            epch.player_ref =
+                entt::hashed_string::value(registry.get<PlayerStaIdntComponent>(plr_ent).player_id);
         }
         ++epch.player_epoch;
+        registry.emplace_or_replace<PlayerMigStgPndTag>(plr_ent);
+    }
 
-        /**
-         * DER DRAHT BLEIBT WELTMETER (eingefrorener PlayerSnap, 4x f32): die Summe
-         * chunk * Kante + local ist an Wabenkanten exakt (S2b 2026-08-11); das Wire-v2
-         * mit (chunk:i32, local:f32) ist TASKREGISTER:1724, Entscheidungsklasse Betreiber.
-         */
-        auto& snap_buf = registry.emplace<PlayerBufMigComponent>(plr_ent);
+    /**
+     * STAGE PASS
+     * Writes the buffer the watch pass armed. PlayerBufMigComponent sits in the walk's
+     * entt::exclude, so emplacing it from inside dropped the row out of the very set being
+     * iterated. Nothing had to be carried out: every value below still sits on the entity, and
+     * snap_len is produced by the encode itself. The epoch was bumped ONCE in the walk above and
+     * is only read here.
+     *
+     * DER DRAHT BLEIBT WELTMETER (eingefrorener PlayerSnap, 4x f32): die Summe
+     * chunk * Kante + local ist an Wabenkanten exakt (S2b 2026-08-11); das Wire-v2
+     * mit (chunk:i32, local:f32) ist TASKREGISTER:1724, Entscheidungsklasse Betreiber.
+     */
+    for (auto stg_ent : registry.view<PlayerMigStgPndTag>()) {
+        const auto& epch = registry.get<PlayerStaEpchComponent>(stg_ent);
+        const auto& req = registry.get<PlayerReqMigComponent>(stg_ent);
+        const auto& pos = registry.get<PlayerStaPosComponent>(stg_ent);
+        const auto& yaw = registry.get<PlayerStaYawComponent>(stg_ent);
+        const auto& vel = registry.get<PlayerStaVelComponent>(stg_ent);
+        const auto& sts = registry.get<PlayerStaStsComponent>(stg_ent);
+
+        auto& snap_buf = registry.emplace<PlayerBufMigComponent>(stg_ent);
         snap_buf.snap_len = encode_player_snap(
             snap_buf.snap, epch.player_ref, epch.player_epoch,
             static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x,
@@ -239,6 +276,7 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
                   epch.player_ref, epch.player_epoch, req.dst_region, req.proj_hash,
                   snap_buf.snap_len);
     }
+    registry.clear<PlayerMigStgPndTag>();
 }
 
 void PlayerMigSerSystem::on_stop(ecs::Registry& registry) {
