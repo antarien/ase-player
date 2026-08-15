@@ -144,10 +144,10 @@
 // Own header FIRST
 #include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/input/player_inp_ext_component.hpp>
+#include <ase/player/components/input/player_inp_ext_comp.hpp>
+#include <ase/player/components/input/player_inp_cam_comp.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -184,29 +184,26 @@ void PlayerCtrlInpSystem::tick(ecs::Registry& registry, float dt) {
      * STEP 1: Get turn speed from manager
      */
     float turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
-    auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, mov] : mov_view.each()) {
-        (void)e;
-        turn_speed = mov.turn_speed;
-        break;
-    }
 
     /**
      * STEP 2: Process each player entity with input data (SYN Pattern)
      * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
-    auto view = registry.view<PlayerStaIdntComponent, PlayerStaYawComponent, PlayerInpExtComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaYawComponent,
+                              PlayerInpExtComponent, PlayerInpCamComponent>();
 
-    for (auto [entity, identity, yaw, inp] : view.each()) {
+    for (auto [entity, identity, yaw, inp, cam] : view.each()) {
         (void)identity;
 
         /**
-         * STEP 3: Read input values from PlayerInpExtComponent (SYN Pattern)
+         * STEP 3: Read input values from the bridge components (SYN Pattern).
+         * The axes live in PlayerInpExtComponent, the camera values in
+         * PlayerInpCamComponent - split 2026-08-15 along the consumption.
          */
         float forward = inp.inp_fwd;
         float strafe = inp.inp_str;
-        float cam_yaw = inp.cam_yaw;
-        float orbit_mode = inp.cam_orb;
+        float cam_yaw = cam.cam_yaw;
+        float orbit_mode = cam.cam_orb;
 
         bool is_moving = (forward != 0.0f || strafe != 0.0f);
         bool is_orbit = (orbit_mode > 0.5f);

@@ -166,7 +166,6 @@
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_chk_comp.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
 #include <ase/player/components/state/player_sta_roam_comp.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
 #include <ase/player/components/tag/player_spnd_tag.hpp>
@@ -227,48 +226,23 @@ void PlayerLifeSpwnSystem::on_start(ecs::Registry& registry) {
         auto mgr = registry.create();
         registry.emplace<PlayerMgrTag>(mgr);
 
-        auto& mov = registry.emplace<PlayerStMovComponent>(mgr);
-        mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
-        mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
-        mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
-        mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
-        mov.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
-        mov.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
-        mov.ground_snap_dist = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
-        mov.turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
-        mov.min_speed_threshold = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
-        mov.velocity_epsilon = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
-        mov.eye_height = MOVEMENT_DEFAULT_EYE_HEIGHT;
-        mov.chunk_size = MOVEMENT_DEFAULT_CHUNK_SIZE;
-
+        /**
+         * The manager entity used to carry PlayerStMovComponent, filled with twelve
+         * MOVEMENT_DEFAULT_* constants (2026-08-15 removed). Every consumer read the
+         * same constants back, so the component was a per-entity duplicate of
+         * types.hpp - forbidden by CLAUDE.md ("'Config-Components' with constants =
+         * FORBIDDEN"). The manager tag itself stays: it marks the singleton entity.
+         */
         log::info("[PlayerLifeSpwnSystem] Created player manager entity");
     }
 }
 
 void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Get movement settings from manager
+     * STEP 1: Movement settings come straight from types.hpp (2026-08-15).
+     * They used to be copied into PlayerStMovComponent and read back through a
+     * manager lookup; every field only ever held a MOVEMENT_DEFAULT_* constant.
      */
-    PlayerStMovComponent mov;
-    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
-    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
-    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
-    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
-    mov.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
-    mov.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
-    mov.ground_snap_dist = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
-    mov.turn_speed = MOVEMENT_DEFAULT_TURN_SPEED;
-    mov.min_speed_threshold = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
-    mov.velocity_epsilon = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
-    mov.eye_height = MOVEMENT_DEFAULT_EYE_HEIGHT;
-    mov.chunk_size = MOVEMENT_DEFAULT_CHUNK_SIZE;
-
-    auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, existing_mov] : mov_view.each()) {
-        (void)e;
-        mov = existing_mov;
-        break;
-    }
 
     /**
      * STEP 2: Process local spawn requests (iterator pattern for entity creation)
@@ -324,10 +298,10 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
              * ULP 16 m) verpuffte sonst jeder Schritt (Muster character_life_spwn_sys.cpp).
              */
             auto& pos = registry.emplace<PlayerStaPosComponent>(result_entity);
-            pos.chunk_x = static_cast<int32_t>(math::floor(request.x / mov.chunk_size));
-            pos.chunk_z = static_cast<int32_t>(math::floor(request.z / mov.chunk_size));
-            pos.local_x = request.x - static_cast<float>(pos.chunk_x) * mov.chunk_size;
-            pos.local_z = request.z - static_cast<float>(pos.chunk_z) * mov.chunk_size;
+            pos.chunk_x = static_cast<int32_t>(math::floor(request.x / MOVEMENT_DEFAULT_CHUNK_SIZE));
+            pos.chunk_z = static_cast<int32_t>(math::floor(request.z / MOVEMENT_DEFAULT_CHUNK_SIZE));
+            pos.local_x = request.x - static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE;
+            pos.local_z = request.z - static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE;
             pos.y = ground_y;
 
             registry.emplace<PlayerStaYawComponent>(result_entity);
@@ -376,12 +350,12 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             const auto* errand = registry.try_get<PlayerReqRoamComponent>(request_entity);
             if (errand != nullptr) {
                 const uint32_t owner = static_cast<uint32_t>(result_entity);
-                const bool runs = errand->speed > mov.walk_speed;
-                const float gear = runs ? mov.run_speed : mov.walk_speed;
-                if (errand->speed > mov.run_speed) {
+                const bool runs = errand->speed > MOVEMENT_DEFAULT_WALK_SPEED;
+                const float gear = runs ? MOVEMENT_DEFAULT_RUN_SPEED : MOVEMENT_DEFAULT_WALK_SPEED;
+                if (errand->speed > MOVEMENT_DEFAULT_RUN_SPEED) {
                     log::warn("[PlayerLifeSpwnSystem] Errand asked for {} m/s, the movement "
                               "authority carries {} m/s - the walker is capped, not exempted",
-                              errand->speed, mov.run_speed);
+                              errand->speed, MOVEMENT_DEFAULT_RUN_SPEED);
                 }
                 auto& roam = registry.emplace<PlayerStaRoamComponent>(result_entity);
                 roam.speed = errand->speed;

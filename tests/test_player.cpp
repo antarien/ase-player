@@ -204,13 +204,9 @@ void test_spawn_via_lifecycle_system() {
     // Setup terrain chunk for position (100, 200) → chunk (6, 12)
     setup_terrain_chunk(registry, 6, 12, 10.0f);
 
-    // Create PlayerStMovComponent singleton (needed for spawn)
-    auto mov_entity = registry.create();
-    auto& mov = registry.emplace<PlayerStMovComponent>(mov_entity);
-    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
-    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
-    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
-    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
+    // No movement-settings singleton is needed any more: PlayerStMovComponent was a
+    // per-entity copy of the MOVEMENT_DEFAULT_* constants and was removed 2026-08-15.
+    // The systems read types.hpp directly.
 
     // Spawn player via lifecycle system
     auto entity = do_spawn_request(registry, lifecycle, "spawn_test", 100.0f, 200.0f);
@@ -255,10 +251,6 @@ void test_despawn_via_lifecycle_system() {
     // Setup terrain chunk at (0,0) with height 0.0
     setup_terrain_chunk(registry, 0, 0, 0.0f);
 
-    // Create PlayerStMovComponent singleton
-    auto mov_entity = registry.create();
-    registry.emplace<PlayerStMovComponent>(mov_entity);
-
     // Spawn and despawn
     do_spawn_request(registry, lifecycle, "despawn_test", 0.0f, 0.0f);
     assert(do_find_player(registry, "despawn_test") != ase::ecs::NullEntity);
@@ -285,10 +277,6 @@ void test_get_all_players() {
     // Setup terrain chunks for other positions
     setup_terrain_chunk(registry, 0, 0, 0.0f);
     setup_terrain_chunk(registry, 1, 1, 0.0f);
-
-    // Create PlayerStMovComponent singleton
-    auto mov_entity = registry.create();
-    registry.emplace<PlayerStMovComponent>(mov_entity);
 
     // Spawn multiple players
     do_spawn_request(registry, lifecycle, "player_a", 0.0f, 0.0f);

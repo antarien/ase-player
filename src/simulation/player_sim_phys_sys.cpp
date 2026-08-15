@@ -147,11 +147,10 @@
 // Own header FIRST
 #include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/input/player_inp_ext_component.hpp>
+#include <ase/player/components/input/player_inp_trn_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -208,27 +207,19 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
     float vel_eps = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
     float chunk_edge = MOVEMENT_DEFAULT_CHUNK_SIZE;
 
-    auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, mov] : mov_view.each()) {
-        (void)e;
-        ground_snap = mov.ground_snap_dist;
-        vel_eps = mov.velocity_epsilon;
-        chunk_edge = mov.chunk_size;
-        break;
-    }
 
     /**
      * STEP 2: Process each player entity with input data (SYN Pattern)
      * Reads terrain height from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
      */
     auto view = registry.view<
-        PlayerInpExtComponent,
+        PlayerInpTrnComponent,
         PlayerStaPosComponent,
         PlayerStaVelComponent,
         PlayerStaPhysComponent
     >();
 
-    for (auto [entity, inp, pos, vel, physics] : view.each()) {
+    for (auto [entity, trn, pos, vel, physics] : view.each()) {
         /**
          * STEP 3: Apply velocity to position (chunk-relativ, S2b 2026-08-11)
          * Die Ebene laeuft ueber die lokale Bahn und verpufft nie; die Senkrechte bleibt
@@ -239,10 +230,10 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
         pos.y += vel.vy * dt;
 
         /**
-         * STEP 4: Get terrain height from PlayerInpExtComponent (SYN Pattern)
+         * STEP 4: Get terrain height from PlayerInpTrnComponent (SYN Pattern)
          * Terrain height was synced from Hub by PlayerSyncInpSystem
          */
-        float ground_height = inp.trn_hgt;
+        float ground_height = trn.trn_hgt;
 
         /**
          * STEP 5: Ground collision detection and response

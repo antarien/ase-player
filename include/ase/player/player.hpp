@@ -55,7 +55,6 @@
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_chk_comp.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
 #include <ase/player/components/state/player_sta_roam_comp.hpp>
 
 /**

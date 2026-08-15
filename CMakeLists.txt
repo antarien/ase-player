@@ -100,10 +100,7 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     include/ase/player/components/state/player_sta_chk_comp.hpp
     include/ase/player/components/state/player_sta_idnt_comp.hpp
-    include/ase/player/components/state/player_st_inp_cam_component.hpp
     include/ase/player/components/state/player_sta_inp_mov_comp.hpp
-    include/ase/player/components/state/player_st_inp_net_component.hpp
-    include/ase/player/components/state/player_st_mov_component.hpp
     include/ase/player/components/state/player_sta_phys_comp.hpp
     include/ase/player/components/state/player_sta_pos_comp.hpp
     include/ase/player/components/state/player_sta_sts_comp.hpp
@@ -121,7 +118,9 @@ add_library(${PROJECT_NAME} SHARED
     HEADER FILES - COMPONENTS (input/)
     External input components.
     ]]
-    include/ase/player/components/input/player_inp_ext_component.hpp
+    include/ase/player/components/input/player_inp_ext_comp.hpp
+    include/ase/player/components/input/player_inp_cam_comp.hpp
+    include/ase/player/components/input/player_inp_trn_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (buffer/)

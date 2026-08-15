@@ -159,7 +159,9 @@
 // Own header FIRST
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
 // Components from same module
-#include <ase/player/components/input/player_inp_ext_component.hpp>
+#include <ase/player/components/input/player_inp_ext_comp.hpp>
+#include <ase/player/components/input/player_inp_cam_comp.hpp>
+#include <ase/player/components/input/player_inp_trn_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 // types.hpp for constants
@@ -261,16 +263,26 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
 
         /**
-         * STEP 4: Write to PlayerInpExtComponent (bridge to calc systems)
+         * STEP 4: Write the three bridge components (bridge to calc systems).
+         *
+         * One component carried all seven values until 2026-08-15 and exceeded the
+         * five-field limit. The split follows the CONSUMPTION, not the field order:
+         * the four input axes share their readers, the two camera values share
+         * theirs, and the terrain height has exactly one reader of its own. All
+         * three are written here, in the same pass, from the same hub reads.
          */
         auto& inp = registry.get_or_emplace<PlayerInpExtComponent>(entity);
         inp.inp_fwd = inp_fwd;
         inp.inp_str = inp_str;
         inp.inp_sprint = inp_sprint;
         inp.inp_jump = inp_jump;
-        inp.cam_yaw = cam_yaw;
-        inp.cam_orb = cam_orb;
-        inp.trn_hgt = trn_hgt;
+
+        auto& cam = registry.get_or_emplace<PlayerInpCamComponent>(entity);
+        cam.cam_yaw = cam_yaw;
+        cam.cam_orb = cam_orb;
+
+        auto& trn = registry.get_or_emplace<PlayerInpTrnComponent>(entity);
+        trn.trn_hgt = trn_hgt;
     }
 }
 

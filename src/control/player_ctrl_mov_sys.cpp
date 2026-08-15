@@ -145,11 +145,11 @@
 // Own header FIRST
 #include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/input/player_inp_ext_component.hpp>
+#include <ase/player/components/input/player_inp_ext_comp.hpp>
+#include <ase/player/components/input/player_inp_cam_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -182,22 +182,16 @@ void PlayerCtrlMovSystem::on_start(ecs::Registry& /*registry*/) {
 
 void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
     /**
-     * STEP 1: Get movement settings from manager
+     * STEP 1: Movement settings come straight from types.hpp (2026-08-15).
+     *
+     * They used to be copied into PlayerStMovComponent per entity and read back
+     * here through a manager lookup that took the FIRST arbitrary entity carrying
+     * the component. Every field only ever held a MOVEMENT_DEFAULT_* constant, so
+     * the component was a per-entity duplicate of types.hpp - forbidden by
+     * CLAUDE.md ("'Config-Components' with constants = FORBIDDEN"). The fallback
+     * block that stood here was itself the proof: without a carrier entity the
+     * code fell back to exactly these constants.
      */
-    PlayerStMovComponent mov;
-    mov.walk_speed = MOVEMENT_DEFAULT_WALK_SPEED;
-    mov.run_speed = MOVEMENT_DEFAULT_RUN_SPEED;
-    mov.jump_impulse = MOVEMENT_DEFAULT_JUMP_IMPULSE;
-    mov.gravity = MOVEMENT_DEFAULT_GRAVITY;
-    mov.ground_friction = MOVEMENT_DEFAULT_GROUND_FRICTION;
-    mov.air_control = MOVEMENT_DEFAULT_AIR_CONTROL;
-
-    auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, m] : mov_view.each()) {
-        (void)e;
-        mov = m;
-        break;
-    }
 
     /**
      * STEP 2: Process each player entity with input data (SYN Pattern)
@@ -205,20 +199,23 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
      */
     auto view = registry.view<
         PlayerInpExtComponent,
+        PlayerInpCamComponent,
         PlayerStaPosComponent,
         PlayerStaVelComponent,
         PlayerStaPhysComponent
     >();
 
-    for (auto [entity, inp, pos, vel, physics] : view.each()) {
+    for (auto [entity, inp, cam, pos, vel, physics] : view.each()) {
         /**
-         * STEP 3: Read input values from PlayerInpExtComponent (SYN Pattern)
+         * STEP 3: Read input values from the bridge components (SYN Pattern).
+         * The axes live in PlayerInpExtComponent, the camera yaw in
+         * PlayerInpCamComponent - split 2026-08-15 along the consumption.
          */
         float forward = inp.inp_fwd;
         float strafe = inp.inp_str;
         bool sprint = (inp.inp_sprint > 0.5f);
         bool jump = (inp.inp_jump > 0.5f);
-        float movement_yaw = inp.cam_yaw;
+        float movement_yaw = cam.cam_yaw;
 
         /**
          * STEP 4: Calculate movement direction using ase-math
@@ -238,8 +235,8 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
         /**
          * STEP 5: Calculate target velocity
          */
-        float speed = sprint ? mov.run_speed : mov.walk_speed;
-        float control = physics.on_ground ? 1.0f : mov.air_control;
+        float speed = sprint ? MOVEMENT_DEFAULT_RUN_SPEED : MOVEMENT_DEFAULT_WALK_SPEED;
+        float control = physics.on_ground ? 1.0f : MOVEMENT_DEFAULT_AIR_CONTROL;
 
         float target_vx = move_x * speed;
         float target_vz = move_z * speed;
@@ -248,7 +245,7 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
          * STEP 6: Apply acceleration based on ground state
          */
         if (physics.on_ground) {
-            float accel = mov.ground_friction * dt;
+            float accel = MOVEMENT_DEFAULT_GROUND_FRICTION * dt;
             accel = math::min(accel, 1.0f);
             vel.vx += (target_vx - vel.vx) * accel;
             vel.vz += (target_vz - vel.vz) * accel;
@@ -261,7 +258,7 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
          * STEP 7: Handle jump
          */
         if (jump && physics.on_ground) {
-            vel.vy = mov.jump_impulse;
+            vel.vy = MOVEMENT_DEFAULT_JUMP_IMPULSE;
             physics.on_ground = false;
         }
 
@@ -269,7 +266,7 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
          * STEP 8: Apply gravity
          */
         if (!physics.on_ground && physics.gravity_enabled) {
-            vel.vy -= mov.gravity * dt;
+            vel.vy -= MOVEMENT_DEFAULT_GRAVITY * dt;
         }
 
         (void)pos;  // Position read for potential future use

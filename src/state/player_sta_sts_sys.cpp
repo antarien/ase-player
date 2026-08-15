@@ -143,11 +143,10 @@
 // Own header FIRST
 #include <ase/player/systems/state/player_sta_sts_sys.hpp>
 // Components from same module
-#include <ase/player/components/input/player_inp_ext_component.hpp>
+#include <ase/player/components/input/player_inp_ext_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -185,12 +184,6 @@ void PlayerStaStsSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * PlayerStMovComponent on manager entity defines min_speed_threshold.
      */
     float min_speed = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
-    auto mov_view = registry.view<PlayerStMovComponent>();
-    for (auto [e, mov] : mov_view.each()) {
-        (void)e;
-        min_speed = mov.min_speed_threshold;
-        break;
-    }
 
     /**
      * STEP 2: Create view for player entities with required components (SYN Pattern)

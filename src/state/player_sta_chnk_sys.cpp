@@ -142,7 +142,6 @@
 // Components from same module ONLY
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_chk_comp.hpp>
-#include <ase/player/components/state/player_st_mov_component.hpp>
 #include <ase/player/components/tag/player_chnk_chgd_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
