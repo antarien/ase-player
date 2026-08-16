@@ -196,11 +196,30 @@ void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
          * die Summe chunk * Kante + local ist an Wabenkanten exakt; gefuehrt wird die
          * Position chunk-relativ, nur die SICHT ist die Summe (Muster spatial_hub_bct).
          */
+        /* DER TAUSCH AN DER NAHT - ER STAND ALS VORSCHRIFT IM COMPONENT UND WURDE NIE AUSGEFUEHRT.
+         *
+         * `player_sta_pos_comp.hpp` fuehrt `y` als "Weltmeter entlang der Senkrechten" und sagt im
+         * Kopf woertlich: "GIS-Seite ist dagegen Z die Hoehenachse. Wer Werte zwischen beiden
+         * Welten traegt, TAUSCHT." Diese Zeilen trugen die Werte zwischen beiden Welten und
+         * tauschten NICHT: `PLR_POS_Y` bekam `pos.y` (die Senkrechte), `PLR_POS_Z` die zweite
+         * Waagerechte - invers zur Deklaration.
+         *
+         * `hub_metrics.json` hatte den Ausfall vorhergesagt: PLR_POS_Y ist dort "HORIZONTAL AXIS,
+         * the second of two - never the height", und der Satz daneben lautet "A band derived from
+         * this axis is silently wrong and no test reports it". Genau so ist es gekommen - kein Test
+         * ist je rot geworden, weil beide Seiten dieselbe Verwechslung trugen oder die Achse gar
+         * nicht deuteten.
+         *
+         * ase-spatial fuehrt denselben Tausch seit dem 2026-08-14 aus (`spatial_hub_bct_sys.cpp`:
+         * SPT_POS_Y ist die zweite Waagerechte, SPT_POS_Z die Hoehe). Ab hier tun es beide Kanaele
+         * gleich, und ein Verbraucher, der PLR_POS_* und SPT_POS_* in dieselben drei Felder kippt,
+         * bekommt fuer beide Entitaetsarten dasselbe - was `terrain_strm_obs_sync_sys.cpp` genau
+         * tut und bis heute nicht konnte. */
         hub::set(registry, owner, "PLR_POS_X"_hs,
                  static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x);
-        hub::set(registry, owner, "PLR_POS_Y"_hs, pos.y);
-        hub::set(registry, owner, "PLR_POS_Z"_hs,
+        hub::set(registry, owner, "PLR_POS_Y"_hs,
                  static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_z);
+        hub::set(registry, owner, "PLR_POS_Z"_hs, pos.y);
         hub::set(registry, owner, "PLR_ENTITY_ID"_hs, static_cast<float>(owner));
         hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
     }
