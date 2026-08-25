@@ -74,7 +74,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -194,8 +194,8 @@ void PlayerAccActSystem::tick(ecs::Registry& registry, float /*dt*/) {
         hub::set(registry, owner, "PLAYER_ACTION_*"_hs, suspicious ? 1.0f : 0.0f);
 
         if (suspicious && !was_suspicious) {
-            log::warn("[PlayerAccActSystem] player {} flagged (realised action rate {} vs authority {}) → PLAYER_ACTION_*",
-                      owner, act.action_rate, PLR_AC_MAX_ACTION_RATE);
+            log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerAccActSystem", owner,
+                      "action_rate", act.action_rate, 0.0f, PLR_AC_MAX_ACTION_RATE);
         }
     }
 }

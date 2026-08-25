@@ -11,7 +11,7 @@
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    hub
- * @schedule    Integration
+ * @schedule    Dynamics
  * @created     2026-01-22
  * @modified    2026-01-29
  * @version     1.1.0
@@ -44,7 +44,13 @@ namespace ase::player {
 /**
  * @brief Write player positions to Hub for L4 plugins
  *
- * @schedule Integration - after position updates
+ * @schedule Dynamics - after position updates, in the same tier
+ *
+ * Corrected 2026-08-20: this system carried TWO different labels - Integration in this header
+ * and Dissemination in its .cpp - and player_module.hpp registers it in Dynamics (20), so
+ * BOTH were wrong and they were wrong in opposite directions (12 and 70). A reader picking
+ * either file would have got a different answer, and neither would have been the running one.
+ * Only the registration decides.
  * @reads    PlayerStaPosComponent, PlayerStaIdntComponent
  * @writes   Hub values: PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_ENTITY_ID
  */

@@ -81,7 +81,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -239,9 +239,8 @@ void PlayerHubSessRegSystem::tick(ecs::Registry& registry, float /*dt*/) {
     uint32_t slot = 0;
     for (auto [entity, id, pos] : view.each()) {
         if (slot >= PLR_SESS_SLOT_MAX) {
-            log::warn("[PlayerHubSessRegSystem] session register full at {} slots, "
-                      "further players stay invisible to Hub consumers this tick",
-                      PLR_SESS_SLOT_MAX);
+            log::warn(log::WRN::CAT::CAPACITY_REACHED, "PlayerHubSessRegSystem",
+                      "session_slots", static_cast<float>(PLR_SESS_SLOT_MAX));
             break;
         }
 
@@ -256,7 +255,7 @@ void PlayerHubSessRegSystem::tick(ecs::Registry& registry, float /*dt*/) {
          * world-9102: "session adoption refused: ... pos_miss=1"). Die legitimen Kanaele sind
          * Tag, Konstante oder Telemetrie-Laufzeitwert; Hashes reisen ueber Almanach/Snapshot.
          * Der Terrain-Beobachtergang liest dieses Register seit dem Kanalentscheid NICHT mehr
-         * (Tag-View ueber LifecycleAlivTag); der letzte Leser ist die Webserver-Route
+         * (Tag-View ueber HubLifeAlivTag); der letzte Leser ist die Webserver-Route
          * world_player_routes.cpp, deren Almanach-Umbau im Register gefuehrt ist.
          */
         hub::set(registry, session_slot_owner(slot), "PLR_OWNER"_hs, static_cast<float>(owner));

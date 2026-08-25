@@ -47,7 +47,11 @@
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 
 /**
- * STATE COMPONENTS - Position/Movement (6)
+ * STATE COMPONENTS - Position/Movement (8)
+ *
+ * Die Zahl stand auf 6 und die Liste fuehrte 7 - sie ist am 2026-08-18 gegen die Zeilen
+ * gezaehlt worden, nicht fortgeschrieben. player_sta_inp_mov_comp kam im selben Zug dazu:
+ * weder der Schirm noch eine .cpp zog ihn, er war nie uebersetzt.
  */
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
@@ -56,9 +60,12 @@
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_chk_comp.hpp>
 #include <ase/player/components/state/player_sta_roam_comp.hpp>
+#include <ase/player/components/state/player_sta_inp_mov_comp.hpp>
 
 /**
- * TAG COMPONENTS - Markers (9)
+ * TAG COMPONENTS - Markers (10)
+ *
+ * player_inp_rmv_tag am 2026-08-18 nachgetragen, aus demselben Grund wie oben.
  */
 #include <ase/player/components/tag/player_roam_wand_tag.hpp>
 #include <ase/player/components/tag/player_roam_rest_tag.hpp>
@@ -69,6 +76,7 @@
 #include <ase/player/components/tag/player_locl_tag.hpp>
 #include <ase/player/components/tag/player_init_tag.hpp>
 #include <ase/player/components/tag/player_chnk_chgd_tag.hpp>
+#include <ase/player/components/tag/player_inp_rmv_tag.hpp>
 
 /**
  * REQUEST COMPONENTS - Spawn/Despawn/Errand (5)

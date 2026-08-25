@@ -252,6 +252,20 @@ constexpr uint8_t  PLR_BIN_MSG_PLAYER_SPAWN = 77;  // mirror of ase-network BIN_
 constexpr uint32_t PLR_SPW_FRAME_SZ         = 77u; // 1 type + 64 player_id + 4 x + 4 z + 4 speed
 constexpr uint32_t PLR_SPW_PLAYER_ID_OFF    = 1u;  // player_id:char[64] offset (after the type byte)
 constexpr uint32_t PLR_SPW_PLAYER_ID_LEN    = 64u; // player_id fixed field length (matches PlayerReqSpwnComponent.player_id[64])
+
+/**
+ * FNV-1a (64 Bit) fuer den Spieler-Index in PlayerLifeSpwnSystem.
+ *
+ * Der Index beantwortet "gibt es schon eine Zeile mit dieser player_id?" in O(1); vorher lief je
+ * Anfrage eine volle view<PlayerStaIdntComponent>. Er ist ein VORFILTER: wer einen Treffer hat,
+ * vergleicht die Kennung an der Fundstelle nach, weil eine Kollision sonst den FALSCHEN Spieler
+ * liefern wuerde statt gar keinen.
+ *
+ * 64 Bit statt der 32 des Baums (rsn_skl_prvl_gate_sys.cpp): die 32-Bit-Fassung leitet
+ * Hub-OWNER ab und ist dort festgelegt. Hier gibt es keine Hub-Bindung.
+ */
+constexpr uint64_t PLR_ID_FNV_OFFSET        = 14695981039346656037ull; // FNV-1a 64 offset basis
+constexpr uint64_t PLR_ID_FNV_PRIME         = 1099511628211ull;        // FNV-1a 64 prime
 constexpr uint32_t PLR_SPW_X_OFF            = 65u; // spawn x:f32 offset
 constexpr uint32_t PLR_SPW_Z_OFF            = 69u; // spawn z:f32 offset
 constexpr uint32_t PLR_SPW_SPEED_OFF        = 73u; // roam speed:f32 offset (0 = spawn and stand)
@@ -301,13 +315,11 @@ constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;  // Chunk size (m)
  * │ Full Word │ Abbr │ Example                          │
  * │───────────│──────│──────────────────────────────────│
  * │ state     │ sta  │ player_sta_phys_comp.hpp         │
- * │ tag       │ tag  │ player_tag_ded_component.hpp     │
  * │ movement  │ mov  │ player_sta_inp_mov_comp.hpp      │
  * │ spawn     │ spwn │ player_life_spwn_sys.hpp         │
  * │ position  │ pos  │ player_sta_pos_comp.hpp          │
  * │ velocity  │ vel  │ player_sta_vel_comp.hpp          │
  * │ status    │ sts  │ player_sta_sts_comp.hpp          │
- * │ dead      │ ded  │ player_tag_ded_component.hpp     │
  *
  * NOTE: Folder names are SPELLED OUT (state/, not sta/)
  * NOTE: Abbreviations appear ONLY in filenames between prefix and suffix
@@ -318,9 +330,51 @@ constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;  // Chunk size (m)
  * Verstoss. Verbindlich ist NICHT diese Tabelle, sondern
  * core/ase-validator/ecs_validator/data/taxonomy/_index.json (dort `{"abbrev": "sta", "name":
  * "state"}`) samt der Kategoriedateien darunter; die Tabelle hier ist eine Lesehilfe und wird
- * mit jedem Umzug nachgezogen. Zeilen mit noch nicht umgezogenen Beispielen (tag, dead) tragen
- * absichtlich den IST-Dateinamen, damit niemand einer Datei hinterherliest, die es noch nicht
- * gibt.
+ * mit jedem Umzug nachgezogen.
+ *
+ * ZWEITER UMZUG, UND DER ERSTE HAT SEINE EIGENE AUSNAHME UEBERLEBT.
+ *
+ * Hier standen bis zuletzt zwei weitere Zeilen — `tag` und `dead` —, beide mit dem Beispielnamen
+ * `player_tag_ded_component.hpp`, und darunter die ausdrueckliche Begruendung, sie traegen
+ * "absichtlich den IST-Dateinamen, damit niemand einer Datei hinterherliest, die es noch nicht
+ * gibt". Die Begruendung galt fuer DAMALS und ist heute widerlegt — gemessen ueber das WORT,
+ * nicht ueber das Kuerzel der gestrichenen Zeile:
+ *
+ *     player_tag_ded_component.hpp   existiert im Modul NICHT
+ *     `dead`                         der Katalog fuehrt das WORT als `dead`, und KEINE Datei
+ *                                    des Moduls traegt diese Form
+ *     `ded`                          steht im Katalog, bedeutet dort aber `dedicated`
+ *                                    (06_str_structure.json:271). Die gestrichene Zeile nannte
+ *                                    also keine unbekannte Form, sondern eine FREMDE — die
+ *                                    gefaehrlichere Sorte, denn sie besteht jede Existenzpruefung
+ *     `tag`                          der Katalog fuehrt `tag` und `tags`; im Modul kommt es
+ *                                    ausschliesslich als SUFFIX vor, nie zwischen Praefix und
+ *                                    Suffix — was diese Tabelle beschreibt. Gemessen ueber
+ *                                    `_tag_` MITTIG; eine Suche nach `_tag` allein trifft jede
+ *                                    Tag-Datei des Moduls und beantwortet die Frage nicht
+ *
+ * Beide Zeilen sind deshalb ENTFALLEN. Und der Vermerk faellt mit ihnen, weil er sonst eine
+ * Ausnahme fuer Zeilen begruendet, die es nicht mehr gibt.
+ *
+ * WAS DARAN ZU LERNEN IST, und es ist der Grund fuer diesen Absatz: der erste Umzug hat das
+ * Kuerzel gezogen (`st` wurde zu `sta`) und die zwei Zeilen mit dem ausgeschriebenen Suffix
+ * stehen lassen — MIT einem Vermerk, der genau das rechtfertigte. Der Vermerk hat den
+ * Rest-Defekt nicht dokumentiert, sondern KONSERVIERT: er nahm dem naechsten Leser den Anlass
+ * nachzusehen, und kein Tor liest Prosa. Aufgefallen ist es erst, als eine Regel den
+ * ausgeschriebenen Suffix selbst pruefte. Eine Begruendung im Kommentar ist Pruefgegenstand,
+ * kein Freibrief.
+ *
+ * UND EIN ZWEITES, DAS ERST BEIM NACHMESSEN AUFFIEL: die Begruendung oben lautete zuerst
+ * „`ded` als Taxonomieteil — keine Datei traegt es". Das ist die KUERZELrichtung. Sie fragt nach
+ * einer Schreibweise und kann deshalb nur bestaetigen oder schweigen; welches Kuerzel der
+ * Katalog fuer `dead` ueberhaupt fuehrt, hat sie nie gefragt. Das Ergebnis blieb dasselbe — zu
+ * `dead` gibt es ebenfalls keine Datei —, also war die Begruendung ZUFAELLIG richtig.
+ *
+ * Und genau das ist der teurere Fall. Eine falsche Begruendung faellt auf, sobald jemand
+ * nachrechnet; eine zufaellig richtige bestaetigt sich selbst, und der Naechste kopiert die
+ * METHODE statt des Ergebnisses. In ase-replication ist derselbe Griff anders ausgegangen: dort
+ * fiel eine Zeile als „keine Datei" heraus, weil nach `wip` gesucht wurde statt nach dem
+ * katalogisierten `wipe` — und `replication_wipe_sys.hpp` stand die ganze Zeit da.
  */
 
 }  // namespace ase::player

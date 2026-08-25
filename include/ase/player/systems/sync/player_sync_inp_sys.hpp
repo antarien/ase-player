@@ -11,7 +11,7 @@
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    input
- * @schedule    Synchronization
+ * @schedule    Integration
  * @created     2026-01-22
  * @modified    2026-01-29
  * @version     1.1.0
@@ -46,7 +46,11 @@ namespace ase::player {
 /**
  * @brief Sync Hub input values to PlayerInpExtComponent
  *
- * @schedule Synchronization - before calculation systems
+ * @schedule Integration - before the calculation systems
+ *
+ * Corrected 2026-08-20: this line said Synchronization (31); player_module.hpp registers the
+ * system in Integration (12). The ORDERING half stays true - it does run before the
+ * calculations - but from an early tier rather than a late one. Only the registration decides.
  * @reads    Hub values: PLR_INP_FWD, PLR_INP_STR, PLR_CAM_YAW, TRN_HGT_AT_POS
  * @writes   PlayerInpExtComponent
  */

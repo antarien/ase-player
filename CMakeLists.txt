@@ -113,6 +113,8 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/state/player_sta_com_comp.hpp
     include/ase/player/components/state/player_sta_eco_comp.hpp
     include/ase/player/components/state/player_sta_inv_comp.hpp
+    include/ase/player/components/state/player_sta_yaw_comp.hpp
+    include/ase/player/components/state/player_sta_epch_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (input/)
@@ -178,6 +180,8 @@ add_library(${PROJECT_NAME} SHARED
     Player spawn and despawn management systems.
     ]]
     include/ase/player/systems/lifecycle/player_life_spwn_sys.hpp
+    include/ase/player/systems/migration/player_mig_des_sys.hpp
+    include/ase/player/systems/migration/player_mig_ser_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (reception/)
@@ -292,10 +296,12 @@ add_library(${PROJECT_NAME} SHARED
 
     #[[
     SOURCE FILES - MIGRATION (Compute Phase 06, WS-H.4)
-    PlayerSnap serializer for the boundary migrate: bumps the per-player monotonic epoch and
-    encodes the frozen 42-byte PlayerSnap (ase/types/region_wire.hpp) from the live
-    player_st_* components into PlayerBufMigComponent; the World tier ships frame 100.
+    Beide Haelften der Naht in Eigentuemer-Hand: der Serializer bumpt die monotone Epoche und
+    staged das eingefrorene 42-Byte-Bild als Stern-Zustellung (hub::HubPlrMigSnapComponent) auf
+    der Figur; der Deserializer verbraucht die eingehenden Zustellungen (Snap/Ack) und baut die
+    Figur mit den eigenen Typen. Der World-Tier versendet und faltet nur noch Frames.
     ]]
+    src/migration/player_mig_des_sys.cpp
     src/migration/player_mig_ser_sys.cpp
 
     #[[
@@ -338,9 +344,15 @@ target_link_libraries(${PROJECT_NAME}
         ase::log::headers          # Layer 1 - Logging
         ase::math         # Layer 0 - Vec3, math utilities
         ase::types        # Layer 0 - Type definitions (sentinel checks)
-        ase::input        # Input types and components
-        ase::terrain      # Terrain components
-        ase::lifecycle    # Layer 3 - LifecycleAlivTag: die Lebensmarke der Beobachter-Adoption
+        # ase::input und ase::terrain sind am 2026-08-18 gefallen (R15): beide Bindungen trugen
+        # NULL Includes — gemessen ueber `include <ase/input/` und `include <ase/terrain/` in
+        # src/ und include/ dieses Moduls, je 0 Treffer. Eine Bindung ohne einen einzigen Include
+        # verlaengert jeden Bau und haelt eine Kopplung am Leben, die es im Code nicht gibt.
+        #[[ ase::lifecycle stand hier bis 2026-08-18 und zog genau EINEN Header: die Lebensmarke
+            der Beobachter-Adoption. Sie liegt jetzt als HubLifeAlivTag im Hub, damit ist die
+            L3-auf-L3-Bindung gegenstandslos. Gemessen vor der Streichung: null verbleibende
+            <ase/lifecycle/...>-Includes in diesem Modul. ]]
+                          # BLEIBT: getragen von src/lifecycle/player_life_spwn_sys.cpp (1 Include).
     PRIVATE
         ase::hub          # Layer 3 - Star Topology (write positions for L4 plugins)
         ase::transport    # Layer 1 - ctx-shared inbound FIFO lanes (PlayerSpwnRcvSystem drains LANE_SPW; websocket-FREE, L3→L1 allowed)

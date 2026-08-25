@@ -73,7 +73,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -233,8 +233,9 @@ void PlayerAccMovSystem::tick(ecs::Registry& registry, float /*dt*/) {
         hub::set(registry, owner, "PLAYER_MOVEMENT_SUSPICIOUS"_hs, suspicious ? 1.0f : 0.0f);
 
         if (suspicious && !was_suspicious) {
-            log::warn("[PlayerAccMovSystem] player {} flagged (realised horizontal speed^2 {} vs authority {}, plus teleport check) → PLAYER_MOVEMENT_SUSPICIOUS",
-                      owner, horizontal_speed_sq, PLR_AC_MAX_HORIZONTAL_SPEED_SQ);
+            log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerAccMovSystem", owner,
+                      "horizontal_speed_sq", horizontal_speed_sq, 0.0f,
+                      PLR_AC_MAX_HORIZONTAL_SPEED_SQ);
         }
     }
 }

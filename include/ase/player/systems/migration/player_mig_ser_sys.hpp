@@ -6,14 +6,17 @@
  * @file        player_mig_ser_sys.hpp
  * @brief       PlayerMigSerSystem - serialize the PlayerSnap for an armed boundary migrate
  * @description WS-H.4 serializer half (the ase-player side of the migrate seam). For every
- *              player carrying an armed PlayerReqMigComponent (stamped by the World boundary
- *              watch) and no staged buffer yet, it bumps the player's monotonic migrate epoch
- *              (PlayerStaEpchComponent - seeded from the FNV-1a32 of the UUID string on first
- *              use) and encodes the frozen 42-byte PlayerSnap layout (ase/types/region_wire.hpp)
- *              from the REAL live components - PlayerStaPosComponent (x,y,z,yaw),
- *              PlayerStaVelComponent (vx,vy,vz), PlayerStaStsComponent (status, widened u8→u32) -
- *              into PlayerBufMigComponent. The World send system wraps the buffer into the
- *              frame-100 header and ships it; serialization and egress stay separate modules.
+ *              figure carrying an armed hub::HubPlrMigArmComponent (stamped by the World
+ *              boundary watch over the star) and no staged delivery yet, it bumps the player's
+ *              monotonic migrate epoch (PlayerStaEpchComponent - seeded from the FNV-1a32 of
+ *              the UUID string on first use) and encodes the frozen 42-byte PlayerSnap layout
+ *              (ase/types/region_wire.hpp) from the REAL live components -
+ *              PlayerStaPosComponent (x,y,z,yaw), PlayerStaVelComponent (vx,vy,vz),
+ *              PlayerStaStsComponent (status, widened u8→u32) - into the star delivery
+ *              hub::HubPlrMigSnapComponent on the figure, marked hub::HubPlrMigSndPndTag. The
+ *              World send system enumerates the mark, wraps the image into the frame-100 header
+ *              and ships it; serialization and egress stay separate modules, and neither side
+ *              reads the other's types any more (seam cut 2026-08-19).
  *
  * @module      ase-player
  * @layer       3 (Module)
@@ -43,17 +46,19 @@
 namespace ase::player {
 
 /**
- * @brief Encodes the frozen PlayerSnap byte image for every armed migrate request and bumps
- *        the per-player monotonic epoch (WS-H.4 idempotency source).
+ * @brief Encodes the frozen PlayerSnap byte image for every armed migrate instruction and
+ *        bumps the per-player monotonic epoch (WS-H.4 idempotency source).
  *
- * Processes (Observation, after the World boundary watch armed the request):
- *   each (PlayerReqMigComponent, PlayerStPos/Vel/Sts/Id) exclude PlayerBufMigComponent →
- *     seed/bump PlayerStaEpchComponent → encode PlayerSnap → stage PlayerBufMigComponent
+ * Processes (Observation, after the World boundary watch armed the star instruction):
+ *   each (hub::HubPlrMigArmComponent, PlayerStPos/Vel/Sts/Id) exclude HubPlrMigSnapComponent →
+ *     seed/bump PlayerStaEpchComponent → encode PlayerSnap →
+ *       stage hub::HubPlrMigSnapComponent + hub::HubPlrMigSndPndTag on the figure
  *
  * @schedule Observation
- * @reads    PlayerReqMigComponent, PlayerStaPosComponent, PlayerStaVelComponent,
+ * @reads    hub::HubPlrMigArmComponent, PlayerStaPosComponent, PlayerStaVelComponent,
  *           PlayerStaStsComponent, PlayerStaIdntComponent
- * @writes   PlayerStaEpchComponent (epoch bump), PlayerBufMigComponent (staged snap bytes)
+ * @writes   PlayerStaEpchComponent (epoch bump), hub::HubPlrMigSnapComponent (staged delivery),
+ *           hub::HubPlrMigSndPndTag (enumeration mark for the world sender)
  */
 class PlayerMigSerSystem : public ecs::System {
 public:

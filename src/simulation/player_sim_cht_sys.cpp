@@ -74,7 +74,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -217,8 +217,8 @@ void PlayerSimChtSystem::tick(ecs::Registry& registry, float /*dt*/) {
             // 30Hz Dynamics tick. The velocity is re-forced each tick to HOLD the speed-hack, but the log
             // event is the ONSET, not each tick it persists — otherwise the World log spams 30 lines/s.
             if (prev_forced != cheat_speed) {
-                log::warn("[PlayerSimChtSystem] player {} cheat-driven to forced speed {} (> authority) — simulated speed-hack",
-                          plr_owner, cheat_speed);
+                log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerSimChtSystem", plr_owner,
+                          "forced_speed", cheat_speed);
             }
         }
     }

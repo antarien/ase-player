@@ -9,8 +9,8 @@
  * @category    ecs/entity/entitylifecycle
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-08-09
- * @version     1.2.0
+ * @modified    2026-08-18
+ * @version     1.3.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_LIFE_SPWN: Player Lifecycle Management)
  *
@@ -87,7 +87,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -168,21 +168,21 @@
 #include <ase/player/components/state/player_sta_chk_comp.hpp>
 #include <ase/player/components/state/player_sta_roam_comp.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
-#include <ase/player/components/tag/player_spnd_tag.hpp>
 #include <ase/player/components/tag/player_mgr_tag.hpp>
 #include <ase/player/components/tag/player_desp_pnd_tag.hpp>
 #include <ase/player/components/tag/player_roam_rest_tag.hpp>
 #include <ase/player/components/tag/player_roam_run_tag.hpp>
-// Cross-module POD header shared via the include path (HARD RULE: header-only POD tags may be
-// shared; the loader writes them into the SAME World registry - no compiled cross-link):
-//   lifecycle::LifecycleAlivTag - the living marker the observer adoptions filter on
-//   (TerrainStrmObsSyncSystem PASS 2, Betreiber-Kanalentscheid 2026-08-10; Muster
-//   character_life_spwn_sys.cpp)
-#include <ase/lifecycle/components/tag/status/lifecycle_tag_aliv_component.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Hub for HUB Pattern (cross-module reads)
+// Hub for HUB Pattern (cross-module reads) - und seit 2026-08-18 auch die Lebensmarke
+// hub::HubLifeAlivTag, auf die die Beobachter-Adoption filtert (TerrainStrmObsSyncSystem PASS 2,
+// Betreiber-Kanalentscheid 2026-08-10). Sie kam vorher als POD-Header ueber den Include-Pfad aus
+// ase-lifecycle - genau die L3-auf-L3-Kopplung, die der Umzug aufloest.
 #include <ase/hub/api.hpp>
+// Containers SSOT - der Spieler-Index in tick() (NO std:: maps)
+#include <ase/containers/hash_map.hpp>
+// Types SSOT (L0) - die Sentinel-Praedikate fuer den Hub-Rueckgabewert beim Spawn
+#include <ase/types/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
@@ -245,6 +245,31 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
      */
 
     /**
+     * DER SPIELER-INDEX WIRD EINMAL JE PASS GEBAUT, NICHT EINMAL JE ANFRAGE.
+     *
+     * Die Spawn- und die Despawn-Schleife stellen dieselbe Frage - "gibt es schon eine Zeile mit
+     * dieser player_id?" - und beantworteten sie bis 2026-08-18 mit einer vollstaendigen
+     * view<PlayerStaIdntComponent> INNERHALB der Anfrage-Schleife: M Anfragen mal N Spieler, und
+     * das zweimal im selben tick. Der Aufwand sah billig aus, weil die Sicht in einer Zeile stand.
+     *
+     * Der Index ist ein VORFILTER, keine Antwort. Er fuehrt Hash auf Entity; wer einen Treffer
+     * hat, vergleicht die Kennung an der Fundstelle nach. Ohne diese Nachpruefung waere eine
+     * Hash-Kollision keine ausbleibende, sondern eine PLAUSIBEL FALSCHE Antwort - der falsche
+     * Spieler, still gefunden. Mit der Nachpruefung ist der schlimmste Fall ein "nicht gefunden".
+     */
+    containers::HashMap<uint64_t, ecs::Entity> player_by_id;
+    for (auto [pe, identity] : registry.view<PlayerStaIdntComponent>().each()) {
+        uint64_t h = PLR_ID_FNV_OFFSET;
+        for (uint32_t i = 0;
+             i < static_cast<uint32_t>(sizeof(identity.player_id)) - 1u
+             && identity.player_id[i] != '\0';
+             ++i) {
+            h = (h ^ static_cast<uint8_t>(identity.player_id[i])) * PLR_ID_FNV_PRIME;
+        }
+        player_by_id.emplace(h, pe);
+    }
+
+    /**
      * STEP 2: Process local spawn requests (iterator pattern for entity creation)
      */
     auto spawn_view = registry.view<PlayerReqSpwnComponent>();
@@ -258,15 +283,23 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         ecs::Entity result_entity = ecs::NullEntity;
         bool success = false;
 
-        // Check if player already exists
+        // Check if player already exists - O(1) gegen den Index, Kennung an der Fundstelle geprueft
+        uint64_t req_hash = PLR_ID_FNV_OFFSET;
+        for (uint32_t i = 0;
+             i < static_cast<uint32_t>(sizeof(request.player_id)) - 1u
+             && request.player_id[i] != '\0';
+             ++i) {
+            req_hash = (req_hash ^ static_cast<uint8_t>(request.player_id[i])) * PLR_ID_FNV_PRIME;
+        }
+
         bool player_exists = false;
-        auto player_view = registry.view<PlayerStaIdntComponent>();
-        for (auto [pe, identity] : player_view.each()) {
-            (void)pe;
-            if (std::strncmp(identity.player_id, request.player_id,
-                             sizeof(identity.player_id) - 1) == 0) {
+        auto spawn_hit = player_by_id.find(req_hash);
+        if (spawn_hit != player_by_id.end()) {
+            const auto* known = registry.try_get<PlayerStaIdntComponent>(spawn_hit->second);
+            if (known != nullptr &&
+                std::strncmp(known->player_id, request.player_id,
+                             sizeof(known->player_id) - 1) == 0) {
                 player_exists = true;
-                break;
             }
         }
 
@@ -276,11 +309,32 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             uint32_t pos_hash = static_cast<uint32_t>(
                 static_cast<int32_t>(request.x) * 73856093 ^
                 static_cast<int32_t>(request.z) * 19349663);
+            /**
+             * ABWESENHEIT WIRD GEFRAGT, NICHT VERGLICHEN (2026-08-20)
+             *
+             * Hier stand `hub_height != hub::NOT_FOUND`. Das Sentinel ist ein BEREICH
+             * (`v <= FloatNotFound`, types.hpp:65), kein einzelner Wert. Dieselbe Umstellung ist
+             * am 2026-08-19 in zehn ase-combat-Systemen gefahren worden; die Begruendung steht
+             * dort ausfuehrlich. Die zweite Kopie dieser Stelle liegt in
+             * character_life_spwn_sys.cpp und ist am selben Tag mitgegangen.
+             *
+             * `is_val_float` und nicht `!is_not_found`, weil der Wert eine KOORDINATE wird: die
+             * Verneinung von is_not_found laesst den UNSET-Sentinel durch und haette die Figur
+             * in dessen Hoehe gesetzt statt auf den Boden. is_val_float schliesst beide Enden
+             * aus (`v > FloatNotFound && v < FloatUnset`, types.hpp:61).
+             *
+             * Der Block steht VOR der Lesung und nicht zwischen Lesung und Pruefung: die Regel
+             * HUB_WITHOUT_CHECK sucht die Pruefung in einem Fenster von fuenf Zeilen hinter
+             * `hub::get` (11_module_layer.json, `_note_window`). Ein Kommentar dazwischen
+             * schiebt sie aus dem Fenster, und der Befund kehrt zurueck.
+             *
+             * Bleibt der Wert ungueltig, spawnt die Figur auf y=0 — das Terrain-Modul zieht die
+             * Hoehe nach, sobald der Chunk geladen ist.
+             */
             float hub_height = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
-            if (hub_height != hub::NOT_FOUND) {
+            if (ase::types::is_val_float(hub_height)) {
                 ground_y = hub_height;
             }
-            // Note: If terrain height not in Hub, spawn at y=0 (terrain module will update)
 
             // Create player entity with ONLY player components
             result_entity = registry.create();
@@ -288,6 +342,15 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             auto& identity = registry.emplace<PlayerStaIdntComponent>(result_entity);
             std::strncpy(identity.player_id, request.player_id, sizeof(identity.player_id) - 1);
             identity.player_id[sizeof(identity.player_id) - 1] = '\0';
+
+            /**
+             * DER INDEX WIRD MITGEFUEHRT, nicht nur gelesen. Zwei Anfragen mit derselben Kennung
+             * im selben Pass haetten sonst zwei Spieler erzeugt, und die Despawn-Schleife weiter
+             * unten haette den frisch angelegten nicht gefunden - beides Fehler, die es vor dem
+             * Index nicht gab, weil die Sicht jedes Mal neu lief.
+             */
+            player_by_id.emplace(req_hash, result_entity);
+
             // Timestamps initialized to 0 - can be set via Hub or request if needed
             identity.spawned_at_ms = 0;
             identity.last_input_ms = 0;
@@ -321,18 +384,18 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
 
             // Lifecycle tags - observer systems in other modules will see these
             // and add their own components (input, camera, terrain streaming)
-            registry.emplace<PlayerSpndTag>(result_entity);
+            registry.emplace<hub::HubPlrSpndTag>(result_entity);
             registry.emplace<PlayerDrtyTag>(result_entity);
 
             /**
              * DIE LEBENSMARKE - ein Siedler LEBT, und wer lebt, wird beobachtet: die
              * Beobachter-Adoption (TerrainStrmObsSyncSystem PASS 2) sieht ausschliesslich
-             * lifecycle::LifecycleAlivTag (Betreiber-Kanalentscheid 2026-08-10). Ohne die Marke
+             * hub::HubLifeAlivTag (Betreiber-Kanalentscheid 2026-08-10). Ohne die Marke
              * wanderte der Siedler unsichtbar - 381 Wabenuebertritte, null Zellmarkierungen
              * (gemessen 2026-08-11). Seine Seele fuehrt die SITZUNG (MS/PC): BdiAgtRegSystem
              * excluded player::PlayerSpndTag, damit hier kein zweiter Wille entsteht.
              */
-            registry.emplace<lifecycle::LifecycleAlivTag>(result_entity);
+            registry.emplace<hub::HubLifeAlivTag>(result_entity);
 
             /**
              * THE ERRAND IS BORN WITH THE PLAYER, and this is the ONE place where a requested
@@ -353,9 +416,8 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
                 const bool runs = errand->speed > MOVEMENT_DEFAULT_WALK_SPEED;
                 const float gear = runs ? MOVEMENT_DEFAULT_RUN_SPEED : MOVEMENT_DEFAULT_WALK_SPEED;
                 if (errand->speed > MOVEMENT_DEFAULT_RUN_SPEED) {
-                    log::warn("[PlayerLifeSpwnSystem] Errand asked for {} m/s, the movement "
-                              "authority carries {} m/s - the walker is capped, not exempted",
-                              errand->speed, MOVEMENT_DEFAULT_RUN_SPEED);
+                    log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerLifeSpwnSystem", owner,
+                              "errand_speed", errand->speed, 0.0f, MOVEMENT_DEFAULT_RUN_SPEED);
                 }
                 auto& roam = registry.emplace<PlayerStaRoamComponent>(result_entity);
                 roam.speed = errand->speed;
@@ -404,15 +466,25 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         auto& request = registry.get<PlayerReqDespComponent>(request_entity);
         bool success = false;
 
-        // Find and mark player for deletion
-        auto player_view = registry.view<PlayerStaIdntComponent>();
-        for (auto [pe, identity] : player_view.each()) {
-            if (std::strncmp(identity.player_id, request.player_id,
-                             sizeof(identity.player_id) - 1) == 0) {
-                registry.emplace_or_replace<PlayerDespPndTag>(pe);
+        // Find and mark player for deletion - O(1) gegen denselben Index wie oben, Kennung an der
+        // Fundstelle geprueft.
+        uint64_t desp_hash = PLR_ID_FNV_OFFSET;
+        for (uint32_t i = 0;
+             i < static_cast<uint32_t>(sizeof(request.player_id)) - 1u
+             && request.player_id[i] != '\0';
+             ++i) {
+            desp_hash = (desp_hash ^ static_cast<uint8_t>(request.player_id[i])) * PLR_ID_FNV_PRIME;
+        }
+
+        auto desp_hit = player_by_id.find(desp_hash);
+        if (desp_hit != player_by_id.end()) {
+            const auto* known = registry.try_get<PlayerStaIdntComponent>(desp_hit->second);
+            if (known != nullptr &&
+                std::strncmp(known->player_id, request.player_id,
+                             sizeof(known->player_id) - 1) == 0) {
+                registry.emplace_or_replace<PlayerDespPndTag>(desp_hit->second);
                 success = true;
                 log::debug("[PlayerLifeSpwnSystem] Marked player for despawn");
-                break;
             }
         }
 
@@ -439,31 +511,7 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
     }
 }
 
-void PlayerLifeSpwnSystem::on_stop(ecs::Registry& registry) {
-    log::info("[PlayerLifeSpwnSystem] Stopping");
-
-    // Tag all players for despawn
-    auto view = registry.view<PlayerStaIdntComponent>();
-    uint32_t count = 0;
-    for (auto entity : view) {
-        registry.emplace_or_replace<PlayerDespPndTag>(entity);
-        ++count;
-    }
-
-    // Destroy all tagged entities
-    auto pnd_view = registry.view<PlayerDespPndTag>();
-    auto pnd_it = pnd_view.begin();
-    auto pnd_end = pnd_view.end();
-    while (pnd_it != pnd_end) {
-        auto entity = *pnd_it;
-        ++pnd_it;
-        registry.destroy(entity);
-    }
-
-    if (count > 0) {
-        log::info("[PlayerLifeSpwnSystem] Despawned {} players on shutdown", count);
-    }
-
+void PlayerLifeSpwnSystem::on_stop(ecs::Registry& /*registry*/) {
     log::debug("[PlayerLifeSpwnSystem] Stopped");
 }
 

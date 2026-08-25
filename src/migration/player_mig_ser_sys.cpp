@@ -40,10 +40,11 @@
  *          ▼
  *   [WorldPlrMigSndSystem wraps the buffer into [100][epoch][proj][dst] and ships it]
  *
- *   TWO PASSES, and the exclude did NOT move: the buffer exclusion is the re-entry barrier ACROSS
- *   ticks (it is what makes the epoch bump exactly once per armed migrate), the marker is the
- *   hand-over WITHIN one tick. Merging them would let the next tick re-enter the walk and bump the
- *   epoch a second time - test_player_mig.cpp:110 covers exactly that.
+ *   TWO PASSES, and the exclude did NOT move: the staged-delivery exclusion is the re-entry
+ *   barrier ACROSS ticks (it is what makes the epoch bump exactly once per armed migrate), the
+ *   marker is the hand-over WITHIN one tick. Merging them would let the next tick re-enter the
+ *   walk and bump the epoch a second time - the send-side case in test_world_rgn.cpp proves the
+ *   consumed delivery, and re-entry is barred by exclude<hub::HubPlrMigSnapComponent>.
  *
  *   LOG ORDER, measured 2026-08-14: the stage pass walks the marker pool, and EnTT iterates a pool
  *   BACKWARDS (storage.hpp:553 - begin() starts at size() and counts down). With several players
@@ -89,7 +90,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -158,8 +159,12 @@
 #include <ase/player/systems/migration/player_mig_ser_sys.hpp>
 // Frozen PlayerSnap wire layout (offsets, schema version) - L0 contract SSOT
 #include <ase/types/region_wire.hpp>
-// Components: the armed request, the live state sources, epoch + staged buffer
-#include <ase/player/components/request/player_req_mig_comp.hpp>
+// Die Anweisung der Grenzwache und die gestagte Zustellung laufen seit 2026-08-19 ueber den
+// Stern (HubPlrMigArmComponent / HubPlrMigSnapComponent auf der FIGUR): ase-world musste fuer
+// die alte player::PlayerReqMigComponent einen fremden Typ SCHREIBEN und fuer den alten
+// PlayerBufMigComponent einen fremden Typ LESEN - beide Kanten sind damit gefallen.
+#include <ase/hub/api.hpp>
+// Components: the live state sources + epoch
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 // types.hpp for constants (chunk edge for the world-metre wire sum)
@@ -168,7 +173,6 @@
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_epch_comp.hpp>
-#include <ase/player/components/buffer/player_buf_mig_comp.hpp>
 // Transient marker of the watch pass: PlayerBufMigComponent sits in that walk's entt::exclude, so
 // the buffer is staged by the pass after the walk. The exclude itself is untouched - it is the
 // re-entry barrier across ticks, this marker is the hand-over within one.
@@ -233,9 +237,9 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * (FNV-1a32 - the u32 identity the frozen PlayerSnap carries).
      */
     for (auto plr_ent :
-         registry.view<PlayerReqMigComponent, PlayerStaPosComponent, PlayerStaYawComponent,
+         registry.view<hub::HubPlrMigArmComponent, PlayerStaPosComponent, PlayerStaYawComponent,
                        PlayerStaVelComponent, PlayerStaStsComponent, PlayerStaIdntComponent>(
-             entt::exclude<PlayerBufMigComponent>)) {
+             entt::exclude<hub::HubPlrMigSnapComponent>)) {
         auto& epch = registry.get_or_emplace<PlayerStaEpchComponent>(plr_ent);
         if (epch.player_ref == 0u) {
             epch.player_ref =
@@ -259,22 +263,30 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
      */
     for (auto stg_ent : registry.view<PlayerMigStgPndTag>()) {
         const auto& epch = registry.get<PlayerStaEpchComponent>(stg_ent);
-        const auto& req = registry.get<PlayerReqMigComponent>(stg_ent);
+        const auto& arm = registry.get<hub::HubPlrMigArmComponent>(stg_ent);
         const auto& pos = registry.get<PlayerStaPosComponent>(stg_ent);
         const auto& yaw = registry.get<PlayerStaYawComponent>(stg_ent);
         const auto& vel = registry.get<PlayerStaVelComponent>(stg_ent);
         const auto& sts = registry.get<PlayerStaStsComponent>(stg_ent);
 
-        auto& snap_buf = registry.emplace<PlayerBufMigComponent>(stg_ent);
-        snap_buf.snap_len = encode_player_snap(
-            snap_buf.snap, epch.player_ref, epch.player_epoch,
+        // Gestaged wird die STERN-Zustellung auf der Figur selbst: der Versender in ase-world
+        // liest Arm + Snap ueber die Fassade und probt die Epoche aus dem Bild (L0-Offsets) -
+        // kein player-Typ mehr auf seiner Seite.
+        auto& snap_dlv = registry.emplace<hub::HubPlrMigSnapComponent>(stg_ent);
+        snap_dlv.snap_len = encode_player_snap(
+            snap_dlv.snap, epch.player_ref, epch.player_epoch,
             static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x,
             pos.y,
             static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_z,
             yaw.yaw, vel.vx, vel.vy, vel.vz, sts.sts);
+        snap_dlv.player_ref = epch.player_ref;
+        snap_dlv.dst_region = arm.dst_region;
+        // Aufzaehlbarkeits-Marke im SELBEN Zug wie die Zeile (HUB_COMPONENT_ITERATION): der
+        // Versender zaehlt ueber sie auf, nie ueber die Hub-Zeilen selbst.
+        registry.emplace<hub::HubPlrMigSndPndTag>(stg_ent);
         log::info("[PlayerMigSer] PlayerSnap staged: player_ref={} epoch={} dst_region={} proj_hash={} ({} bytes)",
-                  epch.player_ref, epch.player_epoch, req.dst_region, req.proj_hash,
-                  snap_buf.snap_len);
+                  epch.player_ref, epch.player_epoch, arm.dst_region, arm.proj_hash,
+                  snap_dlv.snap_len);
     }
     registry.clear<PlayerMigStgPndTag>();
 }

@@ -7,7 +7,7 @@
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    error/logging/output
- * @schedule    Conclusion
+ * @schedule    Observation
  * @created     2026-01-22
  * @modified    2026-04-13
  * @version     1.3.0
@@ -73,7 +73,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -146,7 +146,6 @@
 #include <ase/player/components/tag/player_mgr_tag.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
-#include <ase/player/components/tag/player_spnd_tag.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
 #include <ase/player/components/tag/player_chnk_chgd_tag.hpp>
 // types.hpp for constants
@@ -184,84 +183,90 @@ void PlayerLogObsvSystem::on_start(ecs::Registry& /*registry*/) {
 void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
     (void)dt;  // Der Takt kommt aus Observation (1 Hz), nie aus einer dt-Summe.
     /**
-     * STEP 1: Find player manager entity
-     * PlayerMgrTag identifies the singleton manager entity.
+     * STEP 1: Gibt es die Manager-Zeile? PlayerMgrTag markiert die EINE Singleton-Entity.
+     *
+     * Das ist eine FRAGE, keine Aufzaehlung - und bis 2026-08-18 war sie als Schleife
+     * geschrieben, in deren Rumpf fuenf weitere Sichten liefen. Der Rumpf hat die Manager-Zeile
+     * nie benutzt ((void)mgr), er brauchte nur ihre EXISTENZ; strukturell war es trotzdem M mal
+     * N, und dass M hier eins ist, steht nirgends im Code. Fuenf Verstoesse aus einer Schleife,
+     * die keine sein wollte.
      */
-    auto mgr_view = registry.view<PlayerMgrTag>();
-
-    for (auto mgr : mgr_view) {
+    bool mgr_exists = false;
+    for (auto mgr : registry.view<PlayerMgrTag>()) {
         (void)mgr;
-        /**
-         * KEIN TIMER, KEIN AENDERUNGS-TRIGGER, KEIN INTERVALL-WERT (Betreiber-Entscheid
-         * 2026-08-11): dieses System laeuft in Observation (1 Hz) - der Schedule IST der
-         * Herzschlag. Die fruehere Fassung tickte in Conclusion (60 Hz), drosselte sich per
-         * log_interval_timer/significant_change auf dem Manager-Cache und fiel bei fehlendem
-         * Hub-Wert auf eine stille Konstante zurueck - drei Kruecken fuer eine falsche
-         * Herzzahl, und die Aenderungs-Abkuerzung konnte trotzdem mehrmals je Sekunde feuern.
-         *
-         * STEP 2: Count total players
-         */
-        uint32_t player_count = 0;
-        auto player_view = registry.view<PlayerStaIdntComponent>();
-        for (auto e : player_view) {
-            (void)e;
-            ++player_count;
-        }
-
-        /**
-         * STEP 4: Count states using individual counters (NO arrays!)
-         * Each state counted via named constant from types.hpp.
-         */
-        uint32_t idle_count = 0;
-        uint32_t walking_count = 0;
-        uint32_t running_count = 0;
-        uint32_t jumping_count = 0;
-        uint32_t falling_count = 0;
-
-        auto status_view = registry.view<PlayerStaStsComponent>();
-        for (auto [e, status] : status_view.each()) {
-            (void)e;
-            if (status.sts == PLAYER_STATE_IDLE) { ++idle_count; continue; }
-            if (status.sts == PLAYER_STATE_WALKING) { ++walking_count; continue; }
-            if (status.sts == PLAYER_STATE_RUNNING) { ++running_count; continue; }
-            if (status.sts == PLAYER_STATE_JUMPING) { ++jumping_count; continue; }
-            if (status.sts == PLAYER_STATE_FALLING) { ++falling_count; continue; }
-        }
-
-        /**
-         * STEP 3: Count tag-based states
-         */
-        uint32_t spawned_count = 0;
-        auto spawned_view = registry.view<PlayerSpndTag>();
-        for (auto e : spawned_view) {
-            (void)e;
-            ++spawned_count;
-        }
-
-        uint32_t dirty_count = 0;
-        auto dirty_view = registry.view<PlayerDrtyTag>();
-        for (auto e : dirty_view) {
-            (void)e;
-            ++dirty_count;
-        }
-
-        uint32_t chunk_changed_count = 0;
-        auto chunk_view = registry.view<PlayerChnkChgdTag>();
-        for (auto e : chunk_view) {
-            (void)e;
-            ++chunk_changed_count;
-        }
-
-        /**
-         * STEP 4: Output debug log - genau eine Zeile je Herzschlag
-         */
-        log::debug("\x1b[38;5;141m[ase-player]\x1b[0m [PlayerLogObsvSystem] "
-                   "players:{} -> idle:{} -> walk:{} -> run:{} -> jump:{} -> fall:{} -> "
-                   "dirty:{} -> spawned:{} -> chk_chg:{}",
-                   player_count, idle_count, walking_count, running_count,
-                   jumping_count, falling_count, dirty_count, spawned_count,
-                   chunk_changed_count);
+        mgr_exists = true;
+        break;
     }
+
+    if (!mgr_exists) {
+        return;
+    }
+
+    /**
+     * KEIN TIMER, KEIN AENDERUNGS-TRIGGER, KEIN INTERVALL-WERT (Betreiber-Entscheid
+     * 2026-08-11): dieses System laeuft in Observation (1 Hz) - der Schedule IST der
+     * Herzschlag. Die fruehere Fassung tickte in Conclusion (60 Hz), drosselte sich per
+     * log_interval_timer/significant_change auf dem Manager-Cache und fiel bei fehlendem
+     * Hub-Wert auf eine stille Konstante zurueck - drei Kruecken fuer eine falsche
+     * Herzzahl, und die Aenderungs-Abkuerzung konnte trotzdem mehrmals je Sekunde feuern.
+     *
+     * STEP 2: Count total players
+     */
+    uint32_t player_count = 0;
+    for (auto e : registry.view<PlayerStaIdntComponent>()) {
+        (void)e;
+        ++player_count;
+    }
+
+    /**
+     * STEP 3: Count states using individual counters (NO arrays!)
+     * Each state counted via named constant from types.hpp.
+     */
+    uint32_t idle_count = 0;
+    uint32_t walking_count = 0;
+    uint32_t running_count = 0;
+    uint32_t jumping_count = 0;
+    uint32_t falling_count = 0;
+
+    for (auto [e, status] : registry.view<PlayerStaStsComponent>().each()) {
+        (void)e;
+        if (status.sts == PLAYER_STATE_IDLE) { ++idle_count; continue; }
+        if (status.sts == PLAYER_STATE_WALKING) { ++walking_count; continue; }
+        if (status.sts == PLAYER_STATE_RUNNING) { ++running_count; continue; }
+        if (status.sts == PLAYER_STATE_JUMPING) { ++jumping_count; continue; }
+        if (status.sts == PLAYER_STATE_FALLING) { ++falling_count; continue; }
+    }
+
+    /**
+     * STEP 4: Count tag-based states
+     */
+    uint32_t spawned_count = 0;
+    for (auto e : registry.view<hub::HubPlrSpndTag>()) {
+        (void)e;
+        ++spawned_count;
+    }
+
+    uint32_t dirty_count = 0;
+    for (auto e : registry.view<PlayerDrtyTag>()) {
+        (void)e;
+        ++dirty_count;
+    }
+
+    uint32_t chunk_changed_count = 0;
+    for (auto e : registry.view<PlayerChnkChgdTag>()) {
+        (void)e;
+        ++chunk_changed_count;
+    }
+
+    /**
+     * STEP 5: Output debug log - genau eine Zeile je Herzschlag
+     */
+    log::debug("\x1b[38;5;141m[ase-player]\x1b[0m [PlayerLogObsvSystem] "
+               "players:{} -> idle:{} -> walk:{} -> run:{} -> jump:{} -> fall:{} -> "
+               "dirty:{} -> spawned:{} -> chk_chg:{}",
+               player_count, idle_count, walking_count, running_count,
+               jumping_count, falling_count, dirty_count, spawned_count,
+               chunk_changed_count);
 }
 
 void PlayerLogObsvSystem::on_stop(ecs::Registry& /*registry*/) {

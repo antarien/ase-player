@@ -9,6 +9,8 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @design      DSGN_021
+ * @design      DSGN_030
  * @created     2025-12-01
  * @modified    2026-01-22
  * @version     2.0.0
@@ -19,10 +21,10 @@
  * [ ] build() registers all systems in correct schedules
  * [ ] Startup systems registered first (run once at start)
  * [ ] Initialization systems registered (entity creation)
- * [ ] Integration/FixedUpdate systems registered with run_after() ordering
- * [ ] Replication/Transmission systems registered (network sync)
- * [ ] Persistence systems registered (database writes)
- * [ ] Shutdown systems registered (cleanup)
+ * [ ] Integration/Dynamics systems registered with run_after() ordering
+ * [ ] Transmission systems registered (network sync)
+ * [ ] Preservation systems registered (database writes)
+ * [ ] Finalization systems registered (cleanup)
  * [ ] All system includes present
  * [ ] No circular dependencies
  */
@@ -54,6 +56,7 @@
 #include <ase/player/systems/simulation/player_sim_com_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_eco_sys.hpp>
 #include <ase/player/systems/reception/player_spwn_rcv_sys.hpp>
+#include <ase/player/systems/migration/player_mig_des_sys.hpp>
 #include <ase/player/systems/migration/player_mig_ser_sys.hpp>
 
 namespace ase::player {
@@ -87,8 +90,14 @@ struct PlayerModule {
          */
         app.add_system<PlayerLifeSpwnSystem>(ecs::Schedule::Dynamics);
 
+        // "TerrainChkSystem", NOT "TerrainChunkSystem" — the name here is the RUNTIME name a
+        // system returns from name(), and terrain abbreviates: `TerrainChkSystem`. The spelled
+        // out form never existed, so this edge pointed at nothing and was silently dropped: no
+        // error, no warning, and the two systems fell back to registration order — which is
+        // usually right, which is why it would surface as a sporadic bug rather than a broken
+        // build. Both sit in Dynamics, so the edge takes effect now.
         app.add_system_with<PlayerCtrlInpSystem>(ecs::Schedule::Dynamics)
-            .run_after("TerrainChunkSystem");
+            .run_after("TerrainChkSystem");
 
         app.add_system_with<PlayerCtrlMovSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlInpSystem");
@@ -192,6 +201,16 @@ struct PlayerModule {
          */
         app.add_system_with<PlayerMigSerSystem>(ecs::Schedule::Observation)
             .run_after("WorldPlrBndSystem");
+
+        /**
+         * Deserializer-Haelfte der WS-H.4-Naht: verbraucht die Stern-Zustellungen
+         * (HubPlrMigSnap/Ack + HubPlrMigPndTag), die der world-Empfaenger anlegt, und baut die
+         * Figur mit den EIGENEN Typen. run_after ordnet ihn hinter den Zusteller, damit eine
+         * Zustellung im SELBEN Takt verbraucht wird; auf Nicht-World-Tiers loest der Name auf
+         * nichts auf und die Kante ist ein No-op (dependency_sorter skips unknown names).
+         */
+        app.add_system_with<PlayerMigDesSystem>(ecs::Schedule::Reception)
+            .run_after("WorldPlrMigRcvSystem");
 
         /**
          * PRESERVATION (Schedule::Preservation, 1Hz)

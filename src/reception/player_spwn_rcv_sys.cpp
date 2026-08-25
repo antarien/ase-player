@@ -64,7 +64,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -190,8 +190,8 @@ void PlayerSpwnRcvSystem::tick(ecs::Registry& registry, float /*dt*/) {
             continue;
         }
         if (static_cast<uint8_t>(buf[0]) != PLR_BIN_MSG_PLAYER_SPAWN) {
-            log::warn("[PlayerSpwnRcv] unexpected inbound type={} ({} bytes) skipped",
-                      static_cast<uint32_t>(static_cast<uint8_t>(buf[0])), msg_len);
+            log::warn(log::WRN::CAT::INPUT_REJECTED, "PlayerSpwnRcvSystem", "inbound_type",
+                      static_cast<float>(static_cast<uint8_t>(buf[0])));
             msg_len = 0;
             continue;
         }

@@ -80,7 +80,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -153,7 +153,6 @@
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/buffer/player_buf_pst_comp.hpp>
 #include <ase/player/components/tag/player_pst_dty_tag.hpp>
-#include <ase/player/components/tag/player_spnd_tag.hpp>
 #include <ase/player/types.hpp>
 // Serialization (Layer 2)
 #include <ase/serial/serial.hpp>
@@ -190,7 +189,7 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
      */
     auto view = registry.view<
         PlayerPstDtyTag,
-        PlayerSpndTag,
+        hub::HubPlrSpndTag,
         PlayerStaIdntComponent,
         PlayerStaPosComponent,
         PlayerStaVelComponent,

@@ -73,7 +73,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
@@ -147,6 +147,8 @@
 #include <ase/player/types.hpp>
 // Hub for HUB Pattern
 #include <ase/hub/api.hpp>
+// Sentinel-Praedikat fuer den Erststempel-Guard (is_not_found erkennt den UNSET-Hub-Wert)
+#include <ase/types/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
@@ -195,9 +197,18 @@ void PlayerStaChnkSystem::tick(ecs::Registry& registry, float /*dt*/) {
         int32_t new_chunk_z = pos.chunk_z;
 
         /**
-         * STEP 4: Check if chunk changed
+         * STEP 4: Check if chunk changed - OR was never stamped onto the star.
+         *
+         * Der Wechsel-Guard allein liess eine Luecke (gefunden 2026-08-19, beim Umbau der
+         * world-Mengenleser auf PLR_CHK_*): eine Figur, die ihre STARTWABE nie verlaesst,
+         * wechselt nie - und bekam deshalb NIE einen PLR_CHK-Sternwert. Der alte Direktleser
+         * (Component) sah sie trotzdem; jeder hub::get-Leser verloere sie STILL. Deshalb
+         * stempelt der Erzeuger jetzt auch den ERSTZUSTAND: is_not_found erkennt die noch nie
+         * beschriebene Zeile am UNSET-Sentinel, den nur ein Hub-Wert traegt.
          */
-        if (new_chunk_x != chunk.chunk_x || new_chunk_z != chunk.chunk_y) {
+        uint32_t owner_probe = static_cast<uint32_t>(entity);
+        if (new_chunk_x != chunk.chunk_x || new_chunk_z != chunk.chunk_y ||
+            types::is_not_found(hub::get(registry, owner_probe, "PLR_CHK_X"_hs))) {
             chunk.chunk_x = new_chunk_x;
             chunk.chunk_y = new_chunk_z;
 

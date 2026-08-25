@@ -321,7 +321,21 @@ int32_t chunk_z = static_cast<int32_t>(std::floor(world_z / 32.0f));
 ## Dependencies
 
 ### Layer 3 (Modules)
-- **ase-terrain**: Ground height queries, chunk tracking
+- **ase-hub**: Star topology — the only module-to-module channel there is
+
+> **Die Kantenregel:** MODUL→HUB und MODUL→SDK sind erlaubt, MODUL→MODUL ist es nicht.
+> Braucht ein Modul einen Wert eines anderen, geht er ueber den Stern (`ase-hub`).
+>
+> **Nachgezogen 2026-08-20.** Hier stand `ase-terrain: Ground height queries, chunk tracking`.
+> Diese Bindung hat es GEGEBEN und sie ist gefallen: `CMakeLists.txt:347` fuehrt den Vorgang
+> als Kommentar — *"ase::input und ase::terrain sind am 2026-08-18 gefallen (R15)"*, dazu
+> `ase::lifecycle` in derselben Runde. Der Link ist weg, die README-Zeile blieb stehen.
+> Gebunden werden heute `ase::ecs`, `ase::log::headers`, `ase::math`, `ase::types` (PUBLIC)
+> sowie `ase::hub` und `ase::transport` (PRIVATE); `validate_module_links` meldet baumweit 0
+> Modul-an-Modul-Kanten.
+>
+> Die Bodenhoehe kommt seither NICHT mehr aus einer Terrain-Bindung: `player_life_spwn_sys.cpp:334`
+> liest sie als Hub-Wert `TRN_HGT_AT_POS`. Das ist der Stern, und genau so ist er gemeint.
 
 ### Layer 2 (Kernel)
 - **ase-kernel**: Game loop and schedule management

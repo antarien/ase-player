@@ -9,7 +9,7 @@
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    input
- * @schedule    Synchronization
+ * @schedule    Integration
  * @created     2026-01-22
  * @modified    2026-08-10
  * @version     1.1.0
@@ -92,7 +92,7 @@
  * [ ] Layer dependencies respected (no upward dependencies)?
  * [ ] NO inline nlohmann::json + .dump() in broadcast systems?
  * [ ] Serializer functions in anonymous namespace?
- * [ ] *NetBctReqSystem (Update) + *NetBctSndSystem (Replication) pattern?
+ * [ ] *NetBctReqSystem + *NetBctSndSystem pattern?
  * [ ] Math functions from ase-math? (lerp, clamp, noise)
  * [ ] Containers from ase-containers? (RingBuffer)
  * [ ] Types from ase-types? (Result, Option)
