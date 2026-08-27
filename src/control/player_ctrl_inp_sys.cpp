@@ -155,6 +155,8 @@
 #include <ase/log/log.hpp>
 // Math
 #include <ase/math/math.hpp>
+// Sentinel and range predicates (NO manual sentinel comparisons!)
+#include <ase/types/types.hpp>
 
 namespace ase::player {
 using namespace entt::literals;  // For "_hs hashed strings (Hub)
@@ -220,7 +222,11 @@ void PlayerCtrlInpSystem::tick(ecs::Registry& registry, float dt) {
             if (math::abs(delta) < max_turn) {
                 yaw.yaw = cam_yaw;
             } else {
-                yaw.yaw += (delta > 0.0f ? max_turn : -max_turn);
+                /* `is_pos_float` statt `> 0.0f`: FloatUnset (FLT_MAX) ist AUCH groesser als null.
+                 * Die Drehrichtung ist hier die einzige Aussage des Ausdrucks - kaeme aus
+                 * cam.cam_yaw ein nie gesetzter Wert, drehte der Spieler mit voller Rate in die
+                 * Richtung, die der Sentinel diktiert, statt in die gemessene. */
+                yaw.yaw += (types::is_pos_float(delta) ? max_turn : -max_turn);
             }
 
             while (yaw.yaw < 0.0f) yaw.yaw += math::TWO_PI;
