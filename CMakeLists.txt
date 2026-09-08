@@ -11,8 +11,8 @@ ASE MODULE BUILD CONFIGURATION
 @module      ase-player
 @layer       3 (Module)
 @created     2025-12-15
-@modified    2026-01-30
-@version     00.01.01.00051 [core]
+@modified    2026-09-08
+@version     00.01.28.00078 [feat]
 
 CMAKE MODULE COMPLIANCE
 
