@@ -32,6 +32,8 @@
 #include <ase/ecs/app.hpp>
 #include <ase/player/version.hpp>
 #include <ase/player/systems/lifecycle/player_life_spwn_sys.hpp>
+#include <ase/player/systems/lifecycle/player_life_roam_ini_sys.hpp>
+#include <ase/player/systems/lifecycle/player_life_desp_sys.hpp>
 #include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
 #include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
@@ -88,7 +90,19 @@ struct PlayerModule {
          * Physics, movement, game logic systems.
          * Order matters - use run_after() for dependencies.
          */
+        /**
+         * LEBENSZYKLUS-KETTE (Schnitt 2026-08-30): Geburt → Auftrag → Tod.
+         * PlayerLifeSpwnSystem trug alle drei in einem tick und lag im Bandbefund. Die zwei
+         * Kanten sichern eine LESEreihenfolge, keine Nachbarschaft: PlayerLifeRoamIniSystem
+         * liest das PlayerReqSpwnResComponent, das die Geburt schreibt, und PlayerLifeDespSystem
+         * muss einen im selben Takt geborenen Spieler noch finden koennen. Alle drei stehen in
+         * Dynamics — run_after loest nur INNERHALB einer Schedule auf.
+         */
         app.add_system<PlayerLifeSpwnSystem>(ecs::Schedule::Dynamics);
+        app.add_system_with<PlayerLifeRoamIniSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerLifeSpwnSystem");
+        app.add_system_with<PlayerLifeDespSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerLifeRoamIniSystem");
 
         // "TerrainChkSystem", NOT "TerrainChunkSystem" — the name here is the RUNTIME name a
         // system returns from name(), and terrain abbreviates: `TerrainChkSystem`. The spelled

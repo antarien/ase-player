@@ -20,6 +20,7 @@
  * @module      ase-player
  * @layer       3 (Module)
  * @category    input
+ * @parity      shared
  * @created     2026-08-15
  * @modified    2026-08-15
  * @version     1.0.0

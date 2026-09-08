@@ -1,4 +1,6 @@
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+// The doctest entry point is a compile definition of this target, set in tests/CMakeLists.txt —
+// it reaches the translation unit before every #include, so doctest still generates exactly one
+// main() here. A #define in the source would be a macro definition in C++, which is forbidden.
 #include <doctest/doctest.h>
 
 /**
@@ -52,6 +54,7 @@
 // Arm and delivery ride the hub star on the figure itself since 2026-08-19.
 #include <ase/hub/api.hpp>
 #include <ase/ecs/system.hpp>
+#include <ase/utils/strops.hpp>   // Layer 0 — str_copy kennt die Zielgroesse
 
 #include <cstdint>
 #include <cstring>
@@ -104,7 +107,13 @@ ecs::Entity make_armed_player(ecs::Registry& registry, const char* uuid, uint32_
     registry.emplace<player::PlayerStaStsComponent>(plr).sts = 7u;
 
     auto& idnt = registry.emplace<player::PlayerStaIdntComponent>(plr);
-    std::memcpy(idnt.player_id, uuid, std::strlen(uuid) + 1u);
+    // str_copy statt memcpy mit gemessener Quelllaenge: die alte Form schrieb so viele Bytes, wie
+    // die QUELLE lang ist, und kannte die Groesse des Ziels nicht — bei einem uuid ueber 63
+    // Zeichen haette sie ueber player_id[64] hinausgeschrieben, und der Schaden waere im
+    // NACHBARFELD desselben Speicherblocks aufgetaucht, weit weg von seiner Ursache. str_copy
+    // bekommt die Zielgroesse und terminiert immer. Der Cast steht ausdruecklich da: sizeof
+    // liefert size_t, und die Verengung auf den uint32_t-Parameter waere sonst implizit.
+    utils::str_copy(idnt.player_id, static_cast<uint32_t>(sizeof(idnt.player_id)), uuid);
 
     auto& arm = registry.emplace<hub::HubPlrMigArmComponent>(plr);
     arm.dst_region = dst_region;

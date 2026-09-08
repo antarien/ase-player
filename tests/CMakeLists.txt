@@ -36,6 +36,17 @@ target_link_libraries(${PROJECT_NAME}-test
         doctest::doctest
 )
 
+#[[ DER doctest-EINSTIEGSPUNKT STEHT HIER, NICHT IN DER QUELLE.
+    Bis heute stand `#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN` in test_player.cpp:1 — eine
+    Makrodefinition in einer C++-Quelle, und die ist baumweit verboten. Als Uebersetzungs-
+    definition des ZIELS wirkt dasselbe Makro auf der Kommandozeile und damit VOR jedem
+    `#include`; doctest erzeugt weiterhin genau ein `main()` fuer genau dieses Ziel. PRIVATE,
+    damit das zweite Ziel dieser Datei (-mig-test) seinen eigenen Einstiegspunkt behaelt und
+    keins der beiden einen zweiten bekommt. Gleiche Form wie core/ase-neo4j/tests/. ]]
+target_compile_definitions(${PROJECT_NAME}-test PRIVATE
+    DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+)
+
 set_target_properties(${PROJECT_NAME}-test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
@@ -70,6 +81,15 @@ target_link_libraries(${PROJECT_NAME}-mig-test
         # not found, which is a missing dependency, not a reason to drop the includes.
         ase::hub
         doctest::doctest
+)
+
+#[[ EIGENER doctest-EINSTIEGSPUNKT FUER DIESES ZIEL. Dasselbe wie beim Ziel oben, und es
+    braucht seine eigene Zeile: die Definition ist PRIVATE, also traegt jedes Executable sie
+    fuer sich. Ein gemeinsames `main()` gaebe es hier ohnehin nicht — beide Ziele uebersetzen
+    getrennte Quellen. Bis heute stand `#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN` in
+    test_player_mig.cpp:1, eine in C++ verbotene Makrodefinition. ]]
+target_compile_definitions(${PROJECT_NAME}-mig-test PRIVATE
+    DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 )
 
 set_target_properties(${PROJECT_NAME}-mig-test PROPERTIES

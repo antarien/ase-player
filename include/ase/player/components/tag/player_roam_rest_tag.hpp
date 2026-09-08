@@ -14,6 +14,7 @@
  * @module      ase-player
  * @layer       3 (Module)
  * @category    tag
+ * @parity      shared
  * @created     2026-08-09
  * @modified    2026-08-09
  * @version     1.0.0

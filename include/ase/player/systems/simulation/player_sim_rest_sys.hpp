@@ -14,6 +14,7 @@
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    process/simulation
+ * @parity      shared
  * @schedule    Dynamics
  * @created     2026-08-09
  * @modified    2026-08-09

@@ -4,8 +4,9 @@
  * ASE ECS SYSTEM HEADER
  *
  * @file        player_life_spwn_sys.hpp
- * @brief       PlayerLifeSpwnSystem - Processes spawn/despawn requests
- * @description Creates/destroys player entities based on request components.
+ * @brief       PlayerLifeSpwnSystem - Processes spawn requests and creates the player row
+ * @description Creates player entities from PlayerReqSpwnComponent and answers each request with
+ *              PlayerReqSpwnResComponent.
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -15,11 +16,19 @@
  * @modified    2026-01-29
  * @version     1.1.0
  *
+ * SPLIT 2026-08-30: this system carried spawn, errand and despawn in one 518-line body and sat in
+ * the unsplit band. Birth and death are two lifecycles; the errand named itself a third ("the ONE
+ * place where a requested speed meets the movement authority"). The errand moved to
+ * PlayerLifeRoamIniSystem, the despawn to PlayerLifeDespSystem; both run after this one in
+ * Dynamics, the same sequence the single system had. The name stayed because what is left IS the
+ * spawn.
+ *
  * ARCHITECTURE:
  *
  *   Request Flow:
  *   REST Handler ──> creates request entity with PlayerReqSpwnComponent
  *   PlayerLifeSpwnSystem ──> processes request, creates player, adds result
+ *   PlayerLifeRoamIniSystem ──> reads the result, sets a walker on its errand
  *   REST Handler ──> reads result from PlayerReqSpwnResComponent
  *
  * ECS SYSTEM HEADER COMPLIANCE

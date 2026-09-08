@@ -179,6 +179,8 @@ add_library(${PROJECT_NAME} SHARED
     HEADER FILES - SYSTEMS (lifecycle/)
     Player spawn and despawn management systems.
     ]]
+    include/ase/player/systems/lifecycle/player_life_desp_sys.hpp
+    include/ase/player/systems/lifecycle/player_life_roam_ini_sys.hpp
     include/ase/player/systems/lifecycle/player_life_spwn_sys.hpp
     include/ase/player/systems/migration/player_mig_des_sys.hpp
     include/ase/player/systems/migration/player_mig_ser_sys.hpp
@@ -237,6 +239,8 @@ add_library(${PROJECT_NAME} SHARED
     SOURCE FILES - LIFECYCLE
     Player spawn and despawn management.
     ]]
+    src/lifecycle/player_life_desp_sys.cpp
+    src/lifecycle/player_life_roam_ini_sys.cpp
     src/lifecycle/player_life_spwn_sys.cpp
 
     #[[

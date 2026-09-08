@@ -1,0 +1,745 @@
+{
+    "$schema": "https://ase.dev/schemas/codegen.json",
+    "version": "2.0.0",
+    "module": "ase-player",
+    "client_relevance": true,
+    "dependencies": [
+        "ase-transport"
+    ],
+    "hub_input_manager_tag": "PlayerMgrTag",
+    "channels": [
+        {
+            "name": "player_state_update",
+            "reliability": "reliable",
+            "type": "update",
+            "components": [
+                "PlayerInpCamComponent",
+                "PlayerInpExtComponent",
+                "PlayerInpTrnComponent",
+                "PlayerReqRoamComponent",
+                "PlayerStaAcmpComponent",
+                "PlayerStaActComponent",
+                "PlayerStaChtComponent",
+                "PlayerStaCmbComponent",
+                "PlayerStaComComponent",
+                "PlayerStaEcoComponent",
+                "PlayerStaEpchComponent",
+                "PlayerStaInvComponent",
+                "PlayerStaRoamComponent"
+            ]
+        },
+        {
+            "name": "player_entity_spawn",
+            "reliability": "reliable",
+            "type": "create",
+            "components": [
+                "PlayerMigStgPndTag",
+                "PlayerRoamRestTag",
+                "PlayerRoamRunTag",
+                "PlayerRoamWandTag"
+            ]
+        },
+        {
+            "name": "player_entity_despawn",
+            "reliability": "reliable",
+            "type": "delete",
+            "components": [
+                "PlayerMigStgPndTag",
+                "PlayerRoamRestTag",
+                "PlayerRoamRunTag",
+                "PlayerRoamWandTag"
+            ]
+        }
+    ],
+    "components": {
+        "shared": [
+            {
+                "name": "PlayerInpCamComponent",
+                "description": "External camera input data from Hub for player systems",
+                "fields": [
+                    {
+                        "name": "cam_yaw",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Camera yaw (radians) from PLR_CAM_YAW"
+                    },
+                    {
+                        "name": "cam_orb",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Orbit mode (0 or 1) from PLR_CAM_ORB"
+                    }
+                ],
+                "file": "input/player_inp_cam_comp.hpp"
+            },
+            {
+                "name": "PlayerInpExtComponent",
+                "description": "External movement input data from Hub for player systems",
+                "fields": [
+                    {
+                        "name": "inp_fwd",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Forward input (-1 to 1) from PLR_INP_FWD"
+                    },
+                    {
+                        "name": "inp_str",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Strafe input (-1 to 1) from PLR_INP_STR"
+                    },
+                    {
+                        "name": "inp_sprint",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Sprint input (0 or 1) from PLR_INP_SPRINT"
+                    },
+                    {
+                        "name": "inp_jump",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Jump input (0 or 1) from PLR_INP_JUMP"
+                    }
+                ],
+                "file": "input/player_inp_ext_comp.hpp"
+            },
+            {
+                "name": "PlayerInpTrnComponent",
+                "description": "External terrain height from Hub for player systems",
+                "fields": [
+                    {
+                        "name": "trn_hgt",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Terrain height from TRN_HGT_AT_POS"
+                    }
+                ],
+                "file": "input/player_inp_trn_comp.hpp"
+            },
+            {
+                "name": "PlayerMigStgPndTag",
+                "description": "PlayerMigStgPndTag - migrate armed this pass, the PlayerSnap buffer still to be staged",
+                "fields": [],
+                "file": "tag/player_mig_stg_pnd_tag.hpp"
+            },
+            {
+                "name": "PlayerReqRoamComponent",
+                "description": "The errand a spawn request carries - the speed the new player is to walk at",
+                "fields": [
+                    {
+                        "name": "speed",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Walking speed the caller asked for (m/s), before the authority is applied"
+                    }
+                ],
+                "file": "request/player_req_roam_comp.hpp"
+            },
+            {
+                "name": "PlayerRoamRestTag",
+                "description": "PlayerRoamRestTag - the walker is resting between two legs",
+                "fields": [],
+                "file": "tag/player_roam_rest_tag.hpp"
+            },
+            {
+                "name": "PlayerRoamRunTag",
+                "description": "PlayerRoamRunTag - the errand is walked in the running gear, not the walking one",
+                "fields": [],
+                "file": "tag/player_roam_run_tag.hpp"
+            },
+            {
+                "name": "PlayerRoamWandTag",
+                "description": "PlayerRoamWandTag - the walker is on a leg, holding one heading",
+                "fields": [],
+                "file": "tag/player_roam_wand_tag.hpp"
+            },
+            {
+                "name": "PlayerStaAcmpComponent",
+                "description": "Anti-cheat previous-position state \u2014 last observed player position for teleport detection",
+                "fields": [
+                    {
+                        "name": "last_chunk_x",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "Wabenadresse X der letzten Beobachtung (exakt, S2b 2026-08-11)"
+                    },
+                    {
+                        "name": "last_chunk_z",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "Wabenadresse Z der letzten Beobachtung (exakt)"
+                    },
+                    {
+                        "name": "last_local_x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Meter in der Wabe X der letzten Beobachtung"
+                    },
+                    {
+                        "name": "last_local_z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Meter in der Wabe Z der letzten Beobachtung"
+                    }
+                ],
+                "file": "state/player_sta_acmp_comp.hpp"
+            },
+            {
+                "name": "PlayerStaActComponent",
+                "description": "Realised per-player action rate \u2014 the BehaviorWatcher contract surface",
+                "fields": [
+                    {
+                        "name": "action_rate",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Realised player actions/sec; above PLR_AC_MAX_ACTION_RATE = suspicious"
+                    }
+                ],
+                "file": "state/player_sta_act_comp.hpp"
+            },
+            {
+                "name": "PlayerStaChtComponent",
+                "description": "Backend cheat-simulation state \u2014 the forced superhuman speed for a simulated cheater",
+                "fields": [
+                    {
+                        "name": "forced_speed",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Forced horizontal cheat speed (m/s); above PLR_AC_MAX_HORIZONTAL_SPEED"
+                    }
+                ],
+                "file": "state/player_sta_cht_comp.hpp"
+            },
+            {
+                "name": "PlayerStaCmbComponent",
+                "description": "Realised per-player combat-event rate \u2014 the BehaviorWatcher contract surface",
+                "fields": [
+                    {
+                        "name": "combat_rate",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Realised combat events/sec; above PLR_AC_MAX_COMBAT_RATE = suspicious"
+                    }
+                ],
+                "file": "state/player_sta_cmb_comp.hpp"
+            },
+            {
+                "name": "PlayerStaComComponent",
+                "description": "Realised per-player communication rate \u2014 the CoordinationDetector contract surface",
+                "fields": [
+                    {
+                        "name": "message_rate",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Realised chat messages/sec; above PLR_AC_MAX_MESSAGE_RATE = suspicious"
+                    }
+                ],
+                "file": "state/player_sta_com_comp.hpp"
+            },
+            {
+                "name": "PlayerStaEcoComponent",
+                "description": "Realised per-player economy-transaction rate \u2014 the EconomyAuditor contract surface",
+                "fields": [
+                    {
+                        "name": "transaction_rate",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Realised economy transactions/sec; above PLR_AC_MAX_TRANSACTION_RATE = suspicious"
+                    }
+                ],
+                "file": "state/player_sta_eco_comp.hpp"
+            },
+            {
+                "name": "PlayerStaEpchComponent",
+                "description": "PlayerStaEpchComponent - the player's wire identity + monotonic migrate epoch",
+                "fields": [
+                    {
+                        "name": "player_ref",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "FNV-1a32 of the player UUID string (PlayerSnap wire identity)"
+                    },
+                    {
+                        "name": "player_epoch",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "per-player monotonic migrate epoch (duplicates dropped by compare)"
+                    }
+                ],
+                "file": "state/player_sta_epch_comp.hpp"
+            },
+            {
+                "name": "PlayerStaInvComponent",
+                "description": "Realised per-player inventory-modification rate \u2014 the EconomyAuditor contract surface",
+                "fields": [
+                    {
+                        "name": "modification_rate",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Realised inventory modifications/sec; above PLR_AC_MAX_INVENTORY_RATE = suspicious"
+                    }
+                ],
+                "file": "state/player_sta_inv_comp.hpp"
+            },
+            {
+                "name": "PlayerStaRoamComponent",
+                "description": "The errand of a backend-driven player \u2014 heading, leg clock and input magnitude",
+                "fields": [
+                    {
+                        "name": "speed",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Walking speed the spawn frame asked for (m/s)"
+                    },
+                    {
+                        "name": "heading",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Course of the current leg (radians), published as PLR_CAM_YAW"
+                    },
+                    {
+                        "name": "leg_sec",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Seconds left of the current phase, walking or resting"
+                    },
+                    {
+                        "name": "forward",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Forward input magnitude of the errand, published while walking"
+                    },
+                    {
+                        "name": "leg_index",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "Legs begun so far - the draw axis of the next heading and rest"
+                    }
+                ],
+                "file": "state/player_sta_roam_comp.hpp"
+            }
+        ],
+        "server_only": [
+            {
+                "name": "PlayerBufPstComponent",
+                "description": "PlayerBufPstComponent - was von dieser Figur auf dem Weg in die Ablage ist",
+                "fields": [
+                    {
+                        "name": "jsn_ref",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "Blob-Kennung des erzeugten Sicherungstextes (0 = keine)"
+                    },
+                    {
+                        "name": "jsn_len",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "Laenge dieses Textes in Bytes"
+                    },
+                    {
+                        "name": "plr_id_ref",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "Blob-Kennung der Figurenkennung (0 = keine)"
+                    },
+                    {
+                        "name": "plr_id_len",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "Laenge der Figurenkennung in Bytes, ohne Nullzeichen"
+                    },
+                    {
+                        "name": "st",
+                        "type": "uint8",
+                        "default": "0",
+                        "description": "Fortschritt der Sicherung (siehe PLAYER_PST_ST_* in types.hpp)"
+                    }
+                ],
+                "file": "buffer/player_buf_pst_comp.hpp"
+            },
+            {
+                "name": "PlayerChnkChgdTag",
+                "description": "PlayerChnkChgdTag - this player crossed into another chunk this tick",
+                "fields": [],
+                "file": "tag/player_chnk_chgd_tag.hpp"
+            },
+            {
+                "name": "PlayerDespPndTag",
+                "description": "PlayerDespPndTag - this player is due to be despawned",
+                "fields": [],
+                "file": "tag/player_desp_pnd_tag.hpp"
+            },
+            {
+                "name": "PlayerDrtyTag",
+                "description": "PlayerDrtyTag - this player changed since the last outbound pass",
+                "fields": [],
+                "file": "tag/player_drty_tag.hpp"
+            },
+            {
+                "name": "PlayerInitTag",
+                "description": "PlayerInitTag - this player entity has completed its initialisation",
+                "fields": [],
+                "file": "tag/player_init_tag.hpp"
+            },
+            {
+                "name": "PlayerInpRmvTag",
+                "description": "PlayerInpRmvTag - this player's input row is to be taken away",
+                "fields": [],
+                "file": "tag/player_inp_rmv_tag.hpp"
+            },
+            {
+                "name": "PlayerLoclTag",
+                "description": "PlayerLoclTag - this player belongs to the session sitting in front of the screen",
+                "fields": [],
+                "file": "tag/player_locl_tag.hpp"
+            },
+            {
+                "name": "PlayerMgrTag",
+                "description": "PlayerMgrTag - marks the one entity that carries the module's manager state",
+                "fields": [],
+                "file": "tag/player_mgr_tag.hpp"
+            },
+            {
+                "name": "PlayerPstDtyTag",
+                "description": "PlayerPstDtyTag - this player's durable row differs from its live state",
+                "fields": [],
+                "file": "tag/player_pst_dty_tag.hpp"
+            },
+            {
+                "name": "PlayerReqDespComponent",
+                "description": "Raised by the Integration layer, drained by the player lifecycle pass.",
+                "fields": [],
+                "file": "request/player_req_desp_comp.hpp"
+            },
+            {
+                "name": "PlayerReqDespResComponent",
+                "description": "PlayerReqDespResComponent - the answer to one despawn request",
+                "fields": [
+                    {
+                        "name": "success",
+                        "type": "bool",
+                        "default": "false",
+                        "description": "true = Spieler wurde entfernt, false = nicht gefunden"
+                    }
+                ],
+                "file": "request/player_req_desp_res_comp.hpp"
+            },
+            {
+                "name": "PlayerReqSpwnComponent",
+                "description": "PlayerReqSpwnComponent - der Wunsch, eine Figur entstehen zu lassen",
+                "fields": [],
+                "file": "request/player_req_spwn_comp.hpp"
+            },
+            {
+                "name": "PlayerReqSpwnResComponent",
+                "description": "PlayerReqSpwnResComponent - der Bescheid auf einen Entstehungswunsch",
+                "fields": [
+                    {
+                        "name": "spawned_entity",
+                        "type": "entity",
+                        "default": "ecs::NullEntity",
+                        "description": "entstandene Figur, sonst NullEntity"
+                    },
+                    {
+                        "name": "success",
+                        "type": "bool",
+                        "default": "false",
+                        "description": "hat die Entstehung geklappt"
+                    }
+                ],
+                "file": "request/player_req_spwn_res_comp.hpp"
+            },
+            {
+                "name": "PlayerSpndTag",
+                "description": "PlayerSpndTag - this entity is a player that has actually entered the world",
+                "fields": [],
+                "file": "tag/player_spnd_tag.hpp"
+            },
+            {
+                "name": "PlayerStaChkComponent",
+                "description": "PlayerStaChkComponent - the chunk this player currently stands in",
+                "fields": [
+                    {
+                        "name": "chunk_x",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "Chunk-Adresse auf der X-Achse (negativ westlich des Nullpunkts)"
+                    },
+                    {
+                        "name": "chunk_y",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "Chunk-Adresse auf der zweiten Bodenachse"
+                    }
+                ],
+                "file": "state/player_sta_chk_comp.hpp"
+            },
+            {
+                "name": "PlayerStaIdntComponent",
+                "description": "PlayerStaIdntComponent - wer diese Figur ist und seit wann",
+                "fields": [],
+                "file": "state/player_sta_idnt_comp.hpp"
+            },
+            {
+                "name": "PlayerStaInpMovComponent",
+                "description": "PlayerStaInpMovComponent - the movement the player is currently asking for",
+                "fields": [
+                    {
+                        "name": "forward",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Vorwaertsachse, -1 bis 1 (negativ = rueckwaerts)"
+                    },
+                    {
+                        "name": "strafe",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Seitwaertsachse, -1 bis 1 (negativ = links)"
+                    },
+                    {
+                        "name": "sprint",
+                        "type": "bool",
+                        "default": "false",
+                        "description": "Sprintschalter dieses Taktes"
+                    },
+                    {
+                        "name": "jump",
+                        "type": "bool",
+                        "default": "false",
+                        "description": "Sprungwunsch dieses Taktes"
+                    }
+                ],
+                "file": "state/player_sta_inp_mov_comp.hpp"
+            },
+            {
+                "name": "PlayerStaPhysComponent",
+                "description": "PlayerStaPhysComponent - what physics currently holds true for this player",
+                "fields": [
+                    {
+                        "name": "on_ground",
+                        "type": "bool",
+                        "default": "false",
+                        "description": "Bodenkontakt, von der Simulation festgestellt"
+                    },
+                    {
+                        "name": "gravity_enabled",
+                        "type": "bool",
+                        "default": "false",
+                        "description": "wirkt die Schwerkraft gerade auf diese Figur"
+                    }
+                ],
+                "file": "state/player_sta_phys_comp.hpp"
+            },
+            {
+                "name": "PlayerStaPosComponent",
+                "description": "PlayerStaPosComponent - wo die Figur steht, chunk-relativ",
+                "fields": [
+                    {
+                        "name": "chunk_x",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "Wabenadresse X (exakt, traegt die Face-Kodierung verlustfrei)"
+                    },
+                    {
+                        "name": "chunk_z",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "Wabenadresse Z (exakt)"
+                    },
+                    {
+                        "name": "local_x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Meter in der Wabe X, [0, Wabenkante)"
+                    },
+                    {
+                        "name": "local_z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Meter in der Wabe Z, [0, Wabenkante)"
+                    },
+                    {
+                        "name": "y",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Weltmeter entlang der Senkrechten (Achse unveraendert)"
+                    }
+                ],
+                "file": "state/player_sta_pos_comp.hpp"
+            },
+            {
+                "name": "PlayerStaStsComponent",
+                "description": "PlayerStaStsComponent - in welcher Lage sich die Figur gerade befindet",
+                "fields": [
+                    {
+                        "name": "sts",
+                        "type": "uint8",
+                        "default": "0",
+                        "description": "Player state value (see PLAYER_STATE_* in types.hpp)"
+                    }
+                ],
+                "file": "state/player_sta_sts_comp.hpp"
+            },
+            {
+                "name": "PlayerStaVelComponent",
+                "description": "PlayerStaVelComponent - wie schnell und wohin sich die Figur gerade bewegt",
+                "fields": [
+                    {
+                        "name": "vx",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "waagerecht, Weltachse X (m/s)"
+                    },
+                    {
+                        "name": "vy",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "SENKRECHT - hier greift die Schwerkraft an (m/s)"
+                    },
+                    {
+                        "name": "vz",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "waagerecht, Weltachse Z (m/s)"
+                    }
+                ],
+                "file": "state/player_sta_vel_comp.hpp"
+            },
+            {
+                "name": "PlayerStaYawComponent",
+                "description": "PlayerStaYawComponent - wohin die Figur schaut",
+                "fields": [
+                    {
+                        "name": "yaw",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Blickrichtung um die Senkrechte, Bogenmass"
+                    }
+                ],
+                "file": "state/player_sta_yaw_comp.hpp"
+            }
+        ]
+    },
+    "systems": {
+        "shared": [
+            {
+                "name": "PlayerSimRestSystem",
+                "file": "simulation/player_sim_rest_sys.hpp"
+            },
+            {
+                "name": "PlayerSimWandSystem",
+                "file": "simulation/player_sim_wand_sys.hpp"
+            }
+        ],
+        "server_only": [
+            {
+                "name": "PlayerAccActSystem",
+                "file": "anticheat/player_acc_act_sys.hpp"
+            },
+            {
+                "name": "PlayerAccCmbSystem",
+                "file": "anticheat/player_acc_cmb_sys.hpp"
+            },
+            {
+                "name": "PlayerAccComSystem",
+                "file": "anticheat/player_acc_com_sys.hpp"
+            },
+            {
+                "name": "PlayerAccEcoSystem",
+                "file": "anticheat/player_acc_eco_sys.hpp"
+            },
+            {
+                "name": "PlayerAccInvSystem",
+                "file": "anticheat/player_acc_inv_sys.hpp"
+            },
+            {
+                "name": "PlayerAccMovSystem",
+                "file": "anticheat/player_acc_mov_sys.hpp"
+            },
+            {
+                "name": "PlayerCtrlInpSystem",
+                "file": "control/player_ctrl_inp_sys.hpp"
+            },
+            {
+                "name": "PlayerCtrlMovSystem",
+                "file": "control/player_ctrl_mov_sys.hpp"
+            },
+            {
+                "name": "PlayerHubPosSystem",
+                "file": "hub/player_hub_pos_sys.hpp"
+            },
+            {
+                "name": "PlayerHubRoamSystem",
+                "file": "hub/player_hub_roam_sys.hpp"
+            },
+            {
+                "name": "PlayerHubSessRegSystem",
+                "file": "hub/player_hub_sess_reg_sys.hpp"
+            },
+            {
+                "name": "PlayerLifeDespSystem",
+                "file": "lifecycle/player_life_desp_sys.hpp"
+            },
+            {
+                "name": "PlayerLifeRoamIniSystem",
+                "file": "lifecycle/player_life_roam_ini_sys.hpp"
+            },
+            {
+                "name": "PlayerLifeSpwnSystem",
+                "file": "lifecycle/player_life_spwn_sys.hpp"
+            },
+            {
+                "name": "PlayerLogObsvSystem",
+                "file": "log/player_log_obsv_sys.hpp"
+            },
+            {
+                "name": "PlayerMigDesSystem",
+                "file": "migration/player_mig_des_sys.hpp"
+            },
+            {
+                "name": "PlayerMigSerSystem",
+                "file": "migration/player_mig_ser_sys.hpp"
+            },
+            {
+                "name": "PlayerPstSerSystem",
+                "file": "persistence/player_pst_ser_sys.hpp"
+            },
+            {
+                "name": "PlayerSimActSystem",
+                "file": "simulation/player_sim_act_sys.hpp"
+            },
+            {
+                "name": "PlayerSimChtSystem",
+                "file": "simulation/player_sim_cht_sys.hpp"
+            },
+            {
+                "name": "PlayerSimComSystem",
+                "file": "simulation/player_sim_com_sys.hpp"
+            },
+            {
+                "name": "PlayerSimEcoSystem",
+                "file": "simulation/player_sim_eco_sys.hpp"
+            },
+            {
+                "name": "PlayerSimPhysSystem",
+                "file": "simulation/player_sim_phys_sys.hpp"
+            },
+            {
+                "name": "PlayerSpwnRcvSystem",
+                "file": "reception/player_spwn_rcv_sys.hpp"
+            },
+            {
+                "name": "PlayerStaChnkSystem",
+                "file": "state/player_sta_chnk_sys.hpp"
+            },
+            {
+                "name": "PlayerStaStsSystem",
+                "file": "state/player_sta_sts_sys.hpp"
+            },
+            {
+                "name": "PlayerSyncInpSystem",
+                "file": "sync/player_sync_inp_sys.hpp"
+            }
+        ]
+    }
+}

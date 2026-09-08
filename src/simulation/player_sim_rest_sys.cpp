@@ -237,7 +237,16 @@ void PlayerSimRestSystem::tick(ecs::Registry& registry, float dt) {
      */
     for (uint32_t i = 0; i < ready_count; ++i) {
         auto& roam = registry.get<PlayerStaRoamComponent>(ready[i]);
-        const uint32_t owner = static_cast<uint32_t>(ready[i]);
+        /* `entt::to_integral` statt eines Casts, weil nur diese Form ueber die Naht kommt: der
+         * Transpiler bildet sie auf `.__id` ab, waehrend er einen `static_cast<uint32_t>` nur
+         * entfernt - im Browser stand dann ein Entity-Objekt in einer Zahl-Variablen (TS2322).
+         *
+         * Die Entity liegt vorher in einem eigenen Namen, weil das Muster des Transpilers einen
+         * INDEXZUGRIFF im Aufruf nicht fasst: `to_integral(ready[i])` blieb woertlich stehen und
+         * riss die erzeugte Datei syntaktisch auf. Das Muster ist inzwischen erweitert; diese
+         * Zeile bleibt trotzdem in der einfachen Form, weil sie unter beiden Fassungen traegt. */
+        const auto owner_entity = ready[i];
+        const uint32_t owner = entt::to_integral(owner_entity);
         roam.leg_index += 1u;
 
         const float turn = plr_roam_span(plr_roam_fraction(owner, roam.leg_index, PLR_ROAM_MIX_TURN),
