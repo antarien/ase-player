@@ -4,7 +4,7 @@
 # via a '# @toml-load-after: ase-x ase-y' line.
 [module]
 name = "ase-player"
-version = "00.01.19.00069"
+version = "00.01.28.00078"
 type = "module"
 layer = 3
 api_version = 1
