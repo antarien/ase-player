@@ -427,7 +427,20 @@
             {
                 "name": "PlayerReqSpwnComponent",
                 "description": "PlayerReqSpwnComponent - der Wunsch, eine Figur entstehen zu lassen",
-                "fields": [],
+                "fields": [
+                    {
+                        "name": "x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "gewuenschte Stelle, Weltachse X in Metern"
+                    },
+                    {
+                        "name": "z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "gewuenschte Stelle, Weltachse Z in Metern"
+                    }
+                ],
                 "file": "request/player_req_spwn_comp.hpp"
             },
             {
@@ -477,7 +490,20 @@
             {
                 "name": "PlayerStaIdntComponent",
                 "description": "PlayerStaIdntComponent - wer diese Figur ist und seit wann",
-                "fields": [],
+                "fields": [
+                    {
+                        "name": "spawned_at_ms",
+                        "type": "uint64",
+                        "default": "0",
+                        "description": "Entstehungszeitpunkt der Figur (ms, steady_clock-Epoche)"
+                    },
+                    {
+                        "name": "last_input_ms",
+                        "type": "uint64",
+                        "default": "0",
+                        "description": "letzte Eingabe dieser Figur (ms, steady_clock-Epoche)"
+                    }
+                ],
                 "file": "state/player_sta_idnt_comp.hpp"
             },
             {
