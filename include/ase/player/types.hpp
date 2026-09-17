@@ -328,7 +328,7 @@ constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;  // Chunk size (m)
  * `state` stand jahrelang als `st` darin - zwei Zeichen, waehrend das Schema 3 bis 4 verlangt
  * (WRFL_ASE_NAMING_SCHEMA). Jede Datei, die sich an dieser Tabelle orientierte, erbte den
  * Verstoss. Verbindlich ist NICHT diese Tabelle, sondern
- * core/ase-validator/ecs_validator/data/taxonomy/_index.json (dort `{"abbrev": "sta", "name":
+ * tools/ase-forge/ase-validator/ecs_validator/data/taxonomy/_index.json (dort `{"abbrev": "sta", "name":
  * "state"}`) samt der Kategoriedateien darunter; die Tabelle hier ist eine Lesehilfe und wird
  * mit jedem Umzug nachgezogen.
  *

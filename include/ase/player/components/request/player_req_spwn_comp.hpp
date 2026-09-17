@@ -21,7 +21,7 @@
  * UMZUG MIT SYMBOL: `spawn` IST ZU LANG.
  *
  * Schema-Nachzug von player_req_spawn_component.hpp. Der Validator nannte dieselben Maengel wie
- * beim Bescheid (gemessen 2026-08-10, core/ase-validator/compliance/player/component/
+ * beim Bescheid (gemessen 2026-08-10, tools/ase-forge/ase-validator/compliance/player/component/
  * player_req_spawn_component.hpp.cmplerr): Legacy-Suffix `_component` statt `_comp`, das
  * ausgeschriebene `spawn` - die Taxonomie erlaubt hoechstens 4 Zeichen und fuehrt `spwn` in DREI
  * Kategorien (03_act_action.json:14, 11_bio_biology.json:507, 29_ecs_ecs.json:32) - und

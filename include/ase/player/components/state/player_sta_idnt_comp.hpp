@@ -21,7 +21,7 @@
  * UMZUG MIT SYMBOL: `st` UND `id` SIND BEIDE ZU KURZ.
  *
  * Schema-Nachzug von player_st_id_component.hpp. Der Validator nannte drei Namensmaengel
- * (gemessen 2026-08-10, core/ase-validator/compliance/player/component/
+ * (gemessen 2026-08-10, tools/ase-forge/ase-validator/compliance/player/component/
  * player_st_id_component.hpp.cmplerr, Verstoss 5 und 6): das Legacy-Suffix `_component` statt
  * `_comp`, und ZWEI zu kurze Kuerzel - `st` und `id`. Das Schema verlangt 3 bis 4 Zeichen je
  * Taxonomieglied (WRFL_ASE_NAMING_SCHEMA). Die Quellen:

@@ -21,7 +21,7 @@
  * Schema-Nachzug von player_tag_local_component.hpp. Zwei Dinge stimmten nicht: der Typ-Marker
  * stand als `_tag_` in der MITTE statt als Suffix, und `local` ist mit fuenf Zeichen ein zu
  * langes Taxonomie-Kuerzel. Der erste Versuch `lcl` wurde abgewiesen - die Taxonomie-Tabelle
- * fuehrt `"local": "locl"` (core/ase-validator/ecs_validator/data/taxonomy/, fuenf Fundstellen).
+ * fuehrt `"local": "locl"` (tools/ase-forge/ase-validator/ecs_validator/data/taxonomy/, fuenf Fundstellen).
  * Der Vorschlagstext des Validators nannte `lcl` und dann `clcl`; massgeblich ist die Tabelle,
  * nicht der Vorschlag. Weil der Strukturname aus dem Dateinamen folgt, wandert er mit:
  * PlayerLocalTag wird PlayerLoclTag - ein leeres Marker-Struct, inhaltlich unveraendert.

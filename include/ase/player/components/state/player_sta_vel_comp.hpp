@@ -21,10 +21,10 @@
  * UMZUG MIT SYMBOL: `st` IST ZU KURZ.
  *
  * Schema-Nachzug von player_st_vel_component.hpp. Der Validator nannte GENAU zwei Namensmaengel
- * (gemessen 2026-08-10, core/ase-validator/compliance/player/component/
+ * (gemessen 2026-08-10, tools/ase-forge/ase-validator/compliance/player/component/
  * player_st_vel_component.hpp.cmplerr, Verstoss 7 und 8): das Legacy-Suffix `_component` statt
  * `_comp`, und die zweizeichige Abkuerzung `st` - das Schema verlangt 3 bis 4, `state` heisst
- * `sta` (core/ase-validator/ecs_validator/data/taxonomy/_index.json, Eintrag
+ * `sta` (tools/ase-forge/ase-validator/ecs_validator/data/taxonomy/_index.json, Eintrag
  * {"abbrev": "sta", "name": "state"}). `vel` fuer velocity wurde NICHT beanstandet und bleibt.
  * Weil der Strukturname aus dem Dateinamen folgt, wandert er mit: PlayerStVelComponent wird
  * PlayerStaVelComponent. Die FELDER bleiben Zeichen fuer Zeichen dieselben.

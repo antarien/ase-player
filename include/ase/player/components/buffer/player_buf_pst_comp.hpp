@@ -20,7 +20,7 @@
  * UMZUG MIT INHALTLICHER KORREKTUR: HIER STANDEN ZWEI ROHE ADRESSEN.
  *
  * Schema-Nachzug von player_buf_pst_component.hpp. Der Validator nannte drei Arten von Maengeln
- * (gemessen 2026-08-10, core/ase-validator/compliance/player/component/
+ * (gemessen 2026-08-10, tools/ase-forge/ase-validator/compliance/player/component/
  * player_buf_pst_component.hpp.cmplerr):
  *   1. Legacy-Suffix `_component` statt `_comp`.
  *   2. `@category buffer` ist kein gueltiger Taxonomiepfad. Der Validator schlug `gis/query/buffer`

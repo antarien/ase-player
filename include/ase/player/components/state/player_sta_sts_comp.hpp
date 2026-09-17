@@ -23,7 +23,7 @@
  * Schema-Nachzug von player_st_sts_component.hpp. Zwei Dinge stimmten nicht: das Legacy-Suffix
  * `_component` (Schema verlangt `_comp`) und das Kuerzel `st` mit nur zwei Zeichen - die
  * Taxonomie verlangt 3 bis 4, `state` heisst `sta` (WRFL_ASE_NAMING_SCHEMA, Tabelle
- * core/ase-validator/ecs_validator/data/taxonomy/). Weil der Strukturname aus dem Dateinamen
+ * tools/ase-forge/ase-validator/ecs_validator/data/taxonomy/). Weil der Strukturname aus dem Dateinamen
  * folgt, wandert er mit: PlayerStStsComponent wird PlayerStaStsComponent. Das FELD bleibt
  * Zeichen fuer Zeichen dasselbe.
  *
