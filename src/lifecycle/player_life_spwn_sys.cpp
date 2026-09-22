@@ -187,8 +187,6 @@
 #include <ase/hub/api.hpp>
 // Containers SSOT - der Spieler-Index in tick() (NO std:: maps)
 #include <ase/containers/hash_map.hpp>
-// Types SSOT (L0) - die Sentinel-Praedikate fuer den Hub-Rueckgabewert beim Spawn
-#include <ase/types/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
@@ -317,37 +315,28 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
 
         if (!player_exists) {
-            // Get terrain height via Hub (HUB Pattern - READS)
+            /* DIE HOEHE WIRD HIER NICHT GEHOLT - SIE GEHOERT DEM SYN-PAAR (2026-09-20).
+             *
+             * Hier stand ein `hub::get(TRN_HGT_AT_POS)` samt Ortshash und Sentinel-Pruefung.
+             * Weiter unten in DEMSELBEN `tick` steht `math::floor` fuer die Kachelachsen, damit
+             * lagen Hub-I/O und deterministische Rechnung in EINEM System: HUB_IO_MIXED_WITH_MATH,
+             * der einzige Verstoss dieses Moduls und die Schranke vor dem Codegen-Eingangstor.
+             *
+             * EIN NEUES SYNC-SYSTEM WAERE DIE FALSCHE ANTWORT. `player_sync_inp_sys.cpp:260` liest
+             * DENSELBEN SCHLUESSEL bereits und legt ihn in eine Bruecken-Component, die laut ihrem
+             * eigenen Kommentar `:271` "genau einen Leser" hat. Der Anschluss war doppelt, nicht
+             * fehlend - und die zweite Lesung hier war die juengere.
+             *
+             * Und dieser Spawn KANN die Bruecke nicht lesen: sie haengt an einem Spieler, den es in
+             * dieser Zeile noch nicht gibt. Also entsteht er auf y=0, und das SYN-Paar zieht die
+             * Hoehe im naechsten Takt nach - genau der Weg, den der geloeschte Kommentar schon als
+             * Rueckfall beschrieb ("das Terrain-Modul zieht die Hoehe nach, sobald der Chunk
+             * geladen ist"). Was entfaellt, ist eine Abkuerzung um EINEN Takt, nicht die Hoehe.
+             *
+             * Die Sentinel-Lehre des alten Blocks bleibt gueltig und steht dort, wo die Lesung
+             * heute liegt: `is_val_float` statt `!is_not_found`, weil der Wert eine KOORDINATE
+             * wird. Sie gehoert zur Lesung, nicht zu dieser Stelle. */
             float ground_y = 0.0f;
-            uint32_t pos_hash = static_cast<uint32_t>(
-                static_cast<int32_t>(request.x) * 73856093 ^
-                static_cast<int32_t>(request.z) * 19349663);
-            /**
-             * ABWESENHEIT WIRD GEFRAGT, NICHT VERGLICHEN (2026-08-20)
-             *
-             * Hier stand `hub_height != hub::NOT_FOUND`. Das Sentinel ist ein BEREICH
-             * (`v <= FloatNotFound`, types.hpp:65), kein einzelner Wert. Dieselbe Umstellung ist
-             * am 2026-08-19 in zehn ase-combat-Systemen gefahren worden; die Begruendung steht
-             * dort ausfuehrlich. Die zweite Kopie dieser Stelle liegt in
-             * character_life_spwn_sys.cpp und ist am selben Tag mitgegangen.
-             *
-             * `is_val_float` und nicht `!is_not_found`, weil der Wert eine KOORDINATE wird: die
-             * Verneinung von is_not_found laesst den UNSET-Sentinel durch und haette die Figur
-             * in dessen Hoehe gesetzt statt auf den Boden. is_val_float schliesst beide Enden
-             * aus (`v > FloatNotFound && v < FloatUnset`, types.hpp:61).
-             *
-             * Der Block steht VOR der Lesung und nicht zwischen Lesung und Pruefung: die Regel
-             * HUB_WITHOUT_CHECK sucht die Pruefung in einem Fenster von fuenf Zeilen hinter
-             * `hub::get` (11_module_layer.json, `_note_window`). Ein Kommentar dazwischen
-             * schiebt sie aus dem Fenster, und der Befund kehrt zurueck.
-             *
-             * Bleibt der Wert ungueltig, spawnt die Figur auf y=0 — das Terrain-Modul zieht die
-             * Hoehe nach, sobald der Chunk geladen ist.
-             */
-            float hub_height = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
-            if (ase::types::is_val_float(hub_height)) {
-                ground_y = hub_height;
-            }
 
             // Create player entity with ONLY player components
             result_entity = registry.create();
