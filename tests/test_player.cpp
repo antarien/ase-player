@@ -34,22 +34,70 @@
  */
 
 #include <ase/player/player.hpp>
+// The lifecycle chain (split 2026-08-30): birth, errand, death - three systems where one stood.
+#include <ase/player/systems/lifecycle/player_life_spwn_sys.hpp>
+#include <ase/player/systems/lifecycle/player_life_roam_ini_sys.hpp>
+#include <ase/player/systems/lifecycle/player_life_desp_sys.hpp>
+// The teleport lever and the session-start pulse (register D0703)
+#include <ase/player/systems/sync/player_sync_tlpt_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_tlpt_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
+#include <ase/player/systems/anticheat/player_acc_mov_sys.hpp>
+#include <ase/player/systems/hub/player_hub_sess_strt_sys.hpp>
+#include <ase/player/components/input/player_inp_tlpt_comp.hpp>
+#include <ase/player/components/input/player_inp_trn_comp.hpp>
+#include <ase/player/components/tag/player_sess_strt_tag.hpp>
+#include <ase/player/components/tag/player_sess_done_tag.hpp>
+#include <ase/hub/api.hpp>
+#include <entt/core/hashed_string.hpp>
 // No <ase/terrain/...>: ase::terrain was removed from ase-player on 2026-08-18 under R15, and
 // the only code here that used it was dead scaffolding - see the tombstone below.
 #include <ase/ecs/system.hpp>
+#include <ase/ecs/app.hpp>
+#include <ase/ecs/internal/dependency_sorter.hpp>
 #include <ase/containers/vector.hpp>
 #include <ase/containers/hash_map.hpp>
 #include <cstring>
+// Names in INFO lines as text: doctest prints a raw `const char*` as an ADDRESS unless
+// DOCTEST_CONFIG_TREAT_CHAR_STAR_AS_STRING is set, and the message would name no system.
+#include <string>
 
 using namespace ase;
 using namespace ase::player;
 
 namespace {
 
-// Process spawn request synchronously by running lifecycle system
+constexpr uint32_t LIFECYCLE_STAGE_COUNT = 3u;
+
+/**
+ * The lifecycle chain as player_module.hpp registers it in Dynamics: PlayerLifeSpwnSystem answers
+ * spawn requests, PlayerLifeRoamIniSystem sends a newborn walker on its errand, and
+ * PlayerLifeDespSystem answers despawn requests. Until 2026-08-30 the first one answered all
+ * three; since the split a helper that ticks only it leaves every despawn request unanswered, and
+ * the despawn case below was red for exactly that reason.
+ *
+ * The names of the stages it ticked land in `ran`, in tick order - the order case at the end of
+ * this file reads them from there, so the list it checks is the list that runs.
+ */
+void run_lifecycle(ase::ecs::Registry& registry, const char* (&ran)[LIFECYCLE_STAGE_COUNT]) {
+    PlayerLifeSpwnSystem spwn;
+    PlayerLifeRoamIniSystem roam;
+    PlayerLifeDespSystem desp;
+    ase::ecs::System* const stages[LIFECYCLE_STAGE_COUNT] = {&spwn, &roam, &desp};
+    for (uint32_t i = 0; i < LIFECYCLE_STAGE_COUNT; ++i) {
+        ran[i] = stages[i]->name();
+        stages[i]->tick(registry, 0.0f);
+    }
+}
+
+void run_lifecycle(ase::ecs::Registry& registry) {
+    const char* ran[LIFECYCLE_STAGE_COUNT] = {};
+    run_lifecycle(registry, ran);
+}
+
+// Process spawn request synchronously by running the lifecycle chain
 ase::ecs::Entity do_spawn_request(
     ase::ecs::Registry& registry,
-    PlayerLifeSpwnSystem& lifecycle,
     const char* player_id,
     float x, float z
 ) {
@@ -60,7 +108,7 @@ ase::ecs::Entity do_spawn_request(
     request.x = x;
     request.z = z;
 
-    lifecycle.tick(registry, 0.0f);
+    run_lifecycle(registry);
 
     ase::ecs::Entity spawned_entity = ase::ecs::NullEntity;
     auto* result = registry.try_get<PlayerReqSpwnResComponent>(request_entity);
@@ -74,7 +122,6 @@ ase::ecs::Entity do_spawn_request(
 
 bool do_despawn_request(
     ase::ecs::Registry& registry,
-    PlayerLifeSpwnSystem& lifecycle,
     const char* player_id
 ) {
     auto request_entity = registry.create();
@@ -82,7 +129,7 @@ bool do_despawn_request(
     std::strncpy(request.player_id, player_id, sizeof(request.player_id) - 1);
     request.player_id[sizeof(request.player_id) - 1] = '\0';
 
-    lifecycle.tick(registry, 0.0f);
+    run_lifecycle(registry);
 
     bool success = false;
     auto* result = registry.try_get<PlayerReqDespResComponent>(request_entity);
@@ -224,7 +271,6 @@ TEST_CASE("player components hold the values written into them") {
 
 TEST_CASE("spawn via PlayerLifeSpwnSystem") {
     ase::ecs::Registry registry;
-    PlayerLifeSpwnSystem lifecycle;
 
     // No terrain setup: the spawn path reads its ground height from the Hub, not from a
     // terrain chunk. The two setup_terrain_chunk calls that stood here were inert - see the
@@ -236,7 +282,7 @@ TEST_CASE("spawn via PlayerLifeSpwnSystem") {
     // The systems read types.hpp directly.
 
     // Spawn player via lifecycle system
-    auto entity = do_spawn_request(registry, lifecycle, "spawn_test", 100.0f, 200.0f);
+    auto entity = do_spawn_request(registry, "spawn_test", 100.0f, 200.0f);
     REQUIRE(entity != ase::ecs::NullEntity);
 
     // Find player via view query
@@ -289,7 +335,7 @@ TEST_CASE("spawn via PlayerLifeSpwnSystem") {
     CHECK(physics->on_ground == true);
 
     // Cannot spawn duplicate
-    auto dup = do_spawn_request(registry, lifecycle, "spawn_test", 0.0f, 0.0f);
+    auto dup = do_spawn_request(registry, "spawn_test", 0.0f, 0.0f);
     CHECK(dup == ase::ecs::NullEntity);
 
     // Find non-existent
@@ -299,35 +345,146 @@ TEST_CASE("spawn via PlayerLifeSpwnSystem") {
 
 TEST_CASE("despawn via PlayerLifeSpwnSystem") {
     ase::ecs::Registry registry;
-    PlayerLifeSpwnSystem lifecycle;
 
     // No terrain setup — inert, see the tombstone.
 
     // Spawn and despawn
-    do_spawn_request(registry, lifecycle, "despawn_test", 0.0f, 0.0f);
+    do_spawn_request(registry, "despawn_test", 0.0f, 0.0f);
     REQUIRE(do_find_player(registry, "despawn_test") != ase::ecs::NullEntity);
 
-    bool result = do_despawn_request(registry, lifecycle, "despawn_test");
+    bool result = do_despawn_request(registry, "despawn_test");
     CHECK(result == true);
     CHECK(do_find_player(registry, "despawn_test") == ase::ecs::NullEntity);
 
     // Cannot despawn again
-    result = do_despawn_request(registry, lifecycle, "despawn_test");
+    result = do_despawn_request(registry, "despawn_test");
     CHECK(result == false);
 }
 
 TEST_CASE("get_all_players via view") {
     ase::ecs::Registry registry;
-    PlayerLifeSpwnSystem lifecycle;
 
     // No terrain setup — inert, see the tombstone. Note that two of the three calls that
     // stood here were identical (0,0,0.0f); even as scaffolding it had stopped meaning anything.
 
     // Spawn multiple players
-    do_spawn_request(registry, lifecycle, "player_a", 0.0f, 0.0f);
-    do_spawn_request(registry, lifecycle, "player_b", 10.0f, 10.0f);
-    do_spawn_request(registry, lifecycle, "player_c", 20.0f, 20.0f);
+    do_spawn_request(registry, "player_a", 0.0f, 0.0f);
+    do_spawn_request(registry, "player_b", 10.0f, 10.0f);
+    do_spawn_request(registry, "player_c", 20.0f, 20.0f);
 
     auto all = do_get_all_players(registry);
     CHECK(all.size() == 3);
+}
+
+TEST_CASE("lifecycle chain: run_lifecycle holds the family the module registers, in its order") {
+    // Neither list is written down here: the module's run is sorted out of its registration with
+    // the sorter App::startup runs, the driver's run is what run_lifecycle() ticks. The family is
+    // every PlayerLife* system of the module's Dynamics run. A stage cut into the chain turns
+    // THIS case red, instead of leaving the cases above to ask a system that no longer answers.
+    ase::ecs::App module_app;
+    module_app.add_module<PlayerModule>();
+    const auto cycles =
+        ase::ecs::internal::sort_systems_by_dependencies(module_app.system_registry());
+    REQUIRE(cycles.empty());
+    const auto& module_run = module_app.systems_for(ase::ecs::Schedule::Dynamics);
+
+    constexpr uint32_t FAMILY_CAP = 16u;
+    const char* family[FAMILY_CAP] = {};
+    uint32_t family_n = 0u;
+    for (size_t i = 0; i < module_run.size(); ++i) {
+        if (module_run[i] == nullptr) continue;
+        const char* name = module_run[i]->name();
+        if (std::strncmp(name, "PlayerLife", 10) != 0) continue;
+        REQUIRE(family_n < FAMILY_CAP);
+        family[family_n++] = name;
+    }
+
+    ase::ecs::Registry registry;
+    const char* ran[LIFECYCLE_STAGE_COUNT] = {};
+    run_lifecycle(registry, ran);
+
+    for (uint32_t i = 0; i < family_n; ++i) {
+        bool driven = false;
+        for (uint32_t k = 0; k < LIFECYCLE_STAGE_COUNT; ++k) {
+            if (ran[k] != nullptr && std::strcmp(family[i], ran[k]) == 0) driven = true;
+        }
+        INFO("registered by the module, not driven by run_lifecycle: " << std::string(family[i]));
+        CHECK(driven);
+    }
+    REQUIRE(family_n == LIFECYCLE_STAGE_COUNT);
+    for (uint32_t i = 0; i < LIFECYCLE_STAGE_COUNT; ++i) {
+        INFO("position " << i << ": the module runs " << std::string(family[i])
+                         << ", run_lifecycle runs " << std::string(ran[i]));
+        CHECK(std::strcmp(family[i], ran[i]) == 0);
+    }
+}
+
+TEST_CASE("teleport lever moves the position, never the velocity, and the teleport authority sees it") {
+    using namespace entt::literals;
+    ase::ecs::Registry registry;
+    auto entity = do_spawn_request(registry, "tele_test", 10.0f, 0.0f);
+    REQUIRE(entity != ase::ecs::NullEntity);
+    // The physics step integrates only players with a terrain bridge; the sync system that fills
+    // it in the server is not under test here.
+    registry.emplace_or_replace<PlayerInpTrnComponent>(entity);
+    const uint32_t lever_owner = entt::hashed_string{"tele_test"}.value();
+    const uint32_t owner = static_cast<uint32_t>(entity);
+
+    PlayerSyncTlptSystem sync;
+    PlayerSimTlptSystem tlpt;
+    PlayerSimPhysSystem phys;
+    PlayerAccMovSystem acc;
+    acc.tick(registry, 0.0f);  // the detector's first tick only records the baseline
+
+    // RED when: the jump goes through the velocity (the speed authority would fire instead) or the
+    // carry across the cell edge is lost (40 m from x = 10 crosses the 32 m edge).
+    hub::set(registry, lever_owner, "PLR_CHEAT_TELEPORT"_hs, 40.0f);
+    sync.tick(registry, 0.0f);
+    REQUIRE(registry.all_of<PlayerInpTlptComponent>(entity));
+    CHECK(registry.get<PlayerInpTlptComponent>(entity).jump_m == doctest::Approx(40.0f));
+    tlpt.tick(registry, 0.0f);
+    phys.tick(registry, 0.0f);
+    const auto& pos = registry.get<PlayerStaPosComponent>(entity);
+    CHECK(static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x ==
+          doctest::Approx(50.0f));
+    CHECK(pos.local_x >= 0.0f);
+    CHECK(pos.local_x < MOVEMENT_DEFAULT_CHUNK_SIZE);
+    const auto& vel = registry.get<PlayerStaVelComponent>(entity);
+    CHECK(vel.vx == doctest::Approx(0.0f));
+    CHECK(vel.vz == doctest::Approx(0.0f));
+    acc.tick(registry, 0.0f);
+    CHECK(hub::get(registry, owner, "PLAYER_MOVEMENT_SUSPICIOUS"_hs) == doctest::Approx(1.0f));
+
+    // A cleared lever stops the jumps; the next detector pass sees a still player and drops the flag.
+    hub::set(registry, lever_owner, "PLR_CHEAT_TELEPORT"_hs, 0.0f);
+    sync.tick(registry, 0.0f);
+    tlpt.tick(registry, 0.0f);
+    phys.tick(registry, 0.0f);
+    CHECK(static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x ==
+          doctest::Approx(50.0f));
+    acc.tick(registry, 0.0f);
+    CHECK(hub::get(registry, owner, "PLAYER_MOVEMENT_SUSPICIOUS"_hs) == doctest::Approx(0.0f));
+}
+
+TEST_CASE("session start is a pulse: up for one pass, down in the next, never announced twice") {
+    using namespace entt::literals;
+    ase::ecs::Registry registry;
+    auto entity = do_spawn_request(registry, "sess_test", 0.0f, 0.0f);
+    REQUIRE(entity != ase::ecs::NullEntity);
+    const uint32_t owner = static_cast<uint32_t>(entity);
+    PlayerHubSessStrtSystem sess;
+
+    sess.tick(registry, 0.0f);
+    CHECK(hub::get(registry, owner, "PLAYER_SESSION_START"_hs) == doctest::Approx(1.0f));
+    CHECK(registry.all_of<PlayerSessStrtTag>(entity));
+    CHECK_FALSE(registry.all_of<PlayerSessDoneTag>(entity));
+
+    // RED when: the flag is held — the Replica would re-fire CoordinationDetector every heartbeat.
+    sess.tick(registry, 0.0f);
+    CHECK(hub::get(registry, owner, "PLAYER_SESSION_START"_hs) == doctest::Approx(0.0f));
+    CHECK(registry.all_of<PlayerSessDoneTag>(entity));
+
+    // RED when: a finished player is announced again.
+    sess.tick(registry, 0.0f);
+    CHECK(hub::get(registry, owner, "PLAYER_SESSION_START"_hs) == doctest::Approx(0.0f));
 }

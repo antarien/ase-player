@@ -15,6 +15,7 @@
             "components": [
                 "PlayerInpCamComponent",
                 "PlayerInpExtComponent",
+                "PlayerInpTlptComponent",
                 "PlayerInpTrnComponent",
                 "PlayerReqRoamComponent",
                 "PlayerStaAcmpComponent",
@@ -102,6 +103,19 @@
                     }
                 ],
                 "file": "input/player_inp_ext_comp.hpp"
+            },
+            {
+                "name": "PlayerInpTlptComponent",
+                "description": "The teleport jump a backend-driven cheater makes per tick, mirrored from the Hub",
+                "fields": [
+                    {
+                        "name": "jump_m",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Per-tick position jump (m); above PLR_AC_TELEPORT_STEP it is a teleport"
+                    }
+                ],
+                "file": "input/player_inp_tlpt_comp.hpp"
             },
             {
                 "name": "PlayerInpTrnComponent",
@@ -463,6 +477,18 @@
                 "file": "request/player_req_spwn_res_comp.hpp"
             },
             {
+                "name": "PlayerSessDoneTag",
+                "description": "PlayerSessDoneTag - this player's session-start pulse has been lowered again",
+                "fields": [],
+                "file": "tag/player_sess_done_tag.hpp"
+            },
+            {
+                "name": "PlayerSessStrtTag",
+                "description": "PlayerSessStrtTag - this player's session start has been raised on the Hub",
+                "fields": [],
+                "file": "tag/player_sess_strt_tag.hpp"
+            },
+            {
                 "name": "PlayerSpndTag",
                 "description": "PlayerSpndTag - this entity is a player that has actually entered the world",
                 "fields": [],
@@ -703,6 +729,10 @@
                 "file": "hub/player_hub_sess_reg_sys.hpp"
             },
             {
+                "name": "PlayerHubSessStrtSystem",
+                "file": "hub/player_hub_sess_strt_sys.hpp"
+            },
+            {
                 "name": "PlayerLifeDespSystem",
                 "file": "lifecycle/player_life_desp_sys.hpp"
             },
@@ -751,6 +781,10 @@
                 "file": "simulation/player_sim_phys_sys.hpp"
             },
             {
+                "name": "PlayerSimTlptSystem",
+                "file": "simulation/player_sim_tlpt_sys.hpp"
+            },
+            {
                 "name": "PlayerSpwnRcvSystem",
                 "file": "reception/player_spwn_rcv_sys.hpp"
             },
@@ -765,6 +799,10 @@
             {
                 "name": "PlayerSyncInpSystem",
                 "file": "sync/player_sync_inp_sys.hpp"
+            },
+            {
+                "name": "PlayerSyncTlptSystem",
+                "file": "sync/player_sync_tlpt_sys.hpp"
             }
         ]
     }

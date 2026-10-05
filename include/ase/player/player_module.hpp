@@ -42,9 +42,11 @@
 #include <ase/player/systems/hub/player_hub_pos_sys.hpp>
 #include <ase/player/systems/hub/player_hub_roam_sys.hpp>
 #include <ase/player/systems/hub/player_hub_sess_reg_sys.hpp>
+#include <ase/player/systems/hub/player_hub_sess_strt_sys.hpp>
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
+#include <ase/player/systems/sync/player_sync_tlpt_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_mov_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_act_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_cmb_sys.hpp>
@@ -57,6 +59,7 @@
 #include <ase/player/systems/simulation/player_sim_act_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_com_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_eco_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_tlpt_sys.hpp>
 #include <ase/player/systems/reception/player_spwn_rcv_sys.hpp>
 #include <ase/player/systems/migration/player_mig_des_sys.hpp>
 #include <ase/player/systems/migration/player_mig_ser_sys.hpp>
@@ -135,6 +138,12 @@ struct PlayerModule {
         app.add_system_with<PlayerSimEcoSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlMovSystem");
 
+        // The teleport lever (register D0703) moves the POSITION, not the velocity, and must run
+        // before PlayerSimPhysSystem: the physics step carries the jump across the cell edge in the
+        // same tick, so no reader sees a local coordinate outside [0, edge).
+        app.add_system_with<PlayerSimTlptSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerCtrlMovSystem");
+
         /**
          * THE JOURNEY OF A BACKEND-DRIVEN WALKER (the phases first, the hub write after them)
          *
@@ -157,7 +166,8 @@ struct PlayerModule {
             .run_after("PlayerSimRestSystem");
 
         app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
-            .run_after("PlayerSimChtSystem");
+            .run_after("PlayerSimChtSystem")
+            .run_after("PlayerSimTlptSystem");
 
         app.add_system_with<PlayerStaStsSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimPhysSystem");
@@ -246,10 +256,20 @@ struct PlayerModule {
         app.add_system<PlayerLogObsvSystem>(ecs::Schedule::Observation);
 
         /**
+         * SESSION START (register D0703): the producer of PLAYER_SESSION_START, the subscription
+         * of CoordinationDetector. Observation runs after Dissemination in the same 1 Hz tier, so
+         * the flag goes up in one pass and down in the next, each edge in its own dissemination —
+         * an event, never a held state the Replica would re-fire every heartbeat.
+         */
+        app.add_system<PlayerHubSessStrtSystem>(ecs::Schedule::Observation);
+
+        /**
          * INTEGRATION (Schedule::Integration)
          * Sync input state from network.
          */
         app.add_system<PlayerSyncInpSystem>(ecs::Schedule::Integration);
+        // The bridge of the teleport lever (D0703): Hub read here, the jump in PlayerSimTlptSystem.
+        app.add_system<PlayerSyncTlptSystem>(ecs::Schedule::Integration);
     }
 };
 

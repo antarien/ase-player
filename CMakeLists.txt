@@ -123,6 +123,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/input/player_inp_ext_comp.hpp
     include/ase/player/components/input/player_inp_cam_comp.hpp
     include/ase/player/components/input/player_inp_trn_comp.hpp
+    include/ase/player/components/input/player_inp_tlpt_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (buffer/)
@@ -137,6 +138,8 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/tag/player_chnk_chgd_tag.hpp
     include/ase/player/components/tag/player_desp_pnd_tag.hpp
     include/ase/player/components/tag/player_drty_tag.hpp
+    include/ase/player/components/tag/player_sess_strt_tag.hpp
+    include/ase/player/components/tag/player_sess_done_tag.hpp
     include/ase/player/components/tag/player_init_tag.hpp
     include/ase/player/components/tag/player_inp_rmv_tag.hpp
     include/ase/player/components/tag/player_locl_tag.hpp
@@ -162,6 +165,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/hub/player_hub_pos_sys.hpp
     include/ase/player/systems/hub/player_hub_roam_sys.hpp
     include/ase/player/systems/hub/player_hub_sess_reg_sys.hpp
+    include/ase/player/systems/hub/player_hub_sess_strt_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (anticheat/)
@@ -213,6 +217,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/simulation/player_sim_act_sys.hpp
     include/ase/player/systems/simulation/player_sim_com_sys.hpp
     include/ase/player/systems/simulation/player_sim_eco_sys.hpp
+    include/ase/player/systems/simulation/player_sim_tlpt_sys.hpp
     include/ase/player/systems/simulation/player_sim_wand_sys.hpp
     include/ase/player/systems/simulation/player_sim_rest_sys.hpp
 
@@ -228,6 +233,7 @@ add_library(${PROJECT_NAME} SHARED
     Input synchronization systems.
     ]]
     include/ase/player/systems/sync/player_sync_inp_sys.hpp
+    include/ase/player/systems/sync/player_sync_tlpt_sys.hpp
 
     #[[
     SOURCE FILES - RECEPTION
@@ -259,6 +265,7 @@ add_library(${PROJECT_NAME} SHARED
     src/simulation/player_sim_act_sys.cpp
     src/simulation/player_sim_com_sys.cpp
     src/simulation/player_sim_eco_sys.cpp
+    src/simulation/player_sim_tlpt_sys.cpp
     src/simulation/player_sim_wand_sys.cpp
     src/simulation/player_sim_rest_sys.cpp
 
@@ -279,6 +286,7 @@ add_library(${PROJECT_NAME} SHARED
     src/hub/player_hub_pos_sys.cpp
     src/hub/player_hub_roam_sys.cpp
     src/hub/player_hub_sess_reg_sys.cpp
+    src/hub/player_hub_sess_strt_sys.cpp
 
     #[[
     SOURCE FILES - ANTICHEAT
@@ -313,6 +321,7 @@ add_library(${PROJECT_NAME} SHARED
     Input synchronization from network.
     ]]
     src/sync/player_sync_inp_sys.cpp
+    src/sync/player_sync_tlpt_sys.cpp
 
     #[[
     SOURCE FILES - LOG
