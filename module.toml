@@ -7,7 +7,7 @@ name = "ase-player"
 version = "00.01.31.00081"
 type = "module"
 layer = 3
-api_version = 1
+api_version = 4
 
 [dependencies]
 ase-hub = "^00.02"
