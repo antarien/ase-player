@@ -26,10 +26,10 @@
  * ARCHITECTURE:
  *
  *   Request Flow:
- *   REST Handler ──> creates request entity with PlayerReqSpwnComponent
- *   PlayerLifeSpwnSystem ──> processes request, creates player, adds result
- *   PlayerLifeRoamIniSystem ──> reads the result, sets a walker on its errand
- *   REST Handler ──> reads result from PlayerReqSpwnResComponent
+ *   REST Handler  →creates request entity with PlayerReqSpwnComponent
+ *   PlayerLifeSpwnSystem  →processes request, creates player, adds result
+ *   PlayerLifeRoamIniSystem  →reads the result, sets a walker on its errand
+ *   REST Handler  →reads result from PlayerReqSpwnResComponent
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *

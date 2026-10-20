@@ -10,6 +10,8 @@
  * @layer       3 (Modules)
  * @category    hub
  * @schedule    Dynamics
+ * @usecase     usecase:100049 - publish a hub value
+ * @actor       Hub Value Bridge (HUBVAL)
  * @created     2026-08-06
  * @modified    2026-08-06
  * @version     1.0.0
@@ -255,7 +257,7 @@ void PlayerHubSessRegSystem::tick(ecs::Registry& registry, float /*dt*/) {
          * world-9102: "session adoption refused: ... pos_miss=1"). Die legitimen Kanaele sind
          * Tag, Konstante oder Telemetrie-Laufzeitwert; Hashes reisen ueber Almanach/Snapshot.
          * Der Terrain-Beobachtergang liest dieses Register seit dem Kanalentscheid NICHT mehr
-         * (Tag-View ueber HubLifeAlivTag); der letzte Leser ist die Webserver-Route
+         * (Gang ueber die Zeilenart HUB_LIFE_ALIV); der letzte Leser ist die Webserver-Route
          * world_player_routes.cpp, deren Almanach-Umbau im Register gefuehrt ist.
          */
         hub::set(registry, session_slot_owner(slot), "PLR_OWNER"_hs, static_cast<float>(owner));

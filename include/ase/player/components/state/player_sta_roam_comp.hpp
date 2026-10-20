@@ -1,9 +1,7 @@
 #pragma once
 
 /**
- * =============================================================================
  * ASE ECS COMPONENT
- * =============================================================================
  *
  * @file        player_sta_roam_comp.hpp
  * @brief       The errand of a backend-driven player — heading, leg clock and input magnitude
@@ -15,21 +13,19 @@
  *              second actor type is created anywhere - the entity is the same real player a human
  *              client would drive, fed through the same PLR_INP_* seam.
  *
- * -----------------------------------------------------------------------------
  * META
- * -----------------------------------------------------------------------------
+ *
  * @module      ase-player
  * @layer       3 (Module)
  * @category    state
  * @parity      shared
  * @created     2026-08-09
- * @modified    2026-08-09
+ * @modified    2026-10-07
  * @version     1.0.0
  * @author      Jan Ohlmann (ADG/ASE/AOW)
  *
- * -----------------------------------------------------------------------------
  * ECS COMPONENT COMPLIANCE
- * -----------------------------------------------------------------------------
+ *
  * [ ] DATA fields ONLY - No methods
  * [ ] NO .cpp file - Header-only
  * [ ] ONLY zero-initialization (= 0, = 0.0f, = false, = {})
@@ -55,8 +51,6 @@
  * [ ] NO uint64_t as pointer concept (use uint32_t ID + ResourceManager via ctx!)
  * [ ] External library objects (shared_ptr, handles) in ResourceManager via ctx()
  * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
- *
- * =============================================================================
  */
 
 #include <cstdint>

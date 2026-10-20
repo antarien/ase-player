@@ -76,10 +76,8 @@ target_link_libraries(${PROJECT_NAME}-mig-test
         ase::player
         ase::types        # region_wire.hpp contract constants (PlayerSnap offsets)
         # ase-player links ase::hub PRIVATE, so its include paths do NOT propagate to this
-        # target. The test reads the staged delivery (hub::HubPlrMigSnapComponent) and sets the
-        # arm (hub::HubPlrMigArmComponent) on the figure, so it needs the star headers itself.
-        # Added 2026-08-23: without this line the file does not compile - `ase/hub/api.hpp` is
-        # not found, which is a missing dependency, not a reason to drop the includes.
+        # target. The test (usecase:100692) reads the staged row HUB_PLR_MIG_STG and adopts the
+        # arm row HUB_PLR_MIG_ARM on the figure through ase/hub/api.hpp, so it links the hub itself.
         ase::hub
         doctest::doctest
 )

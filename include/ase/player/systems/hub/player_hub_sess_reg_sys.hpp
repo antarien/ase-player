@@ -21,7 +21,7 @@
  *
  * ARCHITECTURE:
  *
- *   PlayerStaIdntComponent  ──> PlayerHubSessRegSystem ──> Hub
+ *   PlayerStaIdntComponent   →PlayerHubSessRegSystem  →Hub
  *   PlayerStaPosComponent     (writes the register)      PLR_ACTIVE_COUNT (GLOBAL)
  *   (the live players)                                  PLR_OWNER (owner = hash "PLR_ACTIVE_<i>")
  *

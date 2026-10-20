@@ -6,27 +6,26 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @usecase     usecase:5130 - play a character
+ * @actor       SS/PC
  * @category    ecs/entity/entitylifecycle
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-08-30
- * @version     2.0.0
+ * @modified    2026-10-17
+ * @version     2.1.0
  *
- * WHAT THIS FILE KEPT AND WHAT LEFT IT (split 2026-08-30)
+ * WHAT THIS FILE CARRIES AND WHAT IT DOES NOT
  *
- * This file carried 518 lines and THREE concerns: it created players, it set walkers on their
- * errand, and it destroyed players. Birth and death are two lifecycles, not two paragraphs of
- * one - they read different request components, write different results and share nothing but
- * the identity index. The errand named itself a concern in this file's own words ("this is the
- * ONE place where a requested speed meets the movement authority") and owns its own request
- * component, state component, two tags, warning and log line.
+ * Birth and death are two lifecycles, not two paragraphs of one - they read different request
+ * components, write different results and share nothing but the identity index. The errand of a
+ * walker is a concern of its own, with its own request component, state component, two tags,
+ * warning and log line.
  *
  *   the errand    → PlayerLifeRoamIniSystem (player_life_roam_ini_sys.cpp)
  *   despawn       → PlayerLifeDespSystem    (player_life_desp_sys.cpp)
  *
- * THE NAME STAYED because what is left is the spawn: this file answers PlayerReqSpwnComponent
- * and creates the player row. Both new systems run AFTER it in Dynamics, the same sequence the
- * single system had.
+ * This file answers PlayerReqSpwnComponent and creates the player row. Both other systems run
+ * AFTER it in Dynamics.
  *
  * CAUSAL CHAIN (CAUSA_PLR_LIFE_SPWN: a player row is born)
  *
@@ -39,39 +38,42 @@
  *   │  THIS SYSTEM: PlayerLifeSpwnSystem          │
  *   │                                             │
  *   │  READS:                                     │
- *   │    - PlayerReqSpwnComponent (requests)      │
- *   │    - PlayerStaIdntComponent (existing check) │
- *   │    - "TRN_HGT_AT_POS"_hs (Hub - height)     │
+ *   │    → PlayerReqSpwnComponent (requests)      │
+ *   │    → PlayerStaIdntComponent (existing check)│
  *   │                                             │
  *   │  WRITES:                                    │
- *   │    - PlayerStaIdntComponent (create)        │
- *   │    - PlayerStaPosComponent (create)         │
- *   │    - PlayerStaYawComponent (create)         │
- *   │    - PlayerStaVelComponent (create)         │
- *   │    - PlayerStaPhysComponent (create)        │
- *   │    - PlayerStaStsComponent (create)         │
- *   │    - PlayerStaChkComponent (create)         │
- *   │    - hub::HubPlrSpndTag (create)            │
- *   │    - hub::HubLifeAlivTag (create)           │
- *   │    - PlayerDrtyTag (create)                 │
- *   │    - PlayerReqSpwnResComponent (result)     │
+ *   │    → PlayerStaIdntComponent (create)        │
+ *   │    → PlayerStaPosComponent (create)         │
+ *   │    → PlayerStaYawComponent (create)         │
+ *   │    → PlayerStaVelComponent (create)         │
+ *   │    → PlayerStaPhysComponent (create)        │
+ *   │    → PlayerStaStsComponent (create)         │
+ *   │    → PlayerStaChkComponent (create)         │
+ *   │    → PlayerSpndTag (create)                 │
+ *   │    → hub row HUB_LIFE_ALIV_PLR (life ask)   │
+ *   │    → PlayerDrtyTag (create)                 │
+ *   │    → PlayerReqSpwnResComponent (result)     │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ player entities created with the spawn and life marks
+ *          │ player entities created with the spawn mark and the life ask
  *          ▼
  *   PlayerLifeRoamIniSystem reads the result and sets a walker on its errand;
- *   observer systems in other modules add their components
- *   (InputSpawnObserver, CameraSpawnObserver, etc.)
+ *   PlayerHubSpndSystem publishes PlayerSpndTag as the hub row HUB_PLR_SPND, which observer
+ *   systems in other modules walk to add their components (input, camera, terrain streaming);
+ *   LifecycleHubAlivPlyrRcvSystem (ase-lifecycle) adopts HUB_LIFE_ALIV in Ingestion of the next
+ *   tick
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Hub):
- *   "TRN_HGT_AT_POS"_hs → Terrain height at position (set by terrain module)
+ *   (none - the ground height arrives one tick later through the SYN pair of this module)
  *
  * WRITES (to Hub for other modules):
- *   (none - observer systems read the spawn mark directly)
+ *   hub row HUB_LIFE_ALIV_PLR - hub::row_create with the field HUB_LIFE_ALIV_PLR_BODY, the ask
+ *   for the life row; HUB_LIFE_ALIV itself has one writer, ase-lifecycle. The figure row
+ *   HUB_PLR_SPND is written by PlayerHubSpndSystem
  *
- * NOTE: This system ONLY creates player components. Other modules observe the spawn mark and add
+ * NOTE: This system ONLY creates player components. Other modules observe the figure row and add
  * their own components (input, camera, terrain streaming).
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
@@ -178,14 +180,14 @@
 #include <ase/player/components/state/player_sta_chk_comp.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
 #include <ase/player/components/tag/player_mgr_tag.hpp>
+#include <ase/player/components/tag/player_spnd_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Hub for HUB Pattern (cross-module reads) - und seit 2026-08-18 auch die Lebensmarke
-// hub::HubLifeAlivTag, auf die die Beobachter-Adoption filtert (TerrainStrmObsSyncSystem PASS 2,
-// Betreiber-Kanalentscheid 2026-08-10). Sie kam vorher als POD-Header ueber den Include-Pfad aus
-// ase-lifecycle - genau die L3-auf-L3-Kopplung, die der Umzug aufloest.
+// Hub API - the life ask HUB_LIFE_ALIV_PLR; ase-lifecycle adopts the life row HUB_LIFE_ALIV, on
+// which the observer adoption filters (TerrainStrmObsSyncSystem PASS 2). Both live in the hub so
+// that no module includes another one for them.
 #include <ase/hub/api.hpp>
-// Containers SSOT - der Spieler-Index in tick() (NO std:: maps)
+// Containers SSOT - the player index in tick() (NO std:: maps)
 #include <ase/containers/hash_map.hpp>
 // Logging
 #include <ase/log/log.hpp>
@@ -206,10 +208,9 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
  */
 namespace {
 
-// No helper functions needed - all logic inlined in system methods. The draw sequence a walker's
-// first pause and first course come from moved out with the errand and now lives entirely in
-// PlayerLifeRoamIniSystem; it is still ONE statement in types.hpp (plr_roam_fraction,
-// plr_roam_span), shared with the two phase systems.
+// No helper functions needed - all logic inlined in system methods. The draw sequence of a
+// walker's first pause and first course lives entirely in PlayerLifeRoamIniSystem; it is ONE
+// statement in types.hpp (plr_roam_fraction, plr_roam_span), shared with the two phase systems.
 
 }  // anonymous namespace
 
@@ -232,11 +233,10 @@ void PlayerLifeSpwnSystem::on_start(ecs::Registry& registry) {
         registry.emplace<PlayerMgrTag>(mgr);
 
         /**
-         * The manager entity used to carry PlayerStMovComponent, filled with twelve
-         * MOVEMENT_DEFAULT_* constants (2026-08-15 removed). Every consumer read the
-         * same constants back, so the component was a per-entity duplicate of
-         * types.hpp - forbidden by CLAUDE.md ("'Config-Components' with constants =
-         * FORBIDDEN"). The manager tag itself stays: it marks the singleton entity.
+         * The manager entity carries no movement settings: they are constants of types.hpp, and
+         * a component filled with constants would state them a second time on every entity
+         * (CLAUDE.md: "'Config-Components' with constants = FORBIDDEN"). The manager tag itself
+         * marks the singleton entity.
          */
         log::info("[PlayerLifeSpwnSystem] Created player manager entity");
     }
@@ -244,29 +244,26 @@ void PlayerLifeSpwnSystem::on_start(ecs::Registry& registry) {
 
 void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Movement settings come straight from types.hpp (2026-08-15).
-     * They used to be copied into PlayerStMovComponent and read back through a
-     * manager lookup; every field only ever held a MOVEMENT_DEFAULT_* constant.
+     * STEP 1: Movement settings come straight from types.hpp - every field of them only ever
+     * holds a MOVEMENT_DEFAULT_* constant.
      */
 
     /**
-     * DER SPIELER-INDEX WIRD EINMAL JE PASS GEBAUT, NICHT EINMAL JE ANFRAGE.
+     * THE PLAYER INDEX IS BUILT ONCE PER PASS, NOT ONCE PER REQUEST.
      *
-     * Die Frage lautet "gibt es schon eine Zeile mit dieser player_id?" und wurde bis 2026-08-18
-     * mit einer vollstaendigen view<PlayerStaIdntComponent> INNERHALB der Anfrage-Schleife
-     * beantwortet: M Anfragen mal N Spieler, und das zweimal im selben tick, weil die
-     * Despawn-Schleife dieselbe Frage stellte. Der Aufwand sah billig aus, weil die Sicht in
-     * einer Zeile stand.
+     * The question is "is there already a row with this player_id?". A full
+     * view<PlayerStaIdntComponent> INSIDE the request loop would be M requests times N players;
+     * the cost would look cheap, because the view would stand in one line.
      *
-     * SEIT DEM SCHNITT 2026-08-30 STEHT DIE DESPAWN-SCHLEIFE IN PlayerLifeDespSystem und baut
-     * dort ihren eigenen Index - einmal je Takt, O(N). Das ist NICHT der Rueckfall in den alten
-     * Defekt: der lag in der SCHLEIFE, nicht in der Zahl der Systeme. Eine geteilte Karte
-     * muesste in einem Component liegen, und eine HashMap ist kein POD.
+     * The despawn loop stands in PlayerLifeDespSystem and builds its own index there, once per
+     * tick, O(N). That is no relapse into the defect of the loop: the defect lies in the LOOP,
+     * not in the number of systems. A shared map would have to live in a component, and a
+     * HashMap is no POD.
      *
-     * Der Index ist ein VORFILTER, keine Antwort. Er fuehrt Hash auf Entity; wer einen Treffer
-     * hat, vergleicht die Kennung an der Fundstelle nach. Ohne diese Nachpruefung waere eine
-     * Hash-Kollision keine ausbleibende, sondern eine PLAUSIBEL FALSCHE Antwort - der falsche
-     * Spieler, still gefunden. Mit der Nachpruefung ist der schlimmste Fall ein "nicht gefunden".
+     * The index is a PREFILTER, not an answer. It maps hash to entity; whoever has a hit compares
+     * the identifier at the found place again. Without that re-check a hash collision would not
+     * be a missing answer but a PLAUSIBLY WRONG one: the wrong player, silently found. With the
+     * re-check the worst case is a "not found".
      */
     containers::HashMap<uint64_t, ecs::Entity> player_by_id;
     for (auto [pe, identity] : registry.view<PlayerStaIdntComponent>().each()) {
@@ -294,7 +291,7 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         ecs::Entity result_entity = ecs::NullEntity;
         bool success = false;
 
-        // Check if player already exists - O(1) gegen den Index, Kennung an der Fundstelle geprueft
+        // Check if the player already exists - O(1) against the index, identifier re-checked
         uint64_t req_hash = PLR_ID_FNV_OFFSET;
         for (uint32_t i = 0;
              i < static_cast<uint32_t>(sizeof(request.player_id)) - 1u
@@ -315,27 +312,22 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
 
         if (!player_exists) {
-            /* DIE HOEHE WIRD HIER NICHT GEHOLT - SIE GEHOERT DEM SYN-PAAR (2026-09-20).
+            /* THE HEIGHT IS NOT FETCHED HERE, IT BELONGS TO THE SYN PAIR.
              *
-             * Hier stand ein `hub::get(TRN_HGT_AT_POS)` samt Ortshash und Sentinel-Pruefung.
-             * Weiter unten in DEMSELBEN `tick` steht `math::floor` fuer die Kachelachsen, damit
-             * lagen Hub-I/O und deterministische Rechnung in EINEM System: HUB_IO_MIXED_WITH_MATH,
-             * der einzige Verstoss dieses Moduls und die Schranke vor dem Codegen-Eingangstor.
+             * A hub read next to the `math::floor` of the chunk axes further down would put hub
+             * I/O and deterministic arithmetic into ONE system: HUB_IO_MIXED_WITH_MATH.
              *
-             * EIN NEUES SYNC-SYSTEM WAERE DIE FALSCHE ANTWORT. `player_sync_inp_sys.cpp:260` liest
-             * DENSELBEN SCHLUESSEL bereits und legt ihn in eine Bruecken-Component, die laut ihrem
-             * eigenen Kommentar `:271` "genau einen Leser" hat. Der Anschluss war doppelt, nicht
-             * fehlend - und die zweite Lesung hier war die juengere.
+             * A NEW SYNC SYSTEM WOULD BE THE WRONG ANSWER. `player_sync_inp_sys.cpp` already reads
+             * the same key and lays it into a bridge component that, by its own comment, has
+             * "exactly one reader".
              *
-             * Und dieser Spawn KANN die Bruecke nicht lesen: sie haengt an einem Spieler, den es in
-             * dieser Zeile noch nicht gibt. Also entsteht er auf y=0, und das SYN-Paar zieht die
-             * Hoehe im naechsten Takt nach - genau der Weg, den der geloeschte Kommentar schon als
-             * Rueckfall beschrieb ("das Terrain-Modul zieht die Hoehe nach, sobald der Chunk
-             * geladen ist"). Was entfaellt, ist eine Abkuerzung um EINEN Takt, nicht die Hoehe.
+             * And this spawn CANNOT read the bridge: it hangs on a player that does not exist yet
+             * in this line. So it is born at y=0, and the SYN pair pulls the height in the next
+             * tick once the chunk is loaded. What falls away is a shortcut by ONE tick, not the
+             * height.
              *
-             * Die Sentinel-Lehre des alten Blocks bleibt gueltig und steht dort, wo die Lesung
-             * heute liegt: `is_val_float` statt `!is_not_found`, weil der Wert eine KOORDINATE
-             * wird. Sie gehoert zur Lesung, nicht zu dieser Stelle. */
+             * The sentinel lesson stands where the read lies: `is_val_float` instead of
+             * `!is_not_found`, because the value becomes a COORDINATE. */
             float ground_y = 0.0f;
 
             // Create player entity with ONLY player components
@@ -346,11 +338,10 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             identity.player_id[sizeof(identity.player_id) - 1] = '\0';
 
             /**
-             * DER INDEX WIRD MITGEFUEHRT, nicht nur gelesen. Zwei Anfragen mit derselben Kennung
-             * im selben Pass haetten sonst zwei Spieler erzeugt - und seit dem Schnitt gilt das
-             * doppelt: PlayerLifeDespSystem baut seinen Index NACH diesem Pass, sieht den frisch
-             * angelegten Spieler also ohnehin, aber innerhalb DIESER Schleife bleibt die
-             * Mitfuehrung die einzige Abwehr gegen die doppelte Anlage.
+             * THE INDEX IS CARRIED ALONG, not only read. Two requests with the same identifier
+             * in the same pass would otherwise create two players. PlayerLifeDespSystem builds
+             * its index AFTER this pass and sees the freshly created player anyway, but inside
+             * THIS loop carrying it along is the only guard against the double creation.
              */
             player_by_id.emplace(req_hash, result_entity);
 
@@ -359,9 +350,9 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             identity.last_input_ms = 0;
 
             /**
-             * CHUNK-RELATIV (S2b 2026-08-11): der Draht liefert Weltmeter (f32), gefuehrt wird
-             * die Wabenadresse exakt plus kleine lokale Meter - an Ort 7 (204 Mio Weltmeter,
-             * ULP 16 m) verpuffte sonst jeder Schritt (Muster character_life_spwn_sys.cpp).
+             * CHUNK-RELATIVE: the wire delivers world metres (f32), kept is the exact cell
+             * address plus small local metres; at place 7 (204 million world metres, ULP 16 m)
+             * every step would otherwise vanish (pattern character_life_spwn_sys.cpp).
              */
             auto& pos = registry.emplace<PlayerStaPosComponent>(result_entity);
             pos.chunk_x = static_cast<int32_t>(math::floor(request.x / MOVEMENT_DEFAULT_CHUNK_SIZE));
@@ -385,20 +376,27 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             chunk.chunk_x = pos.chunk_x;
             chunk.chunk_y = pos.chunk_z;
 
-            // Lifecycle tags - observer systems in other modules will see these
-            // and add their own components (input, camera, terrain streaming)
-            registry.emplace<hub::HubPlrSpndTag>(result_entity);
+            /* THE FIGURE STANDS IN THE WORLD, its own mark says so. PlayerHubSpndSystem carries
+             * it as the row HUB_PLR_SPND into the star; observers in other modules (input,
+             * camera, terrain streaming) walk that kind. The hub write stands there and not here,
+             * because this system computes the chunk axes (WRFL_ASE_SYN_PATTERN). */
+            registry.emplace<PlayerSpndTag>(result_entity);
             registry.emplace<PlayerDrtyTag>(result_entity);
 
             /**
-             * DIE LEBENSMARKE - ein Siedler LEBT, und wer lebt, wird beobachtet: die
-             * Beobachter-Adoption (TerrainStrmObsSyncSystem PASS 2) sieht ausschliesslich
-             * hub::HubLifeAlivTag (Betreiber-Kanalentscheid 2026-08-10). Ohne die Marke
-             * wanderte der Siedler unsichtbar - 381 Wabenuebertritte, null Zellmarkierungen
-             * (gemessen 2026-08-11). Seine Seele fuehrt die SITZUNG (MS/PC): BdiAgtRegSystem
-             * excluded player::PlayerSpndTag, damit hier kein zweiter Wille entsteht.
+             * THE LIFE ASK. A settler LIVES, and whoever lives is observed: the observer adoption
+             * (TerrainStrmObsSyncSystem PASS 2) sees only the rows of the kind HUB_LIFE_ALIV.
+             * Without it the settler would wander invisibly, cell crossings without a single cell
+             * mark. Its soul is led by the SESSION (MS/PC): BdiAgtRegSystem leaves out every
+             * HUB_PLR_SPND row, so that no second will arises here.
+             *
+             * HUB_LIFE_ALIV has one writer, ase-lifecycle. This system files the ask
+             * HUB_LIFE_ALIV_PLR; LifecycleHubAlivPlyrRcvSystem adopts the figure in Ingestion of
+             * the next tick, before Dynamics, so the observers see it one tick after the spawn.
              */
-            registry.emplace<hub::HubLifeAlivTag>(result_entity);
+            const ecs::Entity life_ask = hub::row_create(registry, "HUB_LIFE_ALIV_PLR"_hs);
+            hub::set_u32(registry, static_cast<uint32_t>(life_ask), "HUB_LIFE_ALIV_PLR_BODY"_hs,
+                         static_cast<uint32_t>(result_entity));
 
             success = true;
             log::debug("[PlayerLifeSpwnSystem] Spawned player");
@@ -407,12 +405,12 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
 
         /**
-         * DAS ERGEBNIS IST DIE NAHT ZUM AUFTRAG (Schnitt 2026-08-30)
+         * THE RESULT IS THE SEAM TO THE ERRAND
          *
-         * PlayerLifeRoamIniSystem liest genau dieses Paar - Ergebnis plus der
-         * PlayerReqRoamComponent, der mit der Anfrage mitreiste - und setzt den Wanderer auf
-         * seinen Weg. Dieses System fasst den Auftrag NICHT mehr an und entfernt ihn NICHT: er
-         * wird dort verzehrt, ein System spaeter im selben Takt.
+         * PlayerLifeRoamIniSystem reads exactly this pair, the result plus the
+         * PlayerReqRoamComponent that travelled with the request, and sets the walker on its
+         * way. This system does NOT touch the errand and does NOT remove it: it is consumed
+         * there, one system later in the same tick.
          */
         auto& result = registry.emplace<PlayerReqSpwnResComponent>(request_entity);
         result.spawned_entity = result_entity;

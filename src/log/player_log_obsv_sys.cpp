@@ -6,11 +6,13 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @usecase     usecase:5130 - play a character
+ * @actor       SS/PC
  * @category    error/logging/output
  * @schedule    Observation
  * @created     2026-01-22
- * @modified    2026-04-13
- * @version     1.3.0
+ * @modified    2026-10-13
+ * @version     1.3.1
  *
  * CAUSAL CHAIN (CAUSA_PLR_LOG_OBSV: Player State Observation Logging)
  *
@@ -28,10 +30,8 @@
  *   │    → PlayerSpndTag (spawned count)       │
  *   │    → PlayerDrtyTag (dirty count)           │
  *   │    → PlayerChnkChgdTag (chunk changes)  │
- *   │    → "LOG_CONST_DEFAULT_INTERVAL"_hs (Hub)  │
  *   │                                             │
  *   │  WRITES:                                    │
- *   │    → PlayerCchObsComponent (timer/cache)  │
  *   │    → log::debug (periodic output)           │
  *   └─────────────────────────────────────────────┘
  *          │
@@ -41,8 +41,8 @@
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
- * READS (from hub_constants.json via Hub):
- *   "LOG_CONST_DEFAULT_INTERVAL"_hs → Log interval in seconds (float)
+ * READS (from Hub):
+ *   (none - the schedule Observation, 1 Hz, is the heartbeat)
  *
  * WRITES (to Hub for other modules):
  *   (none - this is an observation/logging system)
@@ -148,14 +148,13 @@
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
 #include <ase/player/components/tag/player_chnk_chgd_tag.hpp>
+#include <ase/player/components/tag/player_spnd_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
-// Hub for HUB Pattern
-#include <ase/hub/api.hpp>
-// Types for sentinel functions (is_not_found)
-#include <ase/types/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
+
+#include <entt/core/hashed_string.hpp>
 
 namespace ase::player {
 using namespace entt::literals;  // For "_hs hashed strings (Hub)
@@ -185,11 +184,9 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
     /**
      * STEP 1: Gibt es die Manager-Zeile? PlayerMgrTag markiert die EINE Singleton-Entity.
      *
-     * Das ist eine FRAGE, keine Aufzaehlung - und bis 2026-08-18 war sie als Schleife
-     * geschrieben, in deren Rumpf fuenf weitere Sichten liefen. Der Rumpf hat die Manager-Zeile
-     * nie benutzt ((void)mgr), er brauchte nur ihre EXISTENZ; strukturell war es trotzdem M mal
-     * N, und dass M hier eins ist, steht nirgends im Code. Fuenf Verstoesse aus einer Schleife,
-     * die keine sein wollte.
+     * Das ist eine FRAGE, keine Aufzaehlung. Der Rumpf braucht nur die EXISTENZ der
+     * Manager-Zeile, nie die Zeile selbst; eine Schleife mit weiteren Sichten in ihrem Rumpf
+     * waere strukturell M mal N, und dass M hier eins ist, stuende nirgends im Code.
      */
     bool mgr_exists = false;
     for (auto mgr : registry.view<PlayerMgrTag>()) {
@@ -203,12 +200,9 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
     }
 
     /**
-     * KEIN TIMER, KEIN AENDERUNGS-TRIGGER, KEIN INTERVALL-WERT (Betreiber-Entscheid
-     * 2026-08-11): dieses System laeuft in Observation (1 Hz) - der Schedule IST der
-     * Herzschlag. Die fruehere Fassung tickte in Conclusion (60 Hz), drosselte sich per
-     * log_interval_timer/significant_change auf dem Manager-Cache und fiel bei fehlendem
-     * Hub-Wert auf eine stille Konstante zurueck - drei Kruecken fuer eine falsche
-     * Herzzahl, und die Aenderungs-Abkuerzung konnte trotzdem mehrmals je Sekunde feuern.
+     * KEIN TIMER, KEIN AENDERUNGS-TRIGGER, KEIN INTERVALL-WERT: dieses System laeuft in
+     * Observation (1 Hz) - der Schedule IST der Herzschlag. Eine Drosselung per Zeitgeber auf
+     * dem Manager waere eine Kruecke fuer eine falsche Herzzahl.
      *
      * STEP 2: Count total players
      */
@@ -238,10 +232,11 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
     }
 
     /**
-     * STEP 4: Count tag-based states
+     * STEP 4: Count tag-based states. The figures in the world carry this module's own
+     * PlayerSpndTag; PlayerHubSpndSystem publishes the same set as the hub row HUB_PLR_SPND.
      */
     uint32_t spawned_count = 0;
-    for (auto e : registry.view<hub::HubPlrSpndTag>()) {
+    for (auto e : registry.view<PlayerSpndTag>()) {
         (void)e;
         ++spawned_count;
     }

@@ -5,36 +5,35 @@
  *
  * @file        player_spnd_tag.hpp
  * @brief       PlayerSpndTag - this entity is a player that has actually entered the world
- * @description Trennt die eingesetzte Spielfigur von jeder anderen Entitaet: Kamera, Migration,
- *              Persistenz und Beobachtung filtern ueber diesen Marker statt ueber ein Feld.
+ * @description Trennt die eingesetzte Spielfigur von jeder anderen Entitaet: Persistenz,
+ *              Beobachtung und die Hub-Zeile HUB_PLR_SPND filtern ueber diesen Marker statt ueber
+ *              ein Feld.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    tag
  * @parity      server_only
+ * @usecase     usecase:5130 - play a character
+ * @actor       SS/PC
  * @created     2025-12-25
- * @modified    2026-08-10
+ * @modified    2026-10-13
  * @version     00.00.00.00000 [seed]
  *
- * UMZUG MIT SYMBOL, KUERZEL AUS DER TAXONOMIE.
+ * KUERZEL AUS DER TAXONOMIE.
  *
- * Schema-Nachzug von player_tag_spawned_component.hpp. Der Typ-Marker stand als `_tag_` in der
- * MITTE statt als Suffix, und `spawned` ist mit sieben Zeichen zu lang (max 4,
- * WRFL_ASE_NAMING_SCHEMA). Die Taxonomie-Tabelle fuehrt "spawned": "spnd" - nachgeschlagen, nicht
- * geraten; das benachbarte "spwn" gehoert zu `spawn`, dem Vorgang, nicht zum Zustand danach. Weil
- * der Strukturname aus dem Dateinamen folgt, wandert er mit: PlayerSpawnedTag wird PlayerSpndTag,
- * ein leeres Marker-Struct, inhaltlich unveraendert.
+ * Die Taxonomie-Tabelle fuehrt "spawned": "spnd" - nachgeschlagen, nicht geraten; das benachbarte
+ * "spwn" gehoert zu `spawn`, dem Vorgang, nicht zum Zustand danach (WRFL_ASE_NAMING_SCHEMA).
  *
- * DIE WEITESTE EINHEIT DIESER MIGRATION: der Marker wird ausserhalb des eigenen Moduls gelesen -
- * ase-world (Migration, Bindung) und ase-camera (Zielwahl) haengen daran. Cross-Modul-Lesen eines
- * Tags ist zulaessig (der Header ist L3-Vertrag), aber es macht diesen Umzug zu dem einen, bei dem
- * ein vergessener Aufrufer erst beim Bauen auffiele.
+ * DIESER MARKER BLEIBT IM MODUL. Ihn setzen die beiden Stellen, an denen eine Figur die Welt
+ * betritt - PlayerLifeSpwnSystem und PlayerMigDesSystem -, und PlayerHubSpndSystem traegt jede
+ * markierte Figur als Hub-Zeile HUB_PLR_SPND auf den Stern. Fremde Module lesen die ZEILE ueber
+ * hub::row_each und hub::row_has, nie diesen Typ: ase-bdi (keine zweite Seele fuer eine Sitzung),
+ * ase-camera (Zielwahl), ase-character, ase-geoid und ase-world (Bindung, Migration, Last).
  *
- * WARUM DIESE MIGRATION AUF DEM KRITISCHEN PFAD LIEGT: ase-codegen ruft mod_cmpl_check und
+ * WARUM DIE BENENNUNG AUF DEM KRITISCHEN PFAD LIEGT: ase-codegen ruft mod_cmpl_check und
  * verwirft die GESAMTE Modulausgabe, solange auch nur ein Verstoss steht
- * (codegen_generate_json.py:check_ecs_compliance, Gate `violations == 0`; gemessen 2026-08-10
- * fuehrte der Lauf ase-player als `deleted`). Ohne diese Umzuege entsteht keine Client-Paritaet
- * fuer die SHARED-Komponenten dieses Moduls.
+ * (codegen_generate_json.py:check_ecs_compliance, Gate `violations == 0`). Ohne einen
+ * schemagerechten Namen entsteht keine Client-Paritaet fuer die SHARED-Komponenten dieses Moduls.
  *
  * ECS TAG COMPLIANCE
  *
@@ -74,8 +73,8 @@ namespace ase::player {
  * @brief PlayerSpndTag - die Figur steht in der Welt
  *
  * "Spieler sein" ist keine Eigenschaft, die man in ein Feld schreibt, sondern eine Zugehoerigkeit
- * zu einer Menge - und Mengen bildet dieses ECS mit Tags. Wer die eingesetzten Figuren braucht,
- * nimmt den Marker in seine View auf und sieht dadurch weder halbfertige Anfragen noch
+ * zu einer Menge - und Mengen bildet dieses ECS mit Tags. Wer im Modul die eingesetzten Figuren
+ * braucht, nimmt den Marker in seine View auf und sieht dadurch weder halbfertige Anfragen noch
  * Verwalter-Entitaeten.
  */
 struct PlayerSpndTag {};

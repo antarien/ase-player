@@ -4,24 +4,25 @@
  * ASE ECS SYSTEM HEADER
  *
  * @file        player_mig_des_sys.hpp
- * @brief       PlayerMigDesSystem - deserialize migrated-in PlayerSnaps and honour migrate acks
- * @description WS-H.4 deserializer half, spiegelbildlich zu PlayerMigSerSystem — und der
- *              Schlussstein der Sterntrennung ase-world/ase-player: bis 2026-08-19 packte
- *              ase-world das eingefrorene 42-Byte-Bild SELBST aus und schrieb sieben fremde
- *              Zeilen (serialisieren tat der Eigentuemer, deserialisieren der Fremde). Jetzt
- *              stellt ase-world nur noch Zustellungen auf den Stern (HubPlrMigSnapComponent /
- *              HubPlrMigAckComponent + HubPlrMigPndTag), und DIESES System baut die Figur mit
- *              den eigenen Typen: epoch-idempotentes Anlegen bzw. In-Place-Update aus dem
- *              Snap, Abmeldebitte (PlayerReqDespComponent) aus der Quittung. Verbrauchte
- *              Zustellungen tragen HubPlrMigFinTag; die leere Huelle raeumt ihr Erzeuger ab.
+ * @brief       PlayerMigDesSystem - take the inbound migrate rows off the star into bridge components
+ * @description WS-H.4 inbound half, Sync part of the SYN cut. ase-world files one hub row per
+ *              inbound frame: HUB_PLR_MIG_DLV for a frozen PlayerSnap this node now owns,
+ *              HUB_PLR_MIG_ACK for the echo of a figure that left. This system copies each row
+ *              into a bridge entity of this module (PlayerInpMigDlvrComponent,
+ *              PlayerInpMigAckComponent) and releases the row in the same visit. Building the
+ *              figure and the despawn request are calculation and belong to PlayerMigAplySystem.
  *
  * @module      ase-player
  * @layer       3 (Module)
  * @category    entity/actor/player
  * @schedule    Reception
+ * @parity      server_only
+ * @design      DSGN_021
+ * @usecase     usecase:100692 - migrate figure between regions
+ * @actor       Fleet Capacity Ledger (FLTCAP)
  * @created     2026-08-19
- * @modified    2026-08-19
- * @version     1.0.0
+ * @modified    2026-10-14
+ * @version     2.0.0
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -43,21 +44,18 @@
 namespace ase::player {
 
 /**
- * @brief Drains the star deliveries of the migrate seam: instantiates or updates the figure
- *        from a snap delivery, files the module-own despawn request from an ack delivery.
+ * @brief Copies the inbound migrate rows of the star into bridge entities of this module.
  *
- * Processes (Reception, one delivery = one figure event):
- *   each (HubPlrMigSnapComponent, HubPlrMigPndTag) → validate snap_len + schema →
- *     O(1) player_ref lookup → epoch-idempotent instantiate/update → HubPlrMigFinTag
- *   each (HubPlrMigAckComponent, HubPlrMigPndTag) → O(1) player_ref lookup →
- *     PlayerReqDespComponent from the OWN identity row → HubPlrMigFinTag
- *   each (HubPlrMigFinTag) → consume the delivery rows (remove), hull left for its creator
+ * Processes (Reception, run_after WorldPlrMigRcvSystem):
+ *   row_each HUB_PLR_MIG_DLV → bridge PlayerInpMigDlvrComponent (snap, snap_len, dst_region),
+ *     row_release
+ *   row_each HUB_PLR_MIG_ACK → bridge PlayerInpMigAckComponent (player_ref, ack_epoch),
+ *     row_release
  *
  * @schedule Reception
- * @reads    hub::HubPlrMigSnapComponent, hub::HubPlrMigAckComponent, hub::HubPlrMigPndTag,
- *           PlayerStaEpchComponent (lookup), PlayerStaIdntComponent (despawn identity)
- * @writes   PlayerSta* rows of the instantiated figure, PlayerSpndTag, PlayerReqDespComponent,
- *           hub::HubPlrMigFinTag (receipt), delivery rows consumed
+ * @reads    hub rows HUB_PLR_MIG_DLV (SNAP, DST_REGION), HUB_PLR_MIG_ACK (PLAYER_REF, EPOCH)
+ * @writes   PlayerInpMigDlvrComponent, PlayerInpMigAckComponent (bridge entities),
+ *           row_release of the visited rows
  */
 class PlayerMigDesSystem : public ecs::System {
 public:

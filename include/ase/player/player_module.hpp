@@ -11,9 +11,10 @@
  * @layer       3 (Modules)
  * @design      DSGN_021
  * @design      DSGN_030
+ * @usecase     usecase:5130 - play a character
  * @created     2025-12-01
- * @modified    2026-01-22
- * @version     2.0.0
+ * @modified    2026-10-12
+ * @version     2.1.0
  *
  * ECS MODULE/PLUGIN DEFINITION COMPLIANCE
  *
@@ -43,6 +44,7 @@
 #include <ase/player/systems/hub/player_hub_roam_sys.hpp>
 #include <ase/player/systems/hub/player_hub_sess_reg_sys.hpp>
 #include <ase/player/systems/hub/player_hub_sess_strt_sys.hpp>
+#include <ase/player/systems/hub/player_hub_spnd_sys.hpp>
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
@@ -60,7 +62,9 @@
 #include <ase/player/systems/simulation/player_sim_com_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_eco_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_tlpt_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_wrld_sys.hpp>
 #include <ase/player/systems/reception/player_spwn_rcv_sys.hpp>
+#include <ase/player/systems/migration/player_mig_aply_sys.hpp>
 #include <ase/player/systems/migration/player_mig_des_sys.hpp>
 #include <ase/player/systems/migration/player_mig_ser_sys.hpp>
 
@@ -106,6 +110,14 @@ struct PlayerModule {
             .run_after("PlayerLifeSpwnSystem");
         app.add_system_with<PlayerLifeDespSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerLifeRoamIniSystem");
+
+        /**
+         * DIE FIGUR IM STERN. PlayerHubSpndSystem traegt jede PlayerSpndTag-Figur als Zeile
+         * HUB_PLR_SPND in den Stern. Die Kante liest, was die Geburt in DIESEM Takt gesetzt hat;
+         * eine zugewanderte Figur kommt in Reception und steht damit schon davor.
+         */
+        app.add_system_with<PlayerHubSpndSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerLifeSpwnSystem");
 
         // "TerrainChkSystem", NOT "TerrainChunkSystem" — the name here is the RUNTIME name a
         // system returns from name(), and terrain abbreviates: `TerrainChkSystem`. The spelled
@@ -175,8 +187,17 @@ struct PlayerModule {
         app.add_system_with<PlayerStaChnkSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerStaStsSystem");
 
-        app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::Dynamics)
+        /**
+         * THE WORLD-METRE VIEW, THEN ITS PUBLICATION (SYN pattern)
+         * PlayerSimWrldSystem turns the settled chunk-relative place into world metres in the axis
+         * order of the star; PlayerHubPosSystem copies that view onto PLR_POS_* and computes nothing.
+         * The edge is a read order: the publisher reads the row the conversion writes in this frame.
+         */
+        app.add_system_with<PlayerSimWrldSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerStaChnkSystem");
+
+        app.add_system_with<PlayerHubPosSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimWrldSystem");
 
         /**
          * SESSION INDEX REGISTER (producer of PLR_ACTIVE_COUNT + PLR_OWNER)
@@ -216,25 +237,28 @@ struct PlayerModule {
 
         /**
          * OBSERVATION (Schedule::Observation, 1Hz standing-watch)
-         * WS-H.4 boundary-migrate serializer: answers the PlayerReqMigComponent the World
-         * boundary watch (WorldPlrBndSystem, ase-world, same schedule) armed - bumps the
-         * per-player monotonic migrate epoch and stages the frozen 42-byte PlayerSnap into
-         * PlayerBufMigComponent. run_after orders it behind the watch so an armed migrate
-         * serializes the SAME standing-watch tick; on a non-World tier the name resolves to
-         * nothing and the edge is a no-op (dependency_sorter skips unknown names).
+         * WS-H.4 boundary-migrate serializer: answers the hub row HUB_PLR_MIG_ARM the World
+         * boundary watch (WorldPlrBndSystem, ase-world, same schedule) adopted onto the figure -
+         * bumps the per-player monotonic migrate epoch and files the frozen 42-byte PlayerSnap
+         * as the hub row HUB_PLR_MIG_STG. run_after orders it behind the watch so an armed
+         * migrate serializes the SAME standing-watch tick; on a non-World tier the name resolves
+         * to nothing and the edge is a no-op (dependency_sorter skips unknown names).
          */
         app.add_system_with<PlayerMigSerSystem>(ecs::Schedule::Observation)
             .run_after("WorldPlrBndSystem");
 
         /**
-         * Deserializer-Haelfte der WS-H.4-Naht: verbraucht die Stern-Zustellungen
-         * (HubPlrMigSnap/Ack + HubPlrMigPndTag), die der world-Empfaenger anlegt, und baut die
-         * Figur mit den EIGENEN Typen. run_after ordnet ihn hinter den Zusteller, damit eine
-         * Zustellung im SELBEN Takt verbraucht wird; auf Nicht-World-Tiers loest der Name auf
-         * nichts auf und die Kante ist ein No-op (dependency_sorter skips unknown names).
+         * Inbound half of the WS-H.4 seam, cut by the SYN pattern. PlayerMigDesSystem copies the
+         * rows HUB_PLR_MIG_DLV and HUB_PLR_MIG_ACK the world receiver files into bridge entities
+         * and releases the rows; run_after puts it behind the receiver so a delivery is taken the
+         * SAME tick (on a non-World tier the name resolves to nothing and the edge is a no-op).
+         * PlayerMigAplySystem builds the figure from the bridges with the module's OWN types and
+         * runs right after the copy.
          */
         app.add_system_with<PlayerMigDesSystem>(ecs::Schedule::Reception)
             .run_after("WorldPlrMigRcvSystem");
+        app.add_system_with<PlayerMigAplySystem>(ecs::Schedule::Reception)
+            .run_after("PlayerMigDesSystem");
 
         /**
          * PRESERVATION (Schedule::Preservation, 1Hz)

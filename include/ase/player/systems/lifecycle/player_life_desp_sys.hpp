@@ -27,9 +27,9 @@
  * ARCHITECTURE:
  *
  *   Request Flow:
- *   REST Handler ──> creates request entity with PlayerReqDespComponent
- *   PlayerLifeDespSystem ──> marks the player, destroys it, adds result
- *   REST Handler ──> reads result from PlayerReqDespResComponent
+ *   REST Handler  →creates request entity with PlayerReqDespComponent
+ *   PlayerLifeDespSystem  →marks the player, destroys it, adds result
+ *   REST Handler  →reads result from PlayerReqDespResComponent
  *
  * THE IDENTITY INDEX IS BUILT HERE TOO, AND THAT IS THE POINT OF THE COMMENT
  *

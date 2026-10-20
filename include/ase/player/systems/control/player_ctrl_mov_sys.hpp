@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerInpExtComponent ──> PlayerCtrlMovSystem ──> PlayerStaVelComponent
+ *   PlayerInpExtComponent  →PlayerCtrlMovSystem  →PlayerStaVelComponent
  *   (from PlayerSyncInpSystem)  (calculates velocity)   (vx, vy, vz)
  *
  * ECS SYSTEM HEADER COMPLIANCE

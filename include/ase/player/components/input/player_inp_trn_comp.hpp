@@ -1,9 +1,7 @@
 #pragma once
 
 /**
- * =============================================================================
  * ASE ECS COMPONENT (INPUT)
- * =============================================================================
  *
  * @file        player_inp_trn_comp.hpp
  * @brief       External terrain height from Hub for player systems
@@ -18,20 +16,18 @@
  *              because the value is a player input: `ext` means EXTERNAL, and
  *              TRN_HGT_AT_POS rides the same Hub bridge as the six PLR_* keys.
  *
- * -----------------------------------------------------------------------------
  * META
- * -----------------------------------------------------------------------------
+ *
  * @module      ase-player
  * @layer       3 (Module)
  * @category    input
  * @parity      shared
  * @created     2026-08-15
- * @modified    2026-08-15
+ * @modified    2026-10-07
  * @version     1.0.0
  *
- * -----------------------------------------------------------------------------
  * SYN PATTERN (Hub I/O vs Calculation Separation)
- * -----------------------------------------------------------------------------
+ *
  * This component is the BRIDGE between:
  *   - Sync System (SERVER-ONLY): Reads Hub, writes this Component
  *   - Calc System (SHARED): Reads this Component, writes State Components
@@ -39,9 +35,8 @@
  * Hub Keys stored:
  *   TRN_HGT_AT_POS → trn_hgt    (Terrain height at position)
  *
- * -----------------------------------------------------------------------------
  * ECS COMPONENT COMPLIANCE
- * -----------------------------------------------------------------------------
+ *
  * [ ] DATA fields ONLY - No methods
  * [ ] NO .cpp file - Header-only
  * [ ] ONLY zero-initialization (= 0, = 0.0f, = false, = {})
@@ -67,8 +62,6 @@
  * [ ] NO uint64_t as pointer concept (use uint32_t ID + ResourceManager via ctx!)
  * [ ] External library objects (shared_ptr, handles) in ResourceManager via ctx()
  * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
- *
- * =============================================================================
  */
 
 #include <cstdint>

@@ -23,12 +23,12 @@
  * @category    hub
  * @schedule    Observation
  * @created     2026-10-03
- * @modified    2026-10-03
+ * @modified    2026-10-07
  * @version     1.0.0
  *
  * ARCHITECTURE:
  *
- *   PlayerStaIdntComponent + PlayerStaPosComponent ──> PlayerHubSessStrtSystem ──> Hub
+ *   PlayerStaIdntComponent + PlayerStaPosComponent  →  PlayerHubSessStrtSystem  →  Hub
  *   (a live player, first seen)                        raise: 1 + PlayerSessStrtTag  PLAYER_SESSION_START
  *   PlayerSessStrtTag (raised one pass ago)            lower: 0 + PlayerSessDoneTag  (owner = entity)
  *

@@ -8,11 +8,13 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @usecase     usecase:5130 - play a character
+ * @actor       SS/PC
  * @category    entity/actor/player
  * @schedule    Preservation
  * @created     2026-01-22
- * @modified    2026-07-30
- * @version     2.1.0
+ * @modified    2026-10-13
+ * @version     2.1.1
  *
  * CAUSAL CHAIN (CAUSA_PLR_PST_SER: Player Persistence Serialization)
  *
@@ -49,6 +51,7 @@
  * READS (from Components):
  *   PlayerStaIdntComponent → Player identity
  *   PlayerStaPosComponent → Position data
+ *   PlayerSpndTag → the figures in the world, this module's own marker
  *
  * WRITES (to Hub for ase-replication):
  *   "REP_PST_SER"_hs → Serialization entity reference
@@ -153,6 +156,7 @@
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/buffer/player_buf_pst_comp.hpp>
 #include <ase/player/components/tag/player_pst_dty_tag.hpp>
+#include <ase/player/components/tag/player_spnd_tag.hpp>
 #include <ase/player/types.hpp>
 // Serialization (Layer 2)
 #include <ase/serial/serial.hpp>
@@ -185,11 +189,12 @@ void PlayerPstSerSystem::on_start(ecs::Registry& /*registry*/) {
 void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * STEP 1: Process dirty players that need persistence
-     * Single-pass processing without collect-then-process
+     * Single-pass processing without collect-then-process. The figures in the world carry this
+     * module's own PlayerSpndTag; the hub row HUB_PLR_SPND is the same set for other modules.
      */
     auto view = registry.view<
         PlayerPstDtyTag,
-        hub::HubPlrSpndTag,
+        PlayerSpndTag,
         PlayerStaIdntComponent,
         PlayerStaPosComponent,
         PlayerStaVelComponent,

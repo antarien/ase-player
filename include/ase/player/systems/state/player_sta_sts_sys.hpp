@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerStaVelComponent ──> PlayerStaStsSystem ──> PlayerStaStsComponent
+ *   PlayerStaVelComponent  →PlayerStaStsSystem  →PlayerStaStsComponent
  *   (velocity)               (determines state)      (state updated)
  *
  * ECS SYSTEM HEADER COMPLIANCE

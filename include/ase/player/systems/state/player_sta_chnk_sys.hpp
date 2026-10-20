@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE:
  *
- *   PlayerStaPosComponent ──> PlayerStaChnkSystem ──> PlayerStaChkComponent
+ *   PlayerStaPosComponent  →PlayerStaChnkSystem  →PlayerStaChkComponent
  *   (position)              (tracks chunks)         PlayerChnkChgdTag
  *
  * ECS SYSTEM HEADER COMPLIANCE

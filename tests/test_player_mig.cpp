@@ -6,37 +6,25 @@
 /**
  * ASE Player Migrate-Serializer Tests (PLAN_ASE_COMPUTE_PHASE_06_WORLD WS-H.4)
  *
+ * @usecase     usecase:100692 - migrate figure between regions
+ *
  * doctest CHECK/REQUIRE only - never assert() (all five servers compile tests with
  * -O3 -DNDEBUG, where assert(expr) expands to ((void)0) and the expression is never
- * compiled; test_player.cpp documents how that hid a compile error for nine days).
- *
- * WHY THIS FILE EXISTS, written 2026-08-23:
- *
- *   The target `ase-player-mig-test` was declared in tests/CMakeLists.txt with an EMPTY
- *   source list. Nothing was compiled into it, so the linker found no main and the build
- *   failed at 750/832 with "undefined reference to `main'". The target was intentional -
- *   its purpose is spelled out above the declaration - but the file was never written.
- *   This is that file. The target is NOT removed and NOT excluded from `all`: deleting it
- *   would make the link error disappear together with the test (Rule 13, Rule 19).
- *
- *   It went unnoticed because ctest never ran: 105 add_test() calls existed tree-wide
- *   against zero enable_testing(), so every test binary was built by every build and
- *   executed by nobody. A target with no sources is exactly the defect a first ctest run
- *   reports immediately.
+ * compiled).
  *
  * WHAT IS DRIVEN HERE: the REAL PlayerMigSerSystem, not a re-implementation. The encoder
  * lives in an anonymous namespace inside the .cpp and is unreachable from a test, which is
- * correct - the contract that matters is the BYTES on the entity, and those are produced by
+ * correct - the contract that matters is the BYTES of the staged row, and those are produced by
  * ticking the system.
  *
- * THE FOUR CASES, in the order the target comment names them:
- *   1. the frozen 42-byte PlayerSnap layout, read back at the L0 offsets
+ * THE FOUR CASES:
+ *   1. the frozen 42-byte PlayerSnap layout, read back at the L0 offsets from HUB_PLR_MIG_STG
  *   2. the per-player epoch bump is monotonic - the source of migrate idempotency
- *   3. staged-buffer re-entry is barred across ticks
- *   4. all of it through PlayerMigSerSystem::tick
+ *   3. a standing HUB_PLR_MIG_STG row bars re-entry across ticks
+ *   4. two figures staged in one tick keep their own identity
  *
- * IF A CHECK TURNS RED ON THE FIRST REAL RUN, THAT IS A FINDING, NOT A REGRESSION - the
- * same caveat test_player.cpp carries. These checks have never been executed.
+ * The arm is the hub row HUB_PLR_MIG_ARM on the figure, as WorldPlrBndSystem adopts it; the
+ * staged image is a row of its own with the figure as its FIG field.
  */
 
 #include <ase/player/player.hpp>
@@ -51,7 +39,7 @@
 // The frozen wire layout is an L0 contract: offsets and size come from there, never from a
 // number repeated here. A test that hard-codes 42 would still pass after a contract change.
 #include <ase/types/region_wire.hpp>
-// Arm and delivery ride the hub star on the figure itself since 2026-08-19.
+// Arm and staged image are hub rows.
 #include <ase/hub/api.hpp>
 #include <ase/ecs/system.hpp>
 #include <ase/utils/strops.hpp>   // Layer 0 — str_copy kennt die Zielgroesse
@@ -64,6 +52,7 @@
 namespace {
 
 using namespace ase;
+using namespace entt::literals;
 
 // Reads a little-endian u32 back out of the staged image. memcpy, not a cast: the snap is a
 // char buffer and an aliased load through uint32_t* is undefined behaviour.
@@ -86,7 +75,8 @@ float read_f32(const char* snap, uint32_t offset) {
 }
 
 // Builds one player carrying every component the serialize walk requires, plus the armed
-// migrate. Values are distinct per field so a swapped offset cannot pass unnoticed.
+// migrate as the boundary watch files it. Values are distinct per field so a swapped offset
+// cannot pass unnoticed.
 ecs::Entity make_armed_player(ecs::Registry& registry, const char* uuid, uint32_t dst_region) {
     const auto plr = registry.create();
 
@@ -107,24 +97,34 @@ ecs::Entity make_armed_player(ecs::Registry& registry, const char* uuid, uint32_
     registry.emplace<player::PlayerStaStsComponent>(plr).sts = 7u;
 
     auto& idnt = registry.emplace<player::PlayerStaIdntComponent>(plr);
-    // str_copy statt memcpy mit gemessener Quelllaenge: die alte Form schrieb so viele Bytes, wie
-    // die QUELLE lang ist, und kannte die Groesse des Ziels nicht — bei einem uuid ueber 63
-    // Zeichen haette sie ueber player_id[64] hinausgeschrieben, und der Schaden waere im
-    // NACHBARFELD desselben Speicherblocks aufgetaucht, weit weg von seiner Ursache. str_copy
-    // bekommt die Zielgroesse und terminiert immer. Der Cast steht ausdruecklich da: sizeof
-    // liefert size_t, und die Verengung auf den uint32_t-Parameter waere sonst implizit.
+    // str_copy gets the target size and always terminates; the cast states the narrowing.
     utils::str_copy(idnt.player_id, static_cast<uint32_t>(sizeof(idnt.player_id)), uuid);
 
-    auto& arm = registry.emplace<hub::HubPlrMigArmComponent>(plr);
-    arm.dst_region = dst_region;
-    arm.proj_hash = 0xABCD1234u;
+    const uint32_t fig = static_cast<uint32_t>(plr);
+    hub::row_adopt(registry, plr, "HUB_PLR_MIG_ARM"_hs);
+    hub::set_u32(registry, fig, "HUB_PLR_MIG_ARM_DST_REGION"_hs, dst_region);
+    hub::set_u32(registry, fig, "HUB_PLR_MIG_ARM_PROJ_HASH"_hs, 0xABCD1234u);
 
     return plr;
 }
 
+// The staged row of one figure, or entt::null when none stands. Test-side lookup over the
+// kind; the system under test never searches like this.
+ecs::Entity staged_row_of(ecs::Registry& registry, ecs::Entity plr) {
+    ecs::Entity found = entt::null;
+    hub::row_each(registry, "HUB_PLR_MIG_STG"_hs, [&registry, plr, &found](ecs::Entity row) {
+        uint32_t fig = 0u;
+        if (hub::try_get_u32(registry, static_cast<uint32_t>(row), "HUB_PLR_MIG_STG_FIG"_hs, fig) &&
+            fig == static_cast<uint32_t>(plr)) {
+            found = row;
+        }
+    });
+    return found;
+}
+
 }  // namespace
 
-TEST_CASE("PlayerMigSer: the staged image carries the frozen 42-byte PlayerSnap layout") {
+TEST_CASE("PlayerMigSer: the staged row carries the frozen 42-byte PlayerSnap layout") {
     ecs::Registry registry;
     player::PlayerMigSerSystem system;
 
@@ -133,49 +133,48 @@ TEST_CASE("PlayerMigSer: the staged image carries the frozen 42-byte PlayerSnap 
 
     system.tick(registry, 0.0f);
 
-    const auto* snap = registry.try_get<hub::HubPlrMigSnapComponent>(plr);
-    REQUIRE(snap != nullptr);
+    REQUIRE(hub::row_count(registry, "HUB_PLR_MIG_STG"_hs) == 1u);
+    const auto row = staged_row_of(registry, plr);
+    REQUIRE(registry.valid(row));
+    const uint32_t owner = static_cast<uint32_t>(row);
+    char snap[types::PLAYER_SNAP_SZ] = {};
+    REQUIRE(hub::try_get_bytes(registry, owner, "HUB_PLR_MIG_STG_SNAP"_hs, snap,
+                               types::PLAYER_SNAP_SZ));
 
-    SUBCASE("the encoded length is the contract size, not a local constant") {
-        CHECK(snap->snap_len == types::PLAYER_SNAP_SZ);
+    SUBCASE("the stored length is the contract size, not a local constant") {
+        CHECK(hub::bytes_len(registry, owner, "HUB_PLR_MIG_STG_SNAP"_hs) == types::PLAYER_SNAP_SZ);
     }
 
     SUBCASE("schema, id and epoch sit at their contract offsets") {
-        CHECK(read_u16(snap->snap, types::PLAYER_SNAP_OFF_SCHEMA) == types::PLAYER_SNAP_SCHEMA_VER);
+        CHECK(read_u16(snap, types::PLAYER_SNAP_OFF_SCHEMA) == types::PLAYER_SNAP_SCHEMA_VER);
         // player_ref is the FNV-1a32 of the UUID string, derived by the system itself.
-        CHECK(read_u32(snap->snap, types::PLAYER_SNAP_OFF_ID) == entt::hashed_string::value(uuid));
-        CHECK(read_u32(snap->snap, types::PLAYER_SNAP_OFF_EPOCH) == 1u);
+        CHECK(read_u32(snap, types::PLAYER_SNAP_OFF_ID) == entt::hashed_string::value(uuid));
+        CHECK(read_u32(snap, types::PLAYER_SNAP_OFF_EPOCH) == 1u);
     }
 
     SUBCASE("position is the world-metre sum chunk * edge + local, and y passes through") {
-        // THE WIRE STAYS IN WORLD METRES (frozen PlayerSnap, 4x f32). The sum is exact on
-        // cell edges; a (chunk:i32, local:f32) wire v2 is an open operator decision.
+        // THE WIRE STAYS IN WORLD METRES (frozen PlayerSnap, 4x f32).
         const float expect_x = 3.0f * player::MOVEMENT_DEFAULT_CHUNK_SIZE + 5.5f;
         const float expect_z = -2.0f * player::MOVEMENT_DEFAULT_CHUNK_SIZE + 7.25f;
-        CHECK(read_f32(snap->snap, types::PLAYER_SNAP_OFF_POS) == doctest::Approx(expect_x));
-        CHECK(read_f32(snap->snap, types::PLAYER_SNAP_OFF_POS + 4u) == doctest::Approx(64.5f));
-        CHECK(read_f32(snap->snap, types::PLAYER_SNAP_OFF_POS + 8u) == doctest::Approx(expect_z));
-        CHECK(read_f32(snap->snap, types::PLAYER_SNAP_OFF_POS + 12u) == doctest::Approx(1.75f));
+        CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_POS) == doctest::Approx(expect_x));
+        CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_POS + 4u) == doctest::Approx(64.5f));
+        CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_POS + 8u) == doctest::Approx(expect_z));
+        CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_POS + 12u) == doctest::Approx(1.75f));
     }
 
     SUBCASE("velocity keeps its three axes apart") {
-        CHECK(read_f32(snap->snap, types::PLAYER_SNAP_OFF_VEL) == doctest::Approx(1.5f));
-        CHECK(read_f32(snap->snap, types::PLAYER_SNAP_OFF_VEL + 4u) == doctest::Approx(-9.5f));
-        CHECK(read_f32(snap->snap, types::PLAYER_SNAP_OFF_VEL + 8u) == doctest::Approx(2.25f));
+        CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_VEL) == doctest::Approx(1.5f));
+        CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_VEL + 4u) == doctest::Approx(-9.5f));
+        CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_VEL + 8u) == doctest::Approx(2.25f));
     }
 
     SUBCASE("the u8 status widens into the u32 wire field") {
-        CHECK(read_u32(snap->snap, types::PLAYER_SNAP_OFF_STATUS) == 7u);
+        CHECK(read_u32(snap, types::PLAYER_SNAP_OFF_STATUS) == 7u);
     }
 
-    SUBCASE("the delivery repeats ref and destination beside the image") {
-        CHECK(snap->player_ref == entt::hashed_string::value(uuid));
-        CHECK(snap->dst_region == 42u);
-    }
-
-    SUBCASE("the send-side enumeration marker is set in the same pass") {
-        // The sender counts over this marker, never over the hub rows themselves.
-        CHECK(registry.all_of<hub::HubPlrMigSndPndTag>(plr));
+    SUBCASE("the instruction stays on the figure for the sender") {
+        // The sender takes destination and project from the arm and withdraws it after the ship.
+        CHECK(hub::row_has(registry, plr, "HUB_PLR_MIG_ARM"_hs));
     }
 }
 
@@ -189,25 +188,30 @@ TEST_CASE("PlayerMigSer: the epoch bump is monotonic and happens once per armed 
     const auto epoch_after_first = registry.get<player::PlayerStaEpchComponent>(plr).player_epoch;
     CHECK(epoch_after_first == 1u);
 
-    SUBCASE("a second tick does NOT bump again - the staged delivery bars re-entry") {
-        // This is the idempotency source: the serialize walk excludes HubPlrMigSnapComponent,
-        // so an entity that already carries a staged image never re-enters the bump. Without
-        // that barrier the receiver would see two different epochs for one migrate and could
-        // not tell a duplicate from a fresh move.
+    SUBCASE("a second tick does NOT bump again - the standing row bars re-entry") {
+        // Without that barrier the receiver would see two different epochs for one migrate and
+        // could not tell a duplicate from a fresh move.
         system.tick(registry, 0.0f);
         CHECK(registry.get<player::PlayerStaEpchComponent>(plr).player_epoch == epoch_after_first);
+        CHECK(hub::row_count(registry, "HUB_PLR_MIG_STG"_hs) == 1u);
     }
 
-    SUBCASE("clearing the staged delivery re-arms the walk and the epoch grows, never resets") {
-        registry.remove<hub::HubPlrMigSnapComponent>(plr);
+    SUBCASE("releasing the staged row re-arms the walk and the epoch grows, never resets") {
+        const auto first_row = staged_row_of(registry, plr);
+        REQUIRE(registry.valid(first_row));
+        hub::row_release(registry, first_row);
         system.tick(registry, 0.0f);
         const auto second = registry.get<player::PlayerStaEpchComponent>(plr).player_epoch;
         CHECK(second == 2u);
         CHECK(second > epoch_after_first);
-        // Monotonic means the number never goes backwards, which is what makes it usable as
-        // a duplicate discriminator on the receiving side.
-        CHECK(read_u32(registry.get<hub::HubPlrMigSnapComponent>(plr).snap,
-                       types::PLAYER_SNAP_OFF_EPOCH) == second);
+        const auto second_row = staged_row_of(registry, plr);
+        REQUIRE(registry.valid(second_row));
+        char snap[types::PLAYER_SNAP_SZ] = {};
+        REQUIRE(hub::try_get_bytes(registry, static_cast<uint32_t>(second_row),
+                                   "HUB_PLR_MIG_STG_SNAP"_hs, snap, types::PLAYER_SNAP_SZ));
+        // Monotonic means the number never goes backwards, which is what makes it usable as a
+        // duplicate discriminator on the receiving side.
+        CHECK(read_u32(snap, types::PLAYER_SNAP_OFF_EPOCH) == second);
     }
 }
 
@@ -217,11 +221,11 @@ TEST_CASE("PlayerMigSer: an unarmed player is never staged") {
 
     const auto plr = make_armed_player(registry, "00000000-0000-0000-0000-000000000000", 1u);
     // Take the arm away: without it the walk must not touch the entity at all.
-    registry.remove<hub::HubPlrMigArmComponent>(plr);
+    hub::row_withdraw(registry, plr, "HUB_PLR_MIG_ARM"_hs);
 
     system.tick(registry, 0.0f);
 
-    CHECK(registry.try_get<hub::HubPlrMigSnapComponent>(plr) == nullptr);
+    CHECK(hub::row_count(registry, "HUB_PLR_MIG_STG"_hs) == 0u);
     // And no epoch was invented for a migrate that was never armed.
     const auto* epch = registry.try_get<player::PlayerStaEpchComponent>(plr);
     CHECK((epch == nullptr || epch->player_epoch == 0u));
@@ -238,17 +242,23 @@ TEST_CASE("PlayerMigSer: two players staged in one tick keep their own ref and e
 
     system.tick(registry, 0.0f);
 
-    const auto& snap_a = registry.get<hub::HubPlrMigSnapComponent>(plr_a);
-    const auto& snap_b = registry.get<hub::HubPlrMigSnapComponent>(plr_b);
+    REQUIRE(hub::row_count(registry, "HUB_PLR_MIG_STG"_hs) == 2u);
+    const auto row_a = staged_row_of(registry, plr_a);
+    const auto row_b = staged_row_of(registry, plr_b);
+    REQUIRE(registry.valid(row_a));
+    REQUIRE(registry.valid(row_b));
+    char snap_a[types::PLAYER_SNAP_SZ] = {};
+    char snap_b[types::PLAYER_SNAP_SZ] = {};
+    REQUIRE(hub::try_get_bytes(registry, static_cast<uint32_t>(row_a), "HUB_PLR_MIG_STG_SNAP"_hs,
+                               snap_a, types::PLAYER_SNAP_SZ));
+    REQUIRE(hub::try_get_bytes(registry, static_cast<uint32_t>(row_b), "HUB_PLR_MIG_STG_SNAP"_hs,
+                               snap_b, types::PLAYER_SNAP_SZ));
 
-    // EnTT iterates a pool backwards, so the staging ORDER among simultaneous migrates is not
-    // fixed and is deliberately not checked here. What must hold is that neither image picked
-    // up the other's identity or destination.
-    CHECK(snap_a.player_ref == entt::hashed_string::value(uuid_a));
-    CHECK(snap_b.player_ref == entt::hashed_string::value(uuid_b));
-    CHECK(snap_a.player_ref != snap_b.player_ref);
-    CHECK(snap_a.dst_region == 11u);
-    CHECK(snap_b.dst_region == 22u);
-    CHECK(read_u32(snap_a.snap, types::PLAYER_SNAP_OFF_EPOCH) == 1u);
-    CHECK(read_u32(snap_b.snap, types::PLAYER_SNAP_OFF_EPOCH) == 1u);
+    // row_each walks a storage from its back, so the staging ORDER among simultaneous migrates
+    // is not fixed and is deliberately not checked here. What must hold is that neither image
+    // picked up the other's identity.
+    CHECK(read_u32(snap_a, types::PLAYER_SNAP_OFF_ID) == entt::hashed_string::value(uuid_a));
+    CHECK(read_u32(snap_b, types::PLAYER_SNAP_OFF_ID) == entt::hashed_string::value(uuid_b));
+    CHECK(read_u32(snap_a, types::PLAYER_SNAP_OFF_EPOCH) == 1u);
+    CHECK(read_u32(snap_b, types::PLAYER_SNAP_OFF_EPOCH) == 1u);
 }

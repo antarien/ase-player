@@ -7,6 +7,94 @@
         "ase-transport"
     ],
     "hub_input_manager_tag": "PlayerMgrTag",
+    "hub_reads": [
+        {
+            "key": "PLR_CAM_ORB"
+        },
+        {
+            "key": "PLR_CHEAT_ACTIONS"
+        },
+        {
+            "key": "PLR_CHEAT_CHAT"
+        },
+        {
+            "key": "PLR_CHEAT_DUPE"
+        },
+        {
+            "key": "PLR_CHEAT_SPEED"
+        },
+        {
+            "key": "PLR_CHEAT_TELEPORT"
+        },
+        {
+            "key": "PLR_INP_JUMP"
+        },
+        {
+            "key": "PLR_INP_STR"
+        },
+        {
+            "key": "TRN_HGT_AT_POS"
+        }
+    ],
+    "hub_writes": [
+        {
+            "key": "PLAYER_MOVEMENT_SUSPICIOUS"
+        },
+        {
+            "key": "PLAYER_SESSION_START"
+        },
+        {
+            "key": "PLR_ACTIVE_COUNT"
+        },
+        {
+            "key": "PLR_CAM_YAW"
+        },
+        {
+            "key": "PLR_CHK_CHG"
+        },
+        {
+            "key": "PLR_CHK_X"
+        },
+        {
+            "key": "PLR_CHK_Z"
+        },
+        {
+            "key": "PLR_ENTITY_ID"
+        },
+        {
+            "key": "PLR_INP_FWD"
+        },
+        {
+            "key": "PLR_INP_SPRINT"
+        },
+        {
+            "key": "PLR_IS_PLAYER"
+        },
+        {
+            "key": "PLR_OWNER"
+        },
+        {
+            "key": "PLR_POS_X"
+        },
+        {
+            "key": "PLR_POS_Y"
+        },
+        {
+            "key": "PLR_POS_Z"
+        },
+        {
+            "key": "PLR_PROJECT_HASH_HI"
+        },
+        {
+            "key": "PLR_PROJECT_HASH_LO"
+        },
+        {
+            "key": "REP_PST_SER"
+        },
+        {
+            "key": "REP_PST_SYN"
+        }
+    ],
     "channels": [
         {
             "name": "player_state_update",
@@ -34,7 +122,6 @@
             "reliability": "reliable",
             "type": "create",
             "components": [
-                "PlayerMigStgPndTag",
                 "PlayerRoamRestTag",
                 "PlayerRoamRunTag",
                 "PlayerRoamWandTag"
@@ -45,7 +132,6 @@
             "reliability": "reliable",
             "type": "delete",
             "components": [
-                "PlayerMigStgPndTag",
                 "PlayerRoamRestTag",
                 "PlayerRoamRunTag",
                 "PlayerRoamWandTag"
@@ -129,12 +215,6 @@
                     }
                 ],
                 "file": "input/player_inp_trn_comp.hpp"
-            },
-            {
-                "name": "PlayerMigStgPndTag",
-                "description": "PlayerMigStgPndTag - migrate armed this pass, the PlayerSnap buffer still to be staged",
-                "fields": [],
-                "file": "tag/player_mig_stg_pnd_tag.hpp"
             },
             {
                 "name": "PlayerReqRoamComponent",
@@ -396,6 +476,50 @@
                 "file": "tag/player_init_tag.hpp"
             },
             {
+                "name": "PlayerInpMigAckComponent",
+                "description": "PlayerInpMigAckComponent - one migrate echo for a figure that left, mirrored from the Hub",
+                "fields": [
+                    {
+                        "name": "player_ref",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "FNV-1a32 of the player UUID, as the image carries it"
+                    },
+                    {
+                        "name": "ack_epoch",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "migrate epoch the destination confirmed"
+                    }
+                ],
+                "file": "input/player_inp_mig_ack_comp.hpp"
+            },
+            {
+                "name": "PlayerInpMigDlvrComponent",
+                "description": "PlayerInpMigDlvrComponent - one inbound migrate image, mirrored from the Hub",
+                "fields": [
+                    {
+                        "name": "snap",
+                        "type": "string",
+                        "default": "{}",
+                        "description": "frozen PlayerSnap bytes, single attribute"
+                    },
+                    {
+                        "name": "snap_len",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "bytes the row held; the calc checks it against the contract size"
+                    },
+                    {
+                        "name": "dst_region",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "region of this node the Replica resolved as the owner"
+                    }
+                ],
+                "file": "input/player_inp_mig_dlvr_comp.hpp"
+            },
+            {
                 "name": "PlayerInpRmvTag",
                 "description": "PlayerInpRmvTag - this player's input row is to be taken away",
                 "fields": [],
@@ -422,7 +546,13 @@
             {
                 "name": "PlayerReqDespComponent",
                 "description": "Raised by the Integration layer, drained by the player lifecycle pass.",
-                "fields": [],
+                "fields": [
+                    {
+                        "name": "player_id",
+                        "type": "string",
+                        "default": "{}"
+                    }
+                ],
                 "file": "request/player_req_desp_comp.hpp"
             },
             {
@@ -442,6 +572,12 @@
                 "name": "PlayerReqSpwnComponent",
                 "description": "PlayerReqSpwnComponent - der Wunsch, eine Figur entstehen zu lassen",
                 "fields": [
+                    {
+                        "name": "player_id",
+                        "type": "string",
+                        "default": "{}",
+                        "description": "Kennung, unter der die Figur gefuehrt wird (UUID-Text)"
+                    },
                     {
                         "name": "x",
                         "type": "float32",
@@ -517,6 +653,12 @@
                 "name": "PlayerStaIdntComponent",
                 "description": "PlayerStaIdntComponent - wer diese Figur ist und seit wann",
                 "fields": [
+                    {
+                        "name": "player_id",
+                        "type": "string",
+                        "default": "{}",
+                        "description": "dauerhafte Kennung der Figur (UUID-Text, 36 Zeichen + Null)"
+                    },
                     {
                         "name": "spawned_at_ms",
                         "type": "uint64",
@@ -658,6 +800,31 @@
                 "file": "state/player_sta_vel_comp.hpp"
             },
             {
+                "name": "PlayerStaWrldComponent",
+                "description": "PlayerStaWrldComponent - the place of a player figure in world metres, in the axis order of the star",
+                "fields": [
+                    {
+                        "name": "x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "first horizontal axis, world metres (PLR_POS_X)"
+                    },
+                    {
+                        "name": "y",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "second horizontal axis, world metres - never the height (PLR_POS_Y)"
+                    },
+                    {
+                        "name": "z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "height axis, metres (PLR_POS_Z)"
+                    }
+                ],
+                "file": "state/player_sta_wrld_comp.hpp"
+            },
+            {
                 "name": "PlayerStaYawComponent",
                 "description": "PlayerStaYawComponent - wohin die Figur schaut",
                 "fields": [
@@ -733,6 +900,10 @@
                 "file": "hub/player_hub_sess_strt_sys.hpp"
             },
             {
+                "name": "PlayerHubSpndSystem",
+                "file": "hub/player_hub_spnd_sys.hpp"
+            },
+            {
                 "name": "PlayerLifeDespSystem",
                 "file": "lifecycle/player_life_desp_sys.hpp"
             },
@@ -747,6 +918,10 @@
             {
                 "name": "PlayerLogObsvSystem",
                 "file": "log/player_log_obsv_sys.hpp"
+            },
+            {
+                "name": "PlayerMigAplySystem",
+                "file": "migration/player_mig_aply_sys.hpp"
             },
             {
                 "name": "PlayerMigDesSystem",
@@ -783,6 +958,10 @@
             {
                 "name": "PlayerSimTlptSystem",
                 "file": "simulation/player_sim_tlpt_sys.hpp"
+            },
+            {
+                "name": "PlayerSimWrldSystem",
+                "file": "simulation/player_sim_wrld_sys.hpp"
             },
             {
                 "name": "PlayerSpwnRcvSystem",

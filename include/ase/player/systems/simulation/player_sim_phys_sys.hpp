@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerStaVelComponent ──> PlayerSimPhysSystem ──> PlayerStaPosComponent
+ *   PlayerStaVelComponent  →PlayerSimPhysSystem  →PlayerStaPosComponent
  *   (velocity)                (applies physics)       (position updated)
  *
  * ECS SYSTEM HEADER COMPLIANCE

@@ -17,14 +17,14 @@
  * @category    input
  * @schedule    Integration
  * @created     2026-10-03
- * @modified    2026-10-03
+ * @modified    2026-10-07
  * @version     1.0.0
  *
  * ARCHITECTURE:
  *
- *   Hub Value ────────────> PlayerSyncTlptSystem ──> PlayerInpTlptComponent
+ *   Hub Value             → PlayerSyncTlptSystem  →  PlayerInpTlptComponent
  *   PLR_CHEAT_TELEPORT       (reads Hub)              (bridge data, jump_m)
- *   PLR_PROJECT_HASH_HI/LO ─> republished onto the entity owner while a jump is set
+ *   PLR_PROJECT_HASH_HI/LO  → republished onto the entity owner while a jump is set
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *

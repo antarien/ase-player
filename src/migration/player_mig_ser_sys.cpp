@@ -8,13 +8,16 @@
  * @layer       3 (Module)
  * @category    entity/actor/player
  * @schedule    Observation
+ * @design      DSGN_021
+ * @usecase     usecase:100692 - migrate figure between regions
+ * @actor       Fleet Capacity Ledger (FLTCAP)
  * @created     2026-07-28
- * @modified    2026-08-14
- * @version     1.0.0
+ * @modified    2026-10-14
+ * @version     2.0.0
  *
- * CAUSAL CHAIN (PLR_MIG_SER: armed migrate request → staged PlayerSnap bytes)
+ * CAUSAL CHAIN (PLR_MIG_SER: armed migrate instruction → staged PlayerSnap row)
  *
- *   [WorldPlrBndSystem armed PlayerReqMigComponent on a player whose origin chunk
+ *   [WorldPlrBndSystem adopted the hub row HUB_PLR_MIG_ARM onto a figure whose origin chunk
  *    dwelt past the boundary hysteresis (WS-H.4)]
  *          │
  *          │ the player's live state must cross the wire in the frozen layout
@@ -23,43 +26,38 @@
  *   │  THIS SYSTEM: PlayerMigSerSystem (World tier, Observation)  │
  *   │                                                             │
  *   │  READS:                                                     │
- *   │    - PlayerReqMigComponent (the armed migrate)              │
- *   │    - PlayerStaPosComponent (x, y, z, yaw)                    │
- *   │    - PlayerStaVelComponent (vx, vy, vz)                      │
- *   │    - PlayerStaStsComponent (status, widened u8→u32)          │
- *   │    - PlayerStaIdntComponent (UUID string → FNV-1a32 wire id)   │
+ *   │    - hub row HUB_PLR_MIG_ARM (the armed figures, fields)    │
+ *   │    - hub row HUB_PLR_MIG_STG (FIG field, staged figures)    │
+ *   │    - PlayerStaPosComponent (chunk, local, y)                │
+ *   │    - PlayerStaYawComponent, PlayerStaVelComponent           │
+ *   │    - PlayerStaStsComponent (status, widened u8→u32)         │
+ *   │    - PlayerStaIdntComponent (UUID string → FNV-1a32 id)     │
  *   │                                                             │
  *   │  WRITES:                                                    │
  *   │    - PlayerStaEpchComponent (seed player_ref, bump epoch)   │
- *   │    - PlayerMigStgPndTag (watch pass, hand-over marker)      │
- *   │    - PlayerBufMigComponent (stage pass, after the walk -    │
- *   │      the watch pass excludes this very type)                │
+ *   │    - hub row HUB_PLR_MIG_STG (FIG, SNAP) per armed figure   │
  *   └─────────────────────────────────────────────────────────────┘
  *          │
- *          │ exactly one staged image per armed request (buffer excluded from re-entry)
+ *          │ exactly one staged image per armed migrate (a standing row bars re-entry)
  *          ▼
- *   [WorldPlrMigSndSystem wraps the buffer into [100][epoch][proj][dst] and ships it]
+ *   [WorldPlrMigSndSystem wraps the image into [100][epoch][proj][dst] and ships it]
  *
- *   TWO PASSES, and the exclude did NOT move: the staged-delivery exclusion is the re-entry
- *   barrier ACROSS ticks (it is what makes the epoch bump exactly once per armed migrate), the
- *   marker is the hand-over WITHIN one tick. Merging them would let the next tick re-enter the
- *   walk and bump the epoch a second time - the send-side case in test_world_rgn.cpp proves the
- *   consumed delivery, and re-entry is barred by exclude<hub::HubPlrMigSnapComponent>.
+ *   THE STANDING ROW IS THE BARRIER. A figure is staged once per armed migrate: while a
+ *   HUB_PLR_MIG_STG row for it stands, the walk skips it, so the epoch bumps exactly once. The
+ *   sender releases the row and withdraws the instruction in the same pass, so the next armed
+ *   migrate of the same figure stages a fresh image with the next epoch.
  *
- *   LOG ORDER, measured 2026-08-14: the stage pass walks the marker pool, and EnTT iterates a pool
- *   BACKWARDS (storage.hpp:553 - begin() starts at size() and counts down). With several players
- *   migrating in the same tick the "PlayerSnap staged" lines therefore appear in a different order
- *   than before. No order was ever guaranteed: the watch pass runs over six pools and EnTT drives
- *   the SMALLEST one, which shifts with the population. Line text, line count and every value are
- *   unchanged - only the sequence among simultaneous migrates. Noted here so nobody diffs two logs
- *   and hunts a ghost.
+ *   LOG ORDER: row_each walks a storage from its back, so with several players migrating in the
+ *   same tick the "PlayerSnap staged" lines follow the storage, not the order of arming. No order
+ *   is guaranteed among simultaneous migrates; every value per line is exact.
  *
  * HUB Pattern (ARCH_ASE_HUB_API v2.0)
  *
- * READS (from Hub): (none)
- * WRITES (to Hub): (none) - the snap rides the transport lane, not the Hub.
+ * READS (from Hub): row HUB_PLR_MIG_ARM (HUB_PLR_MIG_ARM_DST_REGION, HUB_PLR_MIG_ARM_PROJ_HASH),
+ *                   row HUB_PLR_MIG_STG (HUB_PLR_MIG_STG_FIG)
+ * WRITES (to Hub): row HUB_PLR_MIG_STG (row_create; HUB_PLR_MIG_STG_FIG, HUB_PLR_MIG_STG_SNAP)
  *
- * FLYWEIGHT PATTERN (Not used - the 42-byte image is a fixed inline attribute)
+ * FLYWEIGHT PATTERN (Not used - the 42-byte image travels as a byte field of the row)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -159,10 +157,8 @@
 #include <ase/player/systems/migration/player_mig_ser_sys.hpp>
 // Frozen PlayerSnap wire layout (offsets, schema version) - L0 contract SSOT
 #include <ase/types/region_wire.hpp>
-// Die Anweisung der Grenzwache und die gestagte Zustellung laufen seit 2026-08-19 ueber den
-// Stern (HubPlrMigArmComponent / HubPlrMigSnapComponent auf der FIGUR): ase-world musste fuer
-// die alte player::PlayerReqMigComponent einen fremden Typ SCHREIBEN und fuer den alten
-// PlayerBufMigComponent einen fremden Typ LESEN - beide Kanten sind damit gefallen.
+// The instruction of the boundary watch and the staged image are hub rows (HUB_PLR_MIG_ARM on the
+// figure, HUB_PLR_MIG_STG as a row of its own): neither module writes or reads a type of the other.
 #include <ase/hub/api.hpp>
 // Components: the live state sources + epoch
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
@@ -173,10 +169,8 @@
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_epch_comp.hpp>
-// Transient marker of the watch pass: PlayerBufMigComponent sits in that walk's entt::exclude, so
-// the buffer is staged by the pass after the walk. The exclude itself is untouched - it is the
-// re-entry barrier across ticks, this marker is the hand-over within one.
-#include <ase/player/components/tag/player_mig_stg_pnd_tag.hpp>
+// O(1) index of the figures that already have a staged image (SSOT HashMap, no std:: container)
+#include <ase/containers/hash_map.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
@@ -230,65 +224,77 @@ void PlayerMigSerSystem::on_start(ecs::Registry& registry) {
 }
 
 void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
+    if (hub::row_count(registry, "HUB_PLR_MIG_ARM"_hs) == 0u) return;
+
     /**
-     * SERIALIZE PASS
-     * One staged image per armed request: the buffer exclusion makes re-entry impossible, so
-     * the epoch bumps exactly once per migrate. player_ref seeds lazily from the UUID string
-     * (FNV-1a32 - the u32 identity the frozen PlayerSnap carries).
+     * STAGED INDEX - the figures whose image already stands as a HUB_PLR_MIG_STG row. The
+     * standing row is the re-entry barrier: the sender releases it together with the instruction,
+     * so a figure counted here is never staged twice for one migrate.
      */
-    for (auto plr_ent :
-         registry.view<hub::HubPlrMigArmComponent, PlayerStaPosComponent, PlayerStaYawComponent,
-                       PlayerStaVelComponent, PlayerStaStsComponent, PlayerStaIdntComponent>(
-             entt::exclude<hub::HubPlrMigSnapComponent>)) {
+    containers::HashMap<uint32_t, uint32_t> staged_by_fig;
+    hub::row_each(registry, "HUB_PLR_MIG_STG"_hs, [&registry, &staged_by_fig](ecs::Entity stg) {
+        uint32_t fig = 0u;
+        if (hub::try_get_u32(registry, static_cast<uint32_t>(stg), "HUB_PLR_MIG_STG_FIG"_hs, fig)) {
+            staged_by_fig[fig] = 1u;
+        }
+    });
+
+    /**
+     * SERIALIZE PASS - one staged image per armed figure. player_ref seeds lazily from the UUID
+     * string (FNV-1a32 - the u32 identity the frozen PlayerSnap carries); the epoch bumps once.
+     * The walk runs over the instruction rows and creates rows of another kind, so the set it
+     * walks never changes under it.
+     *
+     * THE WIRE STAYS IN WORLD METRES (frozen PlayerSnap, 4x f32): the sum chunk * edge + local is
+     * exact on cell edges; a (chunk:i32, local:f32) wire is TASKREGISTER:1724.
+     */
+    hub::row_each(registry, "HUB_PLR_MIG_ARM"_hs, [&registry, &staged_by_fig](ecs::Entity plr_ent) {
+        const uint32_t fig = static_cast<uint32_t>(plr_ent);
+        if (staged_by_fig.find(fig) != staged_by_fig.end()) {
+            return;
+        }
+        if (!registry.all_of<PlayerStaPosComponent, PlayerStaYawComponent, PlayerStaVelComponent,
+                             PlayerStaStsComponent, PlayerStaIdntComponent>(plr_ent)) {
+            // An instruction on an entity that is no complete figure of this module
+            log::error(log::ERR::CAT::COMPONENT_MISSING, "PlayerMigSerSystem", fig,
+                       "HUB_PLR_MIG_ARM_FIGURE");
+            return;
+        }
+        uint32_t dst_region = 0u;
+        uint32_t proj_hash = 0u;
+        if (!hub::try_get_u32(registry, fig, "HUB_PLR_MIG_ARM_DST_REGION"_hs, dst_region) ||
+            !hub::try_get_u32(registry, fig, "HUB_PLR_MIG_ARM_PROJ_HASH"_hs, proj_hash)) {
+            log::error(log::ERR::CAT::HUB_NOT_FOUND, "PlayerMigSerSystem", fig,
+                       "HUB_PLR_MIG_ARM_FIELDS");
+            return;
+        }
+
         auto& epch = registry.get_or_emplace<PlayerStaEpchComponent>(plr_ent);
         if (epch.player_ref == 0u) {
             epch.player_ref =
                 entt::hashed_string::value(registry.get<PlayerStaIdntComponent>(plr_ent).player_id);
         }
         ++epch.player_epoch;
-        registry.emplace_or_replace<PlayerMigStgPndTag>(plr_ent);
-    }
 
-    /**
-     * STAGE PASS
-     * Writes the buffer the watch pass armed. PlayerBufMigComponent sits in the walk's
-     * entt::exclude, so emplacing it from inside dropped the row out of the very set being
-     * iterated. Nothing had to be carried out: every value below still sits on the entity, and
-     * snap_len is produced by the encode itself. The epoch was bumped ONCE in the walk above and
-     * is only read here.
-     *
-     * DER DRAHT BLEIBT WELTMETER (eingefrorener PlayerSnap, 4x f32): die Summe
-     * chunk * Kante + local ist an Wabenkanten exakt (S2b 2026-08-11); das Wire-v2
-     * mit (chunk:i32, local:f32) ist TASKREGISTER:1724, Entscheidungsklasse Betreiber.
-     */
-    for (auto stg_ent : registry.view<PlayerMigStgPndTag>()) {
-        const auto& epch = registry.get<PlayerStaEpchComponent>(stg_ent);
-        const auto& arm = registry.get<hub::HubPlrMigArmComponent>(stg_ent);
-        const auto& pos = registry.get<PlayerStaPosComponent>(stg_ent);
-        const auto& yaw = registry.get<PlayerStaYawComponent>(stg_ent);
-        const auto& vel = registry.get<PlayerStaVelComponent>(stg_ent);
-        const auto& sts = registry.get<PlayerStaStsComponent>(stg_ent);
-
-        // Gestaged wird die STERN-Zustellung auf der Figur selbst: der Versender in ase-world
-        // liest Arm + Snap ueber die Fassade und probt die Epoche aus dem Bild (L0-Offsets) -
-        // kein player-Typ mehr auf seiner Seite.
-        auto& snap_dlv = registry.emplace<hub::HubPlrMigSnapComponent>(stg_ent);
-        snap_dlv.snap_len = encode_player_snap(
-            snap_dlv.snap, epch.player_ref, epch.player_epoch,
+        const auto& pos = registry.get<PlayerStaPosComponent>(plr_ent);
+        const auto& yaw = registry.get<PlayerStaYawComponent>(plr_ent);
+        const auto& vel = registry.get<PlayerStaVelComponent>(plr_ent);
+        const auto& sts = registry.get<PlayerStaStsComponent>(plr_ent);
+        char snap[types::PLAYER_SNAP_SZ] = {};
+        const uint32_t snap_len = encode_player_snap(
+            snap, epch.player_ref, epch.player_epoch,
             static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x,
             pos.y,
             static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_z,
             yaw.yaw, vel.vx, vel.vy, vel.vz, sts.sts);
-        snap_dlv.player_ref = epch.player_ref;
-        snap_dlv.dst_region = arm.dst_region;
-        // Aufzaehlbarkeits-Marke im SELBEN Zug wie die Zeile (HUB_COMPONENT_ITERATION): der
-        // Versender zaehlt ueber sie auf, nie ueber die Hub-Zeilen selbst.
-        registry.emplace<hub::HubPlrMigSndPndTag>(stg_ent);
+
+        const ecs::Entity stg = hub::row_create(registry, "HUB_PLR_MIG_STG"_hs);
+        const uint32_t stg_owner = static_cast<uint32_t>(stg);
+        hub::set_u32(registry, stg_owner, "HUB_PLR_MIG_STG_FIG"_hs, fig);
+        hub::set_bytes(registry, stg_owner, "HUB_PLR_MIG_STG_SNAP"_hs, snap, snap_len);
         log::info("[PlayerMigSer] PlayerSnap staged: player_ref={} epoch={} dst_region={} proj_hash={} ({} bytes)",
-                  epch.player_ref, epch.player_epoch, arm.dst_region, arm.proj_hash,
-                  snap_dlv.snap_len);
-    }
-    registry.clear<PlayerMigStgPndTag>();
+                  epch.player_ref, epch.player_epoch, dst_region, proj_hash, snap_len);
+    });
 }
 
 void PlayerMigSerSystem::on_stop(ecs::Registry& registry) {

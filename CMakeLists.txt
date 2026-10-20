@@ -10,8 +10,9 @@ ASE MODULE BUILD CONFIGURATION
 
 @module      ase-player
 @layer       3 (Module)
+@usecase     usecase:100051 - bind a build edge
 @created     2025-12-15
-@modified    2026-09-08
+@modified    2026-10-12
 @version     00.01.28.00078 [feat]
 
 CMAKE MODULE COMPLIANCE
@@ -115,6 +116,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/state/player_sta_inv_comp.hpp
     include/ase/player/components/state/player_sta_yaw_comp.hpp
     include/ase/player/components/state/player_sta_epch_comp.hpp
+    include/ase/player/components/state/player_sta_wrld_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (input/)
@@ -124,6 +126,8 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/input/player_inp_cam_comp.hpp
     include/ase/player/components/input/player_inp_trn_comp.hpp
     include/ase/player/components/input/player_inp_tlpt_comp.hpp
+    include/ase/player/components/input/player_inp_mig_dlvr_comp.hpp
+    include/ase/player/components/input/player_inp_mig_ack_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (buffer/)
@@ -146,7 +150,6 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/tag/player_mgr_tag.hpp
     include/ase/player/components/tag/player_pst_dty_tag.hpp
     include/ase/player/components/tag/player_spnd_tag.hpp
-    include/ase/player/components/tag/player_mig_stg_pnd_tag.hpp
     include/ase/player/components/tag/player_roam_wand_tag.hpp
     include/ase/player/components/tag/player_roam_rest_tag.hpp
     include/ase/player/components/tag/player_roam_run_tag.hpp
@@ -163,6 +166,7 @@ add_library(${PROJECT_NAME} SHARED
     Hub communication systems for cross-module data.
     ]]
     include/ase/player/systems/hub/player_hub_pos_sys.hpp
+    include/ase/player/systems/hub/player_hub_spnd_sys.hpp
     include/ase/player/systems/hub/player_hub_roam_sys.hpp
     include/ase/player/systems/hub/player_hub_sess_reg_sys.hpp
     include/ase/player/systems/hub/player_hub_sess_strt_sys.hpp
@@ -186,6 +190,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/lifecycle/player_life_desp_sys.hpp
     include/ase/player/systems/lifecycle/player_life_roam_ini_sys.hpp
     include/ase/player/systems/lifecycle/player_life_spwn_sys.hpp
+    include/ase/player/systems/migration/player_mig_aply_sys.hpp
     include/ase/player/systems/migration/player_mig_des_sys.hpp
     include/ase/player/systems/migration/player_mig_ser_sys.hpp
 
@@ -220,6 +225,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/simulation/player_sim_tlpt_sys.hpp
     include/ase/player/systems/simulation/player_sim_wand_sys.hpp
     include/ase/player/systems/simulation/player_sim_rest_sys.hpp
+    include/ase/player/systems/simulation/player_sim_wrld_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (state/)
@@ -268,6 +274,7 @@ add_library(${PROJECT_NAME} SHARED
     src/simulation/player_sim_tlpt_sys.cpp
     src/simulation/player_sim_wand_sys.cpp
     src/simulation/player_sim_rest_sys.cpp
+    src/simulation/player_sim_wrld_sys.cpp
 
     #[[
     SOURCE FILES - STATE
@@ -284,6 +291,7 @@ add_library(${PROJECT_NAME} SHARED
     iteration API): PLR_ACTIVE_COUNT + PLR_OWNER per slot.
     ]]
     src/hub/player_hub_pos_sys.cpp
+    src/hub/player_hub_spnd_sys.cpp
     src/hub/player_hub_roam_sys.cpp
     src/hub/player_hub_sess_reg_sys.cpp
     src/hub/player_hub_sess_strt_sys.cpp
@@ -309,10 +317,12 @@ add_library(${PROJECT_NAME} SHARED
     #[[
     SOURCE FILES - MIGRATION (Compute Phase 06, WS-H.4)
     Beide Haelften der Naht in Eigentuemer-Hand: der Serializer bumpt die monotone Epoche und
-    staged das eingefrorene 42-Byte-Bild als Stern-Zustellung (hub::HubPlrMigSnapComponent) auf
-    der Figur; der Deserializer verbraucht die eingehenden Zustellungen (Snap/Ack) und baut die
-    Figur mit den eigenen Typen. Der World-Tier versendet und faltet nur noch Frames.
+    legt das eingefrorene 42-Byte-Bild als Hub-Zeile HUB_PLR_MIG_STG an; PlayerMigDesSystem
+    uebernimmt die eingehenden Zeilen HUB_PLR_MIG_DLV und HUB_PLR_MIG_ACK in Brueckenkomponenten,
+    PlayerMigAplySystem baut daraus die Figur mit den eigenen Typen. Der World-Tier versendet und
+    faltet nur Frames.
     ]]
+    src/migration/player_mig_aply_sys.cpp
     src/migration/player_mig_des_sys.cpp
     src/migration/player_mig_ser_sys.cpp
 
@@ -362,7 +372,7 @@ target_link_libraries(${PROJECT_NAME}
         # src/ und include/ dieses Moduls, je 0 Treffer. Eine Bindung ohne einen einzigen Include
         # verlaengert jeden Bau und haelt eine Kopplung am Leben, die es im Code nicht gibt.
         #[[ ase::lifecycle stand hier bis 2026-08-18 und zog genau EINEN Header: die Lebensmarke
-            der Beobachter-Adoption. Sie liegt jetzt als HubLifeAlivTag im Hub, damit ist die
+            der Beobachter-Adoption. Sie liegt jetzt als Zeilenart HUB_LIFE_ALIV im Hub, damit ist die
             L3-auf-L3-Bindung gegenstandslos. Gemessen vor der Streichung: null verbleibende
             <ase/lifecycle/...>-Includes in diesem Modul. ]]
                           # BLEIBT: getragen von src/lifecycle/player_life_spwn_sys.cpp (1 Include).

@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerInpExtComponent ──> PlayerCtrlInpSystem ──> PlayerStaPosComponent
+ *   PlayerInpExtComponent  →PlayerCtrlInpSystem  →PlayerStaPosComponent
  *   (from PlayerSyncInpSystem)  (processes input)       (yaw rotation)
  *
  * ECS SYSTEM HEADER COMPLIANCE

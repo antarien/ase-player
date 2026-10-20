@@ -1,9 +1,7 @@
 #pragma once
 
 /**
- * =============================================================================
  * ASE ECS COMPONENT (INPUT)
- * =============================================================================
  *
  * @file        player_inp_cam_comp.hpp
  * @brief       External camera input data from Hub for player systems
@@ -14,20 +12,18 @@
  *              follows the CONSUMPTION - these two are the only fields read by
  *              the camera path (PlayerCtrlInpSystem, PlayerCtrlMovSystem).
  *
- * -----------------------------------------------------------------------------
  * META
- * -----------------------------------------------------------------------------
+ *
  * @module      ase-player
  * @layer       3 (Module)
  * @category    input
  * @parity      shared
  * @created     2026-08-15
- * @modified    2026-08-15
+ * @modified    2026-10-07
  * @version     1.0.0
  *
- * -----------------------------------------------------------------------------
  * SYN PATTERN (Hub I/O vs Calculation Separation)
- * -----------------------------------------------------------------------------
+ *
  * This component is the BRIDGE between:
  *   - Sync System (SERVER-ONLY): Reads Hub, writes this Component
  *   - Calc System (SHARED): Reads this Component, writes State Components
@@ -36,9 +32,8 @@
  *   PLR_CAM_YAW    → cam_yaw    (Camera yaw radians)
  *   PLR_CAM_ORB    → cam_orb    (Orbit mode flag)
  *
- * -----------------------------------------------------------------------------
  * ECS COMPONENT COMPLIANCE
- * -----------------------------------------------------------------------------
+ *
  * [ ] DATA fields ONLY - No methods
  * [ ] NO .cpp file - Header-only
  * [ ] ONLY zero-initialization (= 0, = 0.0f, = false, = {})
@@ -64,8 +59,6 @@
  * [ ] NO uint64_t as pointer concept (use uint32_t ID + ResourceManager via ctx!)
  * [ ] External library objects (shared_ptr, handles) in ResourceManager via ctx()
  * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
- *
- * =============================================================================
  */
 
 #include <cstdint>

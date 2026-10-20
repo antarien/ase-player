@@ -3,28 +3,30 @@
  *
  * @file        player_hub_pos_sys.cpp
  * @brief       PlayerHubPosSystem - Write player positions to Hub for cross-module access
- * @description Publishes player position data to Hub for L4 plugins and other modules.
+ * @description Publishes the world-metre view of every player to the Hub for L4 plugins and other modules.
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @usecase     usecase:100049 - publish a hub value
+ * @actor       Hub Value Bridge (HUBVAL)
  * @category    hub
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-10-12
+ * @version     1.2.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_HUB_POS: Player Position Hub Publishing)
  *
- *   [PlayerStaPosComponent]
+ *   [PlayerStaWrldComponent - formed by PlayerSimWrldSystem]
  *          │
- *          │ position data (x, y, z)
+ *          │ world metres in the axis order of the star (x, y horizontal, z height)
  *          ▼
  *   ┌─────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerHubPosSystem            │
  *   │                                             │
  *   │  READS:                                     │
- *   │    → PlayerStaIdntComponent (identity)         │
- *   │    → PlayerStaPosComponent (position)        │
+ *   │    → PlayerStaIdntComponent (identity)      │
+ *   │    → PlayerStaWrldComponent (world view)    │
  *   │                                             │
  *   │  WRITES:                                    │
  *   │    → "PLR_POS_X"_hs (Hub)                   │
@@ -42,12 +44,12 @@
  *
  * READS (from player module via Components):
  *   PlayerStaIdntComponent  → Player identity for iteration
- *   PlayerStaPosComponent → Position data (x, y, z)
+ *   PlayerStaWrldComponent  → World-metre view (x, y horizontal, z height)
  *
  * WRITES (to Hub for other modules):
- *   "PLR_POS_X"_hs       → Player X position (float)
- *   "PLR_POS_Y"_hs       → Player Y position (float)
- *   "PLR_POS_Z"_hs       → Player Z position (float)
+ *   "PLR_POS_X"_hs       → first horizontal axis, world metres (float)
+ *   "PLR_POS_Y"_hs       → second horizontal axis, world metres - never the height (float)
+ *   "PLR_POS_Z"_hs       → height axis, metres (float)
  *   "PLR_ENTITY_ID"_hs   → Entity ID as float for reference
  *   "PLR_IS_PLAYER"_hs   → 1.0f marker for player entities
  *
@@ -144,10 +146,8 @@
 // Own header FIRST
 #include <ase/player/systems/hub/player_hub_pos_sys.hpp>
 // Components from same module
-#include <ase/player/components/state/player_sta_pos_comp.hpp>
+#include <ase/player/components/state/player_sta_wrld_comp.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
-// types.hpp for constants (chunk edge for the world-metre sum)
-#include <ase/player/types.hpp>
 // Hub for O(1) API
 #include <ase/hub/api.hpp>
 // Logging
@@ -180,11 +180,12 @@ void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * STEP 1: Create view and iterate player entities
      * Views are created on demand, not stored as member variables.
-     * PlayerStaIdntComponent identifies player entities.
+     * PlayerStaIdntComponent identifies player entities; PlayerStaWrldComponent is the view
+     * PlayerSimWrldSystem formed from the settled place in this frame.
      */
-    auto view = registry.view<PlayerStaIdntComponent, PlayerStaPosComponent>();
+    auto view = registry.view<PlayerStaIdntComponent, PlayerStaWrldComponent>();
 
-    for (auto [entity, id, pos] : view.each()) {
+    for (auto [entity, id, wrld] : view.each()) {
         uint32_t owner = static_cast<uint32_t>(entity);
 
         /**
@@ -192,34 +193,17 @@ void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
          * Publish position data for L4 plugins to consume via sdk::hub::get().
          * This enables loose coupling - plugins read from Hub, not direct components.
          *
-         * WELTMETER ALS SUMME (S2b 2026-08-11): der Hub-Kanal bleibt Weltmeter (f32) -
-         * die Summe chunk * Kante + local ist an Wabenkanten exakt; gefuehrt wird die
-         * Position chunk-relativ, nur die SICHT ist die Summe (Muster spatial_hub_bct).
+         * THE THREE FIELDS ARE COPIED, NEVER SWAPPED OR SUMMED HERE. The view already speaks the
+         * axis order hub_metrics.json declares: PLR_POS_Y is the second horizontal axis, never the
+         * height, and PLR_POS_Z is the height. A band derived from these axes is silently wrong if
+         * the two disagree, and no test reports it; the swap therefore lives in one place, in
+         * PlayerSimWrldSystem, the same way ase-spatial keeps it in SpatialIdxWrldSystem, so a
+         * consumer that pours PLR_POS_* and SPT_POS_* into the same three fields gets the same for
+         * both kinds of body.
          */
-        /* DER TAUSCH AN DER NAHT - ER STAND ALS VORSCHRIFT IM COMPONENT UND WURDE NIE AUSGEFUEHRT.
-         *
-         * `player_sta_pos_comp.hpp` fuehrt `y` als "Weltmeter entlang der Senkrechten" und sagt im
-         * Kopf woertlich: "GIS-Seite ist dagegen Z die Hoehenachse. Wer Werte zwischen beiden
-         * Welten traegt, TAUSCHT." Diese Zeilen trugen die Werte zwischen beiden Welten und
-         * tauschten NICHT: `PLR_POS_Y` bekam `pos.y` (die Senkrechte), `PLR_POS_Z` die zweite
-         * Waagerechte - invers zur Deklaration.
-         *
-         * `hub_metrics.json` hatte den Ausfall vorhergesagt: PLR_POS_Y ist dort "HORIZONTAL AXIS,
-         * the second of two - never the height", und der Satz daneben lautet "A band derived from
-         * this axis is silently wrong and no test reports it". Genau so ist es gekommen - kein Test
-         * ist je rot geworden, weil beide Seiten dieselbe Verwechslung trugen oder die Achse gar
-         * nicht deuteten.
-         *
-         * ase-spatial fuehrt denselben Tausch seit dem 2026-08-14 aus (`spatial_hub_bct_sys.cpp`:
-         * SPT_POS_Y ist die zweite Waagerechte, SPT_POS_Z die Hoehe). Ab hier tun es beide Kanaele
-         * gleich, und ein Verbraucher, der PLR_POS_* und SPT_POS_* in dieselben drei Felder kippt,
-         * bekommt fuer beide Entitaetsarten dasselbe - was `terrain_strm_obs_sync_sys.cpp` genau
-         * tut und bis heute nicht konnte. */
-        hub::set(registry, owner, "PLR_POS_X"_hs,
-                 static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x);
-        hub::set(registry, owner, "PLR_POS_Y"_hs,
-                 static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_z);
-        hub::set(registry, owner, "PLR_POS_Z"_hs, pos.y);
+        hub::set(registry, owner, "PLR_POS_X"_hs, wrld.x);
+        hub::set(registry, owner, "PLR_POS_Y"_hs, wrld.y);
+        hub::set(registry, owner, "PLR_POS_Z"_hs, wrld.z);
         hub::set(registry, owner, "PLR_ENTITY_ID"_hs, static_cast<float>(owner));
         hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
     }

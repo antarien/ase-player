@@ -18,7 +18,7 @@
  *
  * ARCHITECTURE:
  *
- *   Hub Values ──> PlayerSyncInpSystem ──> PlayerInpExtComponent
+ *   Hub Values  →PlayerSyncInpSystem  →PlayerInpExtComponent
  *   PLR_INP_FWD     (reads Hub)             (bridge data)
  *   PLR_INP_STR
  *   PLR_CAM_YAW

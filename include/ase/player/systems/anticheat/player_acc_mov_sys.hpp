@@ -13,8 +13,9 @@
  * @layer       3 (Modules)
  * @category    state/abundance/change
  * @schedule    Dynamics
+ * @usecase     usecase:100206 - flag impossible motion
  * @created     2026-06-30
- * @modified    2026-06-30
+ * @modified    2026-10-12
  * @version     1.0.0
  *
  * ARCHITECTURE (SERVER-ONLY authority — never transpiled to the client):

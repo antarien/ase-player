@@ -1,9 +1,7 @@
 #pragma once
 
 /**
- * =============================================================================
  * ASE ECS COMPONENT
- * =============================================================================
  *
  * @file        player_sta_acmp_comp.hpp
  * @brief       Anti-cheat previous-position state — last observed player position for teleport detection
@@ -14,21 +12,19 @@
  *              validity is carried by the PlayerAcmpRdyTag (a Tag, not a boolean field), so the very first
  *              observed tick records the baseline without false-positiving.
  *
- * -----------------------------------------------------------------------------
  * META
- * -----------------------------------------------------------------------------
+ *
  * @module      ase-player
  * @layer       3 (Module)
  * @category    state
  * @parity      shared
  * @created     2026-06-30
- * @modified    2026-06-30
+ * @modified    2026-10-07
  * @version     1.0.0
  * @author      Jan Ohlmann (ADG/ASE/AOW)
  *
- * -----------------------------------------------------------------------------
  * ECS COMPONENT COMPLIANCE
- * -----------------------------------------------------------------------------
+ *
  * [ ] DATA fields ONLY - No methods
  * [ ] NO .cpp file - Header-only
  * [ ] ONLY zero-initialization (= 0, = 0.0f, = false, = {})
@@ -54,8 +50,6 @@
  * [ ] NO uint64_t as pointer concept (use uint32_t ID + ResourceManager via ctx!)
  * [ ] External library objects (shared_ptr, handles) in ResourceManager via ctx()
  * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
- *
- * =============================================================================
  */
 
 #include <cstdint>

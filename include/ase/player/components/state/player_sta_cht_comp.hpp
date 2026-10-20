@@ -1,9 +1,7 @@
 #pragma once
 
 /**
- * =============================================================================
  * ASE ECS COMPONENT
- * =============================================================================
  *
  * @file        player_sta_cht_comp.hpp
  * @brief       Backend cheat-simulation state — the forced superhuman speed for a simulated cheater
@@ -14,21 +12,19 @@
  *              simulates a hacked client ON the real player entity — never a server-authoritative NPC and
  *              never a fabricated trigger; the cheat is induced via the /api/player/cheat backend lever.
  *
- * -----------------------------------------------------------------------------
  * META
- * -----------------------------------------------------------------------------
+ *
  * @module      ase-player
  * @layer       3 (Module)
  * @category    state
  * @parity      shared
  * @created     2026-06-30
- * @modified    2026-06-30
+ * @modified    2026-10-07
  * @version     1.0.0
  * @author      Jan Ohlmann (ADG/ASE/AOW)
  *
- * -----------------------------------------------------------------------------
  * ECS COMPONENT COMPLIANCE
- * -----------------------------------------------------------------------------
+ *
  * [ ] DATA fields ONLY - No methods
  * [ ] NO .cpp file - Header-only
  * [ ] ONLY zero-initialization (= 0, = 0.0f, = false, = {})
@@ -54,8 +50,6 @@
  * [ ] NO uint64_t as pointer concept (use uint32_t ID + ResourceManager via ctx!)
  * [ ] External library objects (shared_ptr, handles) in ResourceManager via ctx()
  * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
- *
- * =============================================================================
  */
 
 namespace ase::player {
