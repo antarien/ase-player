@@ -11,9 +11,10 @@ ASE MODULE BUILD CONFIGURATION
 @module      ase-player
 @layer       3 (Module)
 @usecase     usecase:100051 - bind a build edge
+@actor       Build Edge Resolver (BLDEDGE)
 @created     2025-12-15
-@modified    2026-10-12
-@version     00.01.28.00078 [feat]
+@modified    2026-10-21
+@version     00.01.28.00079 [feat]
 
 CMAKE MODULE COMPLIANCE
 
@@ -347,7 +348,23 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     SUFFIX ".module"
 )
 
-ase_install_module_toml(${PROJECT_NAME})
+#[[
+RUNTIME PROFILE (the form of ase-genetics; the Vivarium device carries this module as the writer of
+the PLR_POS_* values ase-terrain reads and the HUB_PLR_SPND rows ase-bdi reads, D1494)
+server   (default): ase_player.module, the manifest goes beside it (ase_install_module_toml).
+embedded:           libase_player.so on Linux as on Android; the client stages the manifest into
+                    its bundle (clients/avt-client-android/cmake/AvtRuntime.cmake), not this build.
+The server properties above stand FIRST: scripts/generate_toml_manifests.sh reads the first
+occurrence in this file.
+]]
+if(DEFINED ASE_RUNTIME_PROFILE AND NOT ASE_RUNTIME_PROFILE MATCHES "^(server|embedded)$")
+    message(FATAL_ERROR "ase-player: ASE_RUNTIME_PROFILE must be server or embedded, got '${ASE_RUNTIME_PROFILE}'")
+endif()
+if(ASE_RUNTIME_PROFILE STREQUAL "embedded")
+    set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX "${CMAKE_SHARED_LIBRARY_SUFFIX}")
+else()
+    ase_install_module_toml(${PROJECT_NAME})
+endif()
 
 # Header files are already tracked via add_library() above
 # This ensures rebuilds when component/system registrations change
@@ -361,6 +378,21 @@ target_include_directories(${PROJECT_NAME}
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 
+if(ASE_RUNTIME_PROFILE STREQUAL "embedded")
+    #[[
+    NO SECOND STATIC COPY: ECS and log are carried by the one runtime libase_kernel_embedded.so
+    (kernel/ase-kernel/embedded/CMakeLists.txt). ase::ecs and ase::log do not exist in this profile.
+    ]]
+    target_link_libraries(${PROJECT_NAME}
+        PUBLIC
+            ase::kernel-embedded  # Layer 2 - the one runtime: kernel, ECS, log
+            ase::math             # Layer 0 - Vec3, math utilities
+            ase::types            # Layer 0 - Type definitions (sentinel checks)
+        PRIVATE
+            ase::hub              # Layer 3 - Star Topology (write positions for L4 plugins)
+            ase::transport        # Layer 1 - ctx-shared inbound FIFO lanes (PlayerSpwnRcvSystem drains LANE_SPW)
+    )
+else()
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         ase::ecs          # Layer 1 - ECS framework
@@ -380,9 +412,12 @@ target_link_libraries(${PROJECT_NAME}
         ase::hub          # Layer 3 - Star Topology (write positions for L4 plugins)
         ase::transport    # Layer 1 - ctx-shared inbound FIFO lanes (PlayerSpwnRcvSystem drains LANE_SPW; websocket-FREE, L3→L1 allowed)
 )
+endif()
 #[[ VERBOTEN: ase::replication, ase::network, ase::serial, nlohmann_json! Hub handles I/O! ]]
 
-if(ASE_BUILD_TESTS)
+# The module tests run in the server profile of the tiers; in the embedded profile the client checks
+# the whole set through the real host (avt-headless).
+if(ASE_BUILD_TESTS AND NOT ASE_RUNTIME_PROFILE STREQUAL "embedded")
     add_subdirectory(tests)
 endif()
 
