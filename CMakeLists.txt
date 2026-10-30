@@ -10,7 +10,7 @@ ASE MODULE BUILD CONFIGURATION
 
 @module      ase-player
 @layer       3 (Module)
-@usecase     usecase:100051 - bind a build edge
+@usecase     usecase:100051 - resolve module dependencies
 @actor       Build Edge Resolver (BLDEDGE)
 @created     2025-12-15
 @modified    2026-10-21
@@ -317,11 +317,10 @@ add_library(${PROJECT_NAME} SHARED
 
     #[[
     SOURCE FILES - MIGRATION (Compute Phase 06, WS-H.4)
-    Beide Haelften der Naht in Eigentuemer-Hand: der Serializer bumpt die monotone Epoche und
-    legt das eingefrorene 42-Byte-Bild als Hub-Zeile HUB_PLR_MIG_STG an; PlayerMigDesSystem
-    uebernimmt die eingehenden Zeilen HUB_PLR_MIG_DLV und HUB_PLR_MIG_ACK in Brueckenkomponenten,
-    PlayerMigAplySystem baut daraus die Figur mit den eigenen Typen. Der World-Tier versendet und
-    faltet nur Frames.
+    Both halves of the seam in the owner's hand: the serializer bumps the monotonic epoch and lays
+    the frozen 42-byte image as hub row HUB_PLR_MIG_STG; PlayerMigDesSystem takes the incoming rows
+    HUB_PLR_MIG_DLV and HUB_PLR_MIG_ACK into bridge components, PlayerMigAplySystem builds the figure
+    from them with its own types. The World tier only sends and folds frames.
     ]]
     src/migration/player_mig_aply_sys.cpp
     src/migration/player_mig_des_sys.cpp
@@ -399,15 +398,8 @@ target_link_libraries(${PROJECT_NAME}
         ase::log::headers          # Layer 1 - Logging
         ase::math         # Layer 0 - Vec3, math utilities
         ase::types        # Layer 0 - Type definitions (sentinel checks)
-        # ase::input und ase::terrain sind am 2026-08-18 gefallen (R15): beide Bindungen trugen
-        # NULL Includes — gemessen ueber `include <ase/input/` und `include <ase/terrain/` in
-        # src/ und include/ dieses Moduls, je 0 Treffer. Eine Bindung ohne einen einzigen Include
-        # verlaengert jeden Bau und haelt eine Kopplung am Leben, die es im Code nicht gibt.
-        #[[ ase::lifecycle stand hier bis 2026-08-18 und zog genau EINEN Header: die Lebensmarke
-            der Beobachter-Adoption. Sie liegt jetzt als Zeilenart HUB_LIFE_ALIV im Hub, damit ist die
-            L3-auf-L3-Bindung gegenstandslos. Gemessen vor der Streichung: null verbleibende
-            <ase/lifecycle/...>-Includes in diesem Modul. ]]
-                          # BLEIBT: getragen von src/lifecycle/player_life_spwn_sys.cpp (1 Include).
+        # No ase::input, ase::terrain or ase::lifecycle: the life mark of the observer adoption comes
+        # as row kind HUB_LIFE_ALIV over the star.
     PRIVATE
         ase::hub          # Layer 3 - Star Topology (write positions for L4 plugins)
         ase::transport    # Layer 1 - ctx-shared inbound FIFO lanes (PlayerSpwnRcvSystem drains LANE_SPW; websocket-FREE, L3→L1 allowed)
@@ -415,9 +407,10 @@ target_link_libraries(${PROJECT_NAME}
 endif()
 #[[ VERBOTEN: ase::replication, ase::network, ase::serial, nlohmann_json! Hub handles I/O! ]]
 
-# The module tests run in the server profile of the tiers; in the embedded profile the client checks
-# the whole set through the real host (avt-headless).
-if(ASE_BUILD_TESTS AND NOT ASE_RUNTIME_PROFILE STREQUAL "embedded")
+# The module tests build in both profiles. In the embedded profile the test reaches ECS and log only
+# through the one runtime libase_kernel_embedded.so the module links, so its program holds no second
+# static copy; the Vivarium client builds and runs them in its own tree.
+if(ASE_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
