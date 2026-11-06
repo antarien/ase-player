@@ -10,9 +10,11 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @usecase     usecase:101557 - receive a spawn request
+ * @actor       Player Presence Steward (PLAYPRESTE)
  * @created     2025-12-01
- * @modified    2026-01-22
- * @version     2.0.0
+ * @modified    2026-10-31
+ * @version     2.1.0
  *
  * ECS TYPES COMPLIANCE
  *
@@ -161,8 +163,8 @@ constexpr float PLR_ROAM_INPUT_ENGAGED = 1.0f;  // The key is engaged this tick
  * @return Fraction in 0..1
  *
  * AND IT BELONGS IN THIS FILE, NOT IN A SYSTEM. Three systems draw from this sequence - the leg,
- * the rest and the birth of an errand. A copy in each anonymous namespace would be three
- * statements of one sequence, and the day one of them is touched the journeys stop replaying.
+ * the rest and the birth of an errand. One statement of the sequence here keeps the journeys
+ * replaying; a statement per anonymous namespace would stop that the day one of them is touched.
  */
 constexpr float plr_roam_fraction(uint32_t owner, uint32_t leg_index, uint32_t mixer) {
     const uint32_t mixed = (owner ^ PLR_ROAM_SEED) + leg_index;
@@ -214,6 +216,17 @@ constexpr float PLR_AC_TELEPORT_STEP = PLR_AC_MAX_HORIZONTAL_SPEED;  // Max plau
 constexpr float PLR_AC_TELEPORT_STEP_SQ = PLR_AC_TELEPORT_STEP * PLR_AC_TELEPORT_STEP;  // Squared bound vs dx*dx + dz*dz
 
 /**
+ * MOVEMENT RESTRICTION FROM COMBAT (PlayerCmbSynSystem, PlayerCtrlMovSystem, PlayerSimKnbkSystem)
+ * The combat star lays slow, frost, stun and knockback per figure; the player module reads them into
+ * PlayerInpCmbComponent and PlayerInpCmbKnbkComponent. A star flag carries 0 or 1, so it counts as set
+ * from the half. Slow intensity and frost slow are fractions of the target speed in [0, 1].
+ */
+constexpr float PLR_CMB_FLAG_SET_MIN = 0.5f;  // A combat star flag at or above this counts as set
+constexpr float PLR_CMB_UNIT_MIN = 0.0f;      // Lower bound of slow intensity and frost slow
+constexpr float PLR_CMB_UNIT_MAX = 1.0f;      // Upper bound of slow intensity and frost slow
+constexpr float PLR_CMB_SCALE_FULL = 1.0f;    // Speed factor of a figure without restriction
+
+/**
  * ANTI-CHEAT ARCHETYPE AUTHORITIES (Phase 13 AP-3)
  * Engine-level deterministic bounds on the realised per-player activity RATES of the remaining
  * contract-topic families (ANTI_CHEAT_COMPONENT_CONTRACT.md): a realised rate above the bound cannot
@@ -239,30 +252,28 @@ constexpr float PLR_AC_MAX_INVENTORY_RATE   = 15.0f;  // Max plausible inventory
  * BACKEND-DRIVEN SPAWN WIRE (Phase 13 / Task 13.10)
  * The Replica forwards the ase-cli spawn frame VERBATIM to the World publisher; PlayerSpwnRcvSystem drains
  * transport::LANE_SPW and creates a PlayerReqSpwnComponent so PlayerLifeSpwnSystem spawns the real entity
- * (no human WebRTC client). Local mirror of ase-network BIN_MSG_PLAYER_SPAWN=77 (L3→L3 forbidden — the bytes
- * are restated here). Frame: [77][player_id:char[64]][x:f32][z:f32][speed:f32] = 77 bytes.
+ * (no human WebRTC client). The frame code is the hub row NET_CONST_BIN_MSG_PLAYER_SPAWN, read by that
+ * system. Frame: [code][player_id:char[64]][x:f32][z:f32][speed:f32] = 77 bytes.
  *
  * THE WALKING SPEED RIDES IN THE SPAWN FRAME, not in a second lever afterwards. A player that is
  * spawned to walk has to be walking from its first tick, and a follow-up frame would leave a
  * window in which the entity stands somewhere without an errand - a state nobody asked for and
  * nobody could tell from a defect. A zero speed is the plain "spawn and stand" the coordinate
- * spawn always was, so the field extends the frame without changing what the old callers meant.
+ * spawn is, so the field extends the frame without changing what a caller without speed means.
  */
-constexpr uint8_t  PLR_BIN_MSG_PLAYER_SPAWN = 77;  // mirror of ase-network BIN_MSG_PLAYER_SPAWN (76 = PLAYER_CHEAT)
 constexpr uint32_t PLR_SPW_FRAME_SZ         = 77u; // 1 type + 64 player_id + 4 x + 4 z + 4 speed
 constexpr uint32_t PLR_SPW_PLAYER_ID_OFF    = 1u;  // player_id:char[64] offset (after the type byte)
 constexpr uint32_t PLR_SPW_PLAYER_ID_LEN    = 64u; // player_id fixed field length (matches PlayerReqSpwnComponent.player_id[64])
 
 /**
- * FNV-1a (64 Bit) fuer den Spieler-Index in PlayerLifeSpwnSystem.
+ * FNV-1a (64 bit) for the player index in PlayerLifeSpwnSystem.
  *
- * Der Index beantwortet "gibt es schon eine Zeile mit dieser player_id?" in O(1); vorher lief je
- * Anfrage eine volle view<PlayerStaIdntComponent>. Er ist ein VORFILTER: wer einen Treffer hat,
- * vergleicht die Kennung an der Fundstelle nach, weil eine Kollision sonst den FALSCHEN Spieler
- * liefern wuerde statt gar keinen.
+ * The index answers "is there a row with this player_id?" in O(1). It is a PRE-FILTER: a hit
+ * compares the identifier at the row it found, because a collision would otherwise return the WRONG
+ * player instead of none.
  *
- * 64 Bit statt der 32 des Baums (rsn_skl_prvl_gate_sys.cpp): die 32-Bit-Fassung leitet
- * Hub-OWNER ab und ist dort festgelegt. Hier gibt es keine Hub-Bindung.
+ * 64 bits instead of the 32 of rsn_skl_prvl_gate_sys.cpp: the 32-bit form derives hub OWNERs and is
+ * fixed there. This index has no hub binding.
  */
 constexpr uint64_t PLR_ID_FNV_OFFSET        = 14695981039346656037ull; // FNV-1a 64 offset basis
 constexpr uint64_t PLR_ID_FNV_PRIME         = 1099511628211ull;        // FNV-1a 64 prime
@@ -294,18 +305,6 @@ constexpr uint32_t PLR_SESS_DIGIT_MAX       = 10u;  // decimal digits a uint32 s
 constexpr float MOVEMENT_DEFAULT_EYE_HEIGHT = 1.0f;  // Eye height (m)
 
 /**
- * DEFAULT VALUES - CHUNK
- * Chunk size for spatial calculations.
- */
-constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;  // Chunk size (m)
-
-/**
- * MIGRATED TO hub_constants.json
- * The following constants are now in hub/data/hub_constants.json (SSOT):
- *   - LOG_CONST_DEFAULT_INTERVAL = 5.0 (was LOG_DEFAULT_INTERVAL)
- */
-
-/**
  * ABBREVIATIONS (Documentation)
  * Used in filenames ONLY, between prefix and suffix.
  * Folder names are SPELLED OUT (state/, not sta/).
@@ -324,57 +323,8 @@ constexpr float MOVEMENT_DEFAULT_CHUNK_SIZE = 32.0f;  // Chunk size (m)
  * NOTE: Folder names are SPELLED OUT (state/, not sta/)
  * NOTE: Abbreviations appear ONLY in filenames between prefix and suffix
  *
- * DIESE TABELLE WAR DIE FEHLERQUELLE, deshalb steht hier ihre Herkunft:
- * `state` stand jahrelang als `st` darin - zwei Zeichen, waehrend das Schema 3 bis 4 verlangt
- * (WRFL_ASE_NAMING_SCHEMA). Jede Datei, die sich an dieser Tabelle orientierte, erbte den
- * Verstoss. Verbindlich ist NICHT diese Tabelle, sondern
- * tools/ase-forge/ase-validator/ecs_validator/data/taxonomy/_index.json (dort `{"abbrev": "sta", "name":
- * "state"}`) samt der Kategoriedateien darunter; die Tabelle hier ist eine Lesehilfe und wird
- * mit jedem Umzug nachgezogen.
- *
- * ZWEITER UMZUG, UND DER ERSTE HAT SEINE EIGENE AUSNAHME UEBERLEBT.
- *
- * Hier standen bis zuletzt zwei weitere Zeilen — `tag` und `dead` —, beide mit dem Beispielnamen
- * `player_tag_ded_component.hpp`, und darunter die ausdrueckliche Begruendung, sie traegen
- * "absichtlich den IST-Dateinamen, damit niemand einer Datei hinterherliest, die es noch nicht
- * gibt". Die Begruendung galt fuer DAMALS und ist heute widerlegt — gemessen ueber das WORT,
- * nicht ueber das Kuerzel der gestrichenen Zeile:
- *
- *     player_tag_ded_component.hpp   existiert im Modul NICHT
- *     `dead`                         der Katalog fuehrt das WORT als `dead`, und KEINE Datei
- *                                    des Moduls traegt diese Form
- *     `ded`                          steht im Katalog, bedeutet dort aber `dedicated`
- *                                    (06_str_structure.json:271). Die gestrichene Zeile nannte
- *                                    also keine unbekannte Form, sondern eine FREMDE — die
- *                                    gefaehrlichere Sorte, denn sie besteht jede Existenzpruefung
- *     `tag`                          der Katalog fuehrt `tag` und `tags`; im Modul kommt es
- *                                    ausschliesslich als SUFFIX vor, nie zwischen Praefix und
- *                                    Suffix — was diese Tabelle beschreibt. Gemessen ueber
- *                                    `_tag_` MITTIG; eine Suche nach `_tag` allein trifft jede
- *                                    Tag-Datei des Moduls und beantwortet die Frage nicht
- *
- * Beide Zeilen sind deshalb ENTFALLEN. Und der Vermerk faellt mit ihnen, weil er sonst eine
- * Ausnahme fuer Zeilen begruendet, die es nicht mehr gibt.
- *
- * WAS DARAN ZU LERNEN IST, und es ist der Grund fuer diesen Absatz: der erste Umzug hat das
- * Kuerzel gezogen (`st` wurde zu `sta`) und die zwei Zeilen mit dem ausgeschriebenen Suffix
- * stehen lassen — MIT einem Vermerk, der genau das rechtfertigte. Der Vermerk hat den
- * Rest-Defekt nicht dokumentiert, sondern KONSERVIERT: er nahm dem naechsten Leser den Anlass
- * nachzusehen, und kein Tor liest Prosa. Aufgefallen ist es erst, als eine Regel den
- * ausgeschriebenen Suffix selbst pruefte. Eine Begruendung im Kommentar ist Pruefgegenstand,
- * kein Freibrief.
- *
- * UND EIN ZWEITES, DAS ERST BEIM NACHMESSEN AUFFIEL: die Begruendung oben lautete zuerst
- * „`ded` als Taxonomieteil — keine Datei traegt es". Das ist die KUERZELrichtung. Sie fragt nach
- * einer Schreibweise und kann deshalb nur bestaetigen oder schweigen; welches Kuerzel der
- * Katalog fuer `dead` ueberhaupt fuehrt, hat sie nie gefragt. Das Ergebnis blieb dasselbe — zu
- * `dead` gibt es ebenfalls keine Datei —, also war die Begruendung ZUFAELLIG richtig.
- *
- * Und genau das ist der teurere Fall. Eine falsche Begruendung faellt auf, sobald jemand
- * nachrechnet; eine zufaellig richtige bestaetigt sich selbst, und der Naechste kopiert die
- * METHODE statt des Ergebnisses. In ase-replication ist derselbe Griff anders ausgegangen: dort
- * fiel eine Zeile als „keine Datei" heraus, weil nach `wip` gesucht wurde statt nach dem
- * katalogisierten `wipe` — und `replication_wipe_sys.hpp` stand die ganze Zeit da.
+ * BINDING IS NOT THIS TABLE but tools/ase-forge/ase-validator/ecs_validator/data/taxonomy/_index.json
+ * and the category files under it; this table is a reading aid.
  */
 
 }  // namespace ase::player

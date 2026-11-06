@@ -10,9 +10,12 @@
  * @layer       3 (Modules)
  * @category    process/simulation
  * @schedule    Dynamics
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-11-01
+ * @version     1.2.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_SIM_PHYS: Player Physics Simulation)
  *
@@ -25,17 +28,17 @@
  *   │  (SHARED - no Hub access)                   │
  *   │                                             │
  *   │  READS (from Components):                   │
- *   │    - PlayerInpExtComponent (trn_hgt)        │
- *   │    - PlayerStaPosComponent (position)        │
- *   │    - PlayerStaVelComponent (velocity)        │
- *   │    - PlayerStaPhysComponent (physics state)  │
- *   │    - PlayerStMovComponent (settings)        │
+ *   │    - PlayerInpTrnComponent (trn_hgt)        │
+ *   │    - PlayerInpChnkCnstComponent (edge)      │
+ *   │    - PlayerStaPosComponent (position)       │
+ *   │    - PlayerStaVelComponent (velocity)       │
+ *   │    - PlayerStaPhysComponent (physics state) │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStaPosComponent (x, y, z)         │
- *   │    - PlayerStaVelComponent (vy on ground)    │
- *   │    - PlayerStaPhysComponent (on_ground)      │
- *   │    - PlayerDrtyTag (if moving)             │
+ *   │    - PlayerStaPosComponent (x, y, z)        │
+ *   │    - PlayerStaVelComponent (vy on ground)   │
+ *   │    - PlayerStaPhysComponent (on_ground)     │
+ *   │    - PlayerDrtyTag (if moving)              │
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ position updated
@@ -45,14 +48,16 @@
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Hub):
- *   (none - uses SYN pattern, reads terrain height from PlayerInpExtComponent)
+ *   (none - uses SYN pattern, reads terrain height from PlayerInpTrnComponent and the chunk edge
+ *   TER_CONST_CHUNK_SIZE from PlayerInpChnkCnstComponent on the manager row)
  *
  * WRITES (to Hub for other modules):
  *   (none - uses SYN pattern, writes to Components only)
  *
  * NOTE: This is a SHARED calculation system using the SYN pattern.
- * Terrain height is synced from Hub to PlayerInpExtComponent by PlayerSyncInpSystem
- * before this system runs. This system operates on Component data only.
+ * Terrain height is filled from the Hub into PlayerInpTrnComponent by PlayerSyncInpSystem, the
+ * chunk edge into PlayerInpChnkCnstComponent by PlayerChnkCnstSynSystem, before this system runs.
+ * This system operates on Component data only.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -148,10 +153,12 @@
 #include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
 // Components from same module ONLY
 #include <ase/player/components/input/player_inp_trn_comp.hpp>
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -172,17 +179,17 @@ using namespace entt::literals;  // For "_hs hashed strings (Hub)
 namespace {
 
 /**
- * @brief Einen Meterschritt auf die chunk-relative Bahn addieren, Uebertrag in die Wabenadresse
+ * @brief Add one step in metres to the chunk-relative track, carry over into the chunk address
  *
- * S2b 2026-08-11 (Spiegel des P22-Schnitts, bdi_act_mov_sys.cpp): der Schritt trifft IMMER die
- * kleinen lokalen Meter mit voller float-Praezision - `pos += vel*dt` auf absolute Weltmeter
- * verschluckte bei 204 Mio Metern (Ort 7, ULP 16 m) jeden 0.04-m-Schritt, die Ort-Siedler
- * standen still (live gemessen 2026-08-11 14:09).
+ * S2b 2026-08-11 (the same cut as P22 in bdi_act_mov_sys.cpp): the step ALWAYS lands on the
+ * small local metres with full float precision - `pos += vel*dt` on absolute world metres
+ * swallowed every 0.04 m step at 204 million metres (place 7, ULP 16 m), and the settlers of
+ * that place stood still (measured live 2026-08-11 14:09).
  *
- * @param chunk    Wabenadresse der Achse (exakt, wird bei Kanten-Uebertritt fortgeschrieben)
- * @param local    Meter in der Wabe [0, edge)
- * @param delta_m  Schritt in Metern
- * @param edge     Wabenkante in Metern (PlayerStMovComponent.chunk_size)
+ * @param chunk    Chunk address of the axis (exact, carried on when the edge is crossed)
+ * @param local    Metres inside the chunk [0, edge)
+ * @param delta_m  Step in metres
+ * @param edge     Chunk edge in metres (PlayerInpChnkCnstComponent.chunk_size)
  */
 void advance_local(int32_t& chunk, float& local, float delta_m, float edge) {
     local += delta_m;
@@ -201,16 +208,27 @@ void PlayerSimPhysSystem::on_start(ecs::Registry& /*registry*/) {
 
 void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
     /**
-     * STEP 1: Get physics settings from manager
+     * STEP 1: Physics settings. Snap distance and velocity epsilon are constants of this module;
+     * the chunk edge is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
+     * PlayerChnkCnstSynSystem. Without it no figure moves this tick: a step carried over on a
+     * guessed edge would put it into the wrong chunk.
      */
     float ground_snap = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
     float vel_eps = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
-    float chunk_edge = MOVEMENT_DEFAULT_CHUNK_SIZE;
-
+    float chunk_edge = 0.0f;
+    bool edge_loaded = false;
+    for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
+        (void)mgr;
+        chunk_edge = edge.chunk_size;
+        edge_loaded = true;
+    }
+    if (!edge_loaded) {
+        return;
+    }
 
     /**
      * STEP 2: Process each player entity with input data (SYN Pattern)
-     * Reads terrain height from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
+     * Reads terrain height from PlayerInpTrnComponent (filled by PlayerSyncInpSystem)
      */
     auto view = registry.view<
         PlayerInpTrnComponent,
@@ -221,9 +239,9 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
 
     for (auto [entity, trn, pos, vel, physics] : view.each()) {
         /**
-         * STEP 3: Apply velocity to position (chunk-relativ, S2b 2026-08-11)
-         * Die Ebene laeuft ueber die lokale Bahn und verpufft nie; die Senkrechte bleibt
-         * kleine Meter und darf direkt integrieren.
+         * STEP 3: Apply velocity to position (chunk-relative, S2b 2026-08-11)
+         * The plane runs over the local track and never fades; the vertical stays small metres
+         * and may integrate directly.
          */
         advance_local(pos.chunk_x, pos.local_x, vel.vx * dt, chunk_edge);
         advance_local(pos.chunk_z, pos.local_z, vel.vz * dt, chunk_edge);
@@ -231,7 +249,7 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
 
         /**
          * STEP 4: Get terrain height from PlayerInpTrnComponent (SYN Pattern)
-         * Terrain height was synced from Hub by PlayerSyncInpSystem
+         * Terrain height was read from the Hub by PlayerSyncInpSystem
          */
         float ground_height = trn.trn_hgt;
 

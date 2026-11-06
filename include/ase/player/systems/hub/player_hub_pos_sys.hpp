@@ -7,7 +7,7 @@
  * @brief       PlayerHubPosSystem - Write player positions to Hub for L4 plugins
  * @description PLAN_ASE_SDK_V2: L4 plugins read player data via Hub, not direct components.
  *              Copies the world-metre view of every player (PlayerStaWrldComponent) onto PLR_POS_X,
- *              PLR_POS_Y and PLR_POS_Z and writes PLR_ENTITY_ID and PLR_IS_PLAYER per player. It
+ *              PLR_POS_Y and PLR_POS_Z and writes PLR_IS_PLAYER per player. It
  *              computes nothing: PlayerSimWrldSystem forms the view in the axis order of the star.
  *
  * @module      ase-player
@@ -18,14 +18,14 @@
  * @schedule    Dynamics
  * @parity      server_only
  * @created     2026-01-22
- * @modified    2026-10-12
- * @version     1.2.0
+ * @modified    2026-11-04
+ * @version     1.3.0
  *
  * ARCHITECTURE:
  *
  *   PlayerStaWrldComponent  →PlayerHubPosSystem  →Hub
  *   (world-metre view)       (copies to Hub)        PLR_POS_X, PLR_POS_Y, PLR_POS_Z
- *                                                   PLR_ENTITY_ID, PLR_IS_PLAYER
+ *                                                   PLR_IS_PLAYER
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -53,7 +53,7 @@ namespace ase::player {
  *           player_module.hpp registers; a label in a head that differs from the registration
  *           is wrong, and only the registration decides.
  * @reads    PlayerStaWrldComponent, PlayerStaIdntComponent
- * @writes   Hub values: PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_ENTITY_ID, PLR_IS_PLAYER
+ * @writes   Hub values: PLR_POS_X, PLR_POS_Y, PLR_POS_Z, PLR_IS_PLAYER
  */
 class PlayerHubPosSystem : public ecs::System {
 public:

@@ -4,10 +4,174 @@
     "module": "ase-player",
     "client_relevance": true,
     "dependencies": [
+        "ase-combat",
+        "ase-terrain",
         "ase-transport"
     ],
     "hub_input_manager_tag": "PlayerMgrTag",
+    "hub_inputs": [
+        {
+            "key": "CMB_FRZ_STA_SLOW_FACTOR",
+            "component": "PlayerInpCmbComponent",
+            "field": "freeze_slow",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-combat",
+            "description": "Freeze slow factor",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "percentage",
+                "min": 0.0,
+                "max": 1.0
+            }
+        },
+        {
+            "key": "CMB_KBK_DISP_X",
+            "component": "PlayerInpCmbKnbkComponent",
+            "field": "disp_x",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-combat",
+            "description": "Runtime metric: knockback displacement along X in this frame, metres of either sign; X and Y are the ground plane of CmbStatKbkDispComponent, read by PlayerCmbSynSystem (usecase:101588).",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "signed"
+            }
+        },
+        {
+            "key": "CMB_KBK_DISP_Y",
+            "component": "PlayerInpCmbKnbkComponent",
+            "field": "disp_y",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-combat",
+            "description": "Runtime metric: knockback displacement along Y in this frame, metres of either sign; Y is the second ground axis of CmbStatKbkDispComponent, never the height, read by PlayerCmbSynSystem (usecase:101588).",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "signed"
+            }
+        },
+        {
+            "key": "CMB_KBK_DISP_Z",
+            "component": "PlayerInpCmbKnbkComponent",
+            "field": "disp_z",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-combat",
+            "description": "Runtime metric: knockback displacement along Z in this frame, metres of either sign; Z is the height in CmbStatKbkDispComponent, read by PlayerCmbSynSystem (usecase:101588).",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "signed"
+            }
+        },
+        {
+            "key": "CMB_LANDING_STUN",
+            "component": "PlayerInpCmbComponent",
+            "field": "landing_stun",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-combat",
+            "description": "Runtime metric: landing stun in seconds remaining, non-negative without a ceiling (CmbStatKbkStunComponent), read by PlayerCmbSynSystem (usecase:101588).",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "counter",
+                "min": 0.0
+            }
+        },
+        {
+            "key": "CMB_PATZER_STUN",
+            "component": "PlayerInpCmbComponent",
+            "field": "patzer_stun",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-combat",
+            "description": "Runtime metric: blunder recovery in seconds remaining, non-negative without a ceiling (CmbPtzSynSystem recovery), read by PlayerCmbSynSystem (usecase:101588).",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "counter",
+                "min": 0.0
+            }
+        },
+        {
+            "key": "CMB_SLW_ACTIVE",
+            "component": "PlayerInpCmbComponent",
+            "field": "slow_intensity",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-combat",
+            "description": "Runtime metric: slow active flag (set 1.0 conditionally at runtime).",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "percentage",
+                "min": 0.0,
+                "max": 1.0
+            }
+        },
+        {
+            "key": "CMB_SLW_INTENSITY",
+            "component": "PlayerInpCmbComponent",
+            "field": "slow_intensity",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-combat",
+            "description": "Runtime metric: slow intensity.",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "percentage",
+                "min": 0.0,
+                "max": 1.0
+            }
+        },
+        {
+            "key": "TER_CONST_CHUNK_SIZE",
+            "component": "PlayerInpChnkCnstComponent",
+            "field": "chunk_size",
+            "type": "float32",
+            "default": 0.0,
+            "description": "Chunk edge in metres (TER_CONST_CHUNK_SIZE)",
+            "source_module": "ase-terrain",
+            "hub_category": "constant"
+        }
+    ],
     "hub_reads": [
+        {
+            "key": "CMB_FRZ_STA_SLOW_FACTOR"
+        },
+        {
+            "key": "CMB_KBK_ACTIVE"
+        },
+        {
+            "key": "CMB_KBK_DISP_X"
+        },
+        {
+            "key": "CMB_KBK_DISP_Y"
+        },
+        {
+            "key": "CMB_KBK_DISP_Z"
+        },
+        {
+            "key": "CMB_LANDING_STUN"
+        },
+        {
+            "key": "CMB_PATZER_STUN"
+        },
+        {
+            "key": "CMB_SLW_ACTIVE"
+        },
+        {
+            "key": "CMB_SLW_INTENSITY"
+        },
+        {
+            "key": "NET_CONST_BIN_MSG_PLAYER_SPAWN"
+        },
         {
             "key": "PLR_CAM_ORB"
         },
@@ -33,6 +197,9 @@
             "key": "PLR_INP_STR"
         },
         {
+            "key": "TER_CONST_CHUNK_SIZE"
+        },
+        {
             "key": "TRN_HGT_AT_POS"
         }
     ],
@@ -50,16 +217,10 @@
             "key": "PLR_CAM_YAW"
         },
         {
-            "key": "PLR_CHK_CHG"
-        },
-        {
             "key": "PLR_CHK_X"
         },
         {
             "key": "PLR_CHK_Z"
-        },
-        {
-            "key": "PLR_ENTITY_ID"
         },
         {
             "key": "PLR_INP_FWD"
@@ -87,12 +248,6 @@
         },
         {
             "key": "PLR_PROJECT_HASH_LO"
-        },
-        {
-            "key": "REP_PST_SER"
-        },
-        {
-            "key": "REP_PST_SYN"
         }
     ],
     "channels": [
@@ -102,6 +257,7 @@
             "type": "update",
             "components": [
                 "PlayerInpCamComponent",
+                "PlayerInpChnkCnstComponent",
                 "PlayerInpExtComponent",
                 "PlayerInpTlptComponent",
                 "PlayerInpTrnComponent",
@@ -158,6 +314,19 @@
                     }
                 ],
                 "file": "input/player_inp_cam_comp.hpp"
+            },
+            {
+                "name": "PlayerInpChnkCnstComponent",
+                "description": "The chunk edge of the terrain protocol, filled from the Hub onto the manager row",
+                "fields": [
+                    {
+                        "name": "chunk_size",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Chunk edge in metres (TER_CONST_CHUNK_SIZE)"
+                    }
+                ],
+                "file": "input/player_inp_chnk_cnst_comp.hpp"
             },
             {
                 "name": "PlayerInpExtComponent",
@@ -474,6 +643,62 @@
                 "description": "PlayerInitTag - this player entity has completed its initialisation",
                 "fields": [],
                 "file": "tag/player_init_tag.hpp"
+            },
+            {
+                "name": "PlayerInpCmbComponent",
+                "description": "The movement restriction the combat star lays on a player figure",
+                "fields": [
+                    {
+                        "name": "slow_intensity",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Slow fraction of the target speed (CMB_SLW_INTENSITY)"
+                    },
+                    {
+                        "name": "freeze_slow",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Frost fraction of the target speed (CMB_FRZ_STA_SLOW_FACTOR)"
+                    },
+                    {
+                        "name": "landing_stun",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Landing stun, positive while it runs (CMB_LANDING_STUN)"
+                    },
+                    {
+                        "name": "patzer_stun",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Recovery time left after a blunder (CMB_PATZER_STUN)"
+                    }
+                ],
+                "file": "input/player_inp_cmb_comp.hpp"
+            },
+            {
+                "name": "PlayerInpCmbKnbkComponent",
+                "description": "The knockback displacement the combat star lays on a player figure in this frame",
+                "fields": [
+                    {
+                        "name": "disp_x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Ground displacement along combat X in this frame, metres (CMB_KBK_DISP_X)"
+                    },
+                    {
+                        "name": "disp_y",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Ground displacement along combat Y in this frame, metres (CMB_KBK_DISP_Y)"
+                    },
+                    {
+                        "name": "disp_z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Height displacement in this frame, metres (CMB_KBK_DISP_Z)"
+                    }
+                ],
+                "file": "input/player_inp_cmb_knbk_comp.hpp"
             },
             {
                 "name": "PlayerInpMigAckComponent",
@@ -876,6 +1101,14 @@
                 "file": "anticheat/player_acc_mov_sys.hpp"
             },
             {
+                "name": "PlayerChnkCnstSynSystem",
+                "file": "sync/player_chnk_cnst_syn_sys.hpp"
+            },
+            {
+                "name": "PlayerCmbSynSystem",
+                "file": "sync/player_cmb_syn_sys.hpp"
+            },
+            {
                 "name": "PlayerCtrlInpSystem",
                 "file": "control/player_ctrl_inp_sys.hpp"
             },
@@ -950,6 +1183,10 @@
             {
                 "name": "PlayerSimEcoSystem",
                 "file": "simulation/player_sim_eco_sys.hpp"
+            },
+            {
+                "name": "PlayerSimKnbkSystem",
+                "file": "simulation/player_sim_knbk_sys.hpp"
             },
             {
                 "name": "PlayerSimPhysSystem",

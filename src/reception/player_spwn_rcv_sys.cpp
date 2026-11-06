@@ -8,9 +8,11 @@
  * @layer       3 (Modules)
  * @category    action/transfer/receive
  * @schedule    Reception
+ * @usecase     usecase:101557 - receive a spawn request
+ * @actor       Player Presence Steward (PLAYPRESTE)
  * @created     2026-07-01
- * @modified    2026-07-01
- * @version     1.0.0
+ * @modified    2026-10-31
+ * @version     1.1.0
  *
  * CAUSAL CHAIN (PLAYER_SPWN_RCV: backend-driven spawn, no human client)
  *
@@ -21,7 +23,8 @@
  *   ┌───────────────────────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerSpwnRcvSystem                             │
  *   │                                                               │
- *   │  READS:  transport::InboundQueueResourceManager (pop LANE_SPW)│
+ *   │  READS:  "NET_CONST_BIN_MSG_PLAYER_SPAWN"_hs (Hub, GLOBAL)    │
+ *   │          transport::InboundQueueResourceManager (pop LANE_SPW)│
  *   │                                                               │
  *   │  WRITES: PlayerReqSpwnComponent (one request entity created) │
  *   └───────────────────────────────────────────────────────────────┘
@@ -32,11 +35,18 @@
  *
  * HUB Pattern (transport lane, websocket-FREE)
  *
+ * READS (from Hub):
+ *   "NET_CONST_BIN_MSG_PLAYER_SPAWN"_hs → the frame code of the spawn frame, global
+ *
  * READS (from ctx):
  *   transport::InboundQueueResourceManager: pop LANE_SPW frames
  *
  * WRITES (to ECS):
  *   PlayerReqSpwnComponent: player_id + x + z (one request entity per frame)
+ *
+ * THE ROUTE IS SET IN THE TICK, NOT IN on_start. The frame code has one home, the hub row, and that
+ * row is read every tick; on_start runs before anyone can promise the row is laid. register_route
+ * overwrites its one table entry, so setting it again each tick changes nothing but the value.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -133,12 +143,15 @@
 // Transport inbound lane (L1 via ctx — the L2 demux fills LANE_SPW; websocket-FREE)
 #include <ase/transport/inbound_queue_resource_manager.hpp>
 #include <ase/transport/types.hpp>
-// Module constants (the local BIN_MSG mirror + frame offsets/bounds)
+// Module constants (the frame offsets, the bounds and the range of a frame code)
 #include <ase/player/types.hpp>
 // Spawn request component (same module — PlayerLifeSpwnSystem consumes it)
 #include <ase/player/components/request/player_req_spwn_comp.hpp>
 // The errand companion of a spawn request - present only when the frame asked for a walker
 #include <ase/player/components/request/player_req_roam_comp.hpp>
+// Hub API for the frame code, ase-types for its sentinel and range checks
+#include <ase/hub/api.hpp>
+#include <ase/types/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
@@ -164,19 +177,35 @@ namespace {
 void PlayerSpwnRcvSystem::on_start(ecs::Registry& registry) {
     log::debug("[PlayerSpwnRcvSystem] Started");
 
-    // Register the forwarded spawn wire-type onto the shared inbound lane so the L2 demux routes it here.
-    // Emplace the queue if the demux on_start has not run yet (order-independent), mirroring the World
-    // reception drainers.
+    // Emplace the inbound queue if the demux on_start has not run yet (order-independent), as the
+    // World reception drainers do. The route onto the lane is set in tick, from the hub row.
     if (registry.ctx().find<transport::InboundQueueResourceManager>() == nullptr) {
         registry.ctx().emplace<transport::InboundQueueResourceManager>();
     }
-    auto& queue = registry.ctx().get<transport::InboundQueueResourceManager>();
-    queue.register_route(PLR_BIN_MSG_PLAYER_SPAWN, transport::LANE_SPW);
 }
 
 void PlayerSpwnRcvSystem::tick(ecs::Registry& registry, float /*dt*/) {
     auto* queue = registry.ctx().find<transport::InboundQueueResourceManager>();
-    if (queue == nullptr || !queue->has_inbound(transport::LANE_SPW)) return;
+    if (queue == nullptr) return;
+
+    // The frame code of the spawn frame. Without a valid code there is no route and nothing to drain.
+    const float spawn_code = hub::get(registry, hub::GLOBAL, "NET_CONST_BIN_MSG_PLAYER_SPAWN"_hs);
+    if (types::is_not_found(spawn_code)) {
+        log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerSpwnRcvSystem", "NET_CONST_BIN_MSG_PLAYER_SPAWN");
+        return;
+    }
+    // A code is the type byte of its frame and never 0.
+    const float code_max = static_cast<float>(UINT8_MAX);
+    if (!types::is_in_rng_f(spawn_code, 1.0f, code_max)) {
+        log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerSpwnRcvSystem", hub::GLOBAL,
+                  "NET_CONST_BIN_MSG_PLAYER_SPAWN", spawn_code, 1.0f, code_max);
+        return;
+    }
+    const uint8_t spawn_type = static_cast<uint8_t>(spawn_code);
+
+    // Set the forwarded spawn wire-type onto the shared inbound lane so the L2 demux routes it here.
+    queue->register_route(spawn_type, transport::LANE_SPW);
+    if (!queue->has_inbound(transport::LANE_SPW)) return;
 
     char buf[transport::LANE_BUF_SZ] = {};
     uint32_t msg_len = 0;
@@ -189,7 +218,7 @@ void PlayerSpwnRcvSystem::tick(ecs::Registry& registry, float /*dt*/) {
             msg_len = 0;
             continue;
         }
-        if (static_cast<uint8_t>(buf[0]) != PLR_BIN_MSG_PLAYER_SPAWN) {
+        if (static_cast<uint8_t>(buf[0]) != spawn_type) {
             log::warn(log::WRN::CAT::INPUT_REJECTED, "PlayerSpwnRcvSystem", "inbound_type",
                       static_cast<float>(static_cast<uint8_t>(buf[0])));
             msg_len = 0;

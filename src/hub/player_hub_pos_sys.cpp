@@ -12,8 +12,8 @@
  * @category    hub
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-10-12
- * @version     1.2.0
+ * @modified    2026-11-04
+ * @version     1.3.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_HUB_POS: Player Position Hub Publishing)
  *
@@ -32,7 +32,6 @@
  *   │    → "PLR_POS_X"_hs (Hub)                   │
  *   │    → "PLR_POS_Y"_hs (Hub)                   │
  *   │    → "PLR_POS_Z"_hs (Hub)                   │
- *   │    → "PLR_ENTITY_ID"_hs (Hub)               │
  *   │    → "PLR_IS_PLAYER"_hs (Hub)               │
  *   └─────────────────────────────────────────────┘
  *          │
@@ -50,7 +49,6 @@
  *   "PLR_POS_X"_hs       → first horizontal axis, world metres (float)
  *   "PLR_POS_Y"_hs       → second horizontal axis, world metres - never the height (float)
  *   "PLR_POS_Z"_hs       → height axis, metres (float)
- *   "PLR_ENTITY_ID"_hs   → Entity ID as float for reference
  *   "PLR_IS_PLAYER"_hs   → 1.0f marker for player entities
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
@@ -204,7 +202,6 @@ void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
         hub::set(registry, owner, "PLR_POS_X"_hs, wrld.x);
         hub::set(registry, owner, "PLR_POS_Y"_hs, wrld.y);
         hub::set(registry, owner, "PLR_POS_Z"_hs, wrld.z);
-        hub::set(registry, owner, "PLR_ENTITY_ID"_hs, static_cast<float>(owner));
         hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
     }
 }

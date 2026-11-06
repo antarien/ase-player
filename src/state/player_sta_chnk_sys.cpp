@@ -6,11 +6,13 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @usecase     usecase:5130 - play a character
+ * @actor       SS/PC
  * @category    state
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-11-04
+ * @version     1.2.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_STA_CHNK: Player Chunk Tracking)
  *
@@ -29,7 +31,7 @@
  *   │  WRITES:                                    │
  *   │    → PlayerStaChkComponent (chunk_x, chunk_y)│
  *   │    → PlayerChnkChgdTag (if changed)     │
- *   │    → "PLR_CHK_CHG"_hs (Hub - notify terrain)│
+ *   │    → "PLR_CHK_X"_hs, "PLR_CHK_Z"_hs (Hub)   │
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ chunk changed notification
@@ -45,7 +47,7 @@
  * WRITES (to Hub for other modules):
  *   "PLR_CHK_X"_hs   → Player chunk X coordinate (float)
  *   "PLR_CHK_Z"_hs   → Player chunk Z coordinate (float)
- *   "PLR_CHK_CHG"_hs → Player chunk changed notification (1.0f)
+ *   The change itself is PlayerChnkChgdTag; WorldHubPlrSyncSystem compares PLR_CHK_X/Z itself.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -224,7 +226,6 @@ void PlayerStaChnkSystem::tick(ecs::Registry& registry, float /*dt*/) {
             uint32_t owner = static_cast<uint32_t>(entity);
             hub::set(registry, owner, "PLR_CHK_X"_hs, static_cast<float>(new_chunk_x));
             hub::set(registry, owner, "PLR_CHK_Z"_hs, static_cast<float>(new_chunk_z));
-            hub::set(registry, owner, "PLR_CHK_CHG"_hs, 1.0f);
         }
     }
 }

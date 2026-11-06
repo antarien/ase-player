@@ -143,6 +143,8 @@
 #include <ase/player/components/state/player_sta_wrld_comp.hpp>
 // types.hpp for constants (chunk edge for the world-metre sum)
 #include <ase/player/types.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
@@ -170,14 +172,27 @@ void PlayerSimWrldSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerSimWrldSystem::tick(ecs::Registry& registry, float /*dt*/) {
+    // The chunk edge is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
+    // PlayerChnkCnstSynSystem; without it no world position is converted this tick.
+    float chunk_size = 0.0f;
+    bool edge_loaded = false;
+    for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
+        (void)mgr;
+        chunk_size = edge.chunk_size;
+        edge_loaded = true;
+    }
+    if (!edge_loaded) {
+        return;
+    }
+
     /**
      * STEP 1: Every place of the frame gets its world-metre view. The view carries no type the loop writes,
      * so placing the component on a figure that has none yet does not change the set being walked.
      */
     for (auto [entity, pos] : registry.view<PlayerStaPosComponent>().each()) {
         auto& wrld = registry.emplace_or_replace<PlayerStaWrldComponent>(entity);
-        wrld.x = static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x;
-        wrld.y = static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_z;
+        wrld.x = static_cast<float>(pos.chunk_x) * chunk_size + pos.local_x;
+        wrld.y = static_cast<float>(pos.chunk_z) * chunk_size + pos.local_z;
         wrld.z = pos.y;
     }
 }

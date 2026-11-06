@@ -10,9 +10,11 @@
  * @layer       3 (Modules)
  * @category    input
  * @schedule    Integration
+ * @usecase     usecase:101554 - receive player input
+ * @actor       Player Input Warden (PLAYINPWAR)
  * @created     2026-01-22
- * @modified    2026-08-10
- * @version     1.1.0
+ * @modified    2026-11-01
+ * @version     1.2.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_SYNC_INP: Player Input Synchronization)
  *
@@ -32,6 +34,9 @@
  *   │    → "PLR_CAM_YAW"_hs (camera yaw)          │
  *   │    → "PLR_CAM_ORB"_hs (orbit mode)          │
  *   │    → "TRN_HGT_AT_POS"_hs (terrain height)   │
+ *   │                                             │
+ *   │  READS (from Components):                   │
+ *   │    → PlayerInpChnkCnstComponent (edge)      │
  *   │                                             │
  *   │  WRITES (to Components):                    │
  *   │    → PlayerInpExtComponent (all fields)     │
@@ -55,16 +60,15 @@
  * WRITES (to Components only - no Hub writes):
  *   (none)
  *
- * ABWESENHEIT IST HIER KEIN FEHLER, SONDERN DER NORMALFALL.
+ * ABSENCE IS NO ERROR HERE, IT IS THE NORMAL CASE.
  *
- * Ein Hub-Wert, den noch niemand geschrieben hat, kommt als Fehlanzeige zurueck. Fuer die
- * Eingabe heisst das schlicht: diese Figur bewegt sich in diesem Takt nicht - deshalb tritt
- * hier eine Ruhelage an die Stelle des Wertes und KEINE Fehlermeldung. Die Abfrage laeuft ueber
- * types::is_not_found (foundation/ase-types/include/ase/types/types.hpp:65) statt ueber einen
- * Vergleich von Hand: die Fehlanzeige ist ein Bereich (v <= FloatNotFound), kein einzelner
- * Wert, und ein Gleichheitsvergleich auf Fliesskommazahlen wuerde eine knapp danebenliegende
- * Fehlanzeige als gueltige Eingabe durchlassen - die Figur wuerde mit dem Sentinelwert im Ruecken
- * losstuermen, statt stehenzubleiben.
+ * A hub value nobody has written yet comes back as a not-found mark. For the input that simply
+ * means: this figure does not move in this tick - so a rest position takes the place of the value
+ * and NO error is reported. The test runs through types::is_not_found
+ * (foundation/ase-types/include/ase/types/types.hpp:65) instead of a comparison by hand: the
+ * not-found mark is a range (v <= FloatNotFound), not a single value, and an equality test on
+ * floating point would let a not-found mark that lies just beside it through as a valid input -
+ * the figure would charge off with the sentinel at its back instead of standing still.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -162,8 +166,10 @@
 #include <ase/player/components/input/player_inp_ext_comp.hpp>
 #include <ase/player/components/input/player_inp_cam_comp.hpp>
 #include <ase/player/components/input/player_inp_trn_comp.hpp>
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Foundation types for the NOT_FOUND predicate (SSOT)
@@ -197,6 +203,19 @@ void PlayerSyncInpSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
+    // The chunk edge is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
+    // PlayerChnkCnstSynSystem; without it no world position can be keyed for the height this tick.
+    float chunk_size = 0.0f;
+    bool edge_loaded = false;
+    for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
+        (void)mgr;
+        chunk_size = edge.chunk_size;
+        edge_loaded = true;
+    }
+    if (!edge_loaded) {
+        return;
+    }
+
     /**
      * STEP 1: Process each player entity with position (all players)
      * Sync Hub input values to PlayerInpExtComponent
@@ -208,7 +227,7 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
 
         /**
          * STEP 2: Read all input values from Hub (HUB Pattern - READS)
-         * Fehlanzeige = die Figur gibt in diesem Takt nichts vor, also Ruhelage.
+         * A missing value means the figure asks for nothing this tick, so it rests.
          */
         float inp_fwd = hub::get(registry, owner, "PLR_INP_FWD"_hs);
         if (types::is_not_found(inp_fwd)) {
@@ -231,8 +250,8 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
 
         /**
-         * Ohne Kameravorgabe schaut die Figur weiter dorthin, wo sie schon hinsah - eine
-         * Fehlanzeige darf den Blick niemals auf Null reissen.
+         * Without a camera value the figure keeps looking where it already looked - a missing
+         * value must never snap the view to zero.
          */
         float cam_yaw = hub::get(registry, owner, "PLR_CAM_YAW"_hs);
         if (types::is_not_found(cam_yaw)) {
@@ -246,16 +265,15 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
 
         /**
          * STEP 3: Read terrain height from Hub
-         */
-        /**
-         * Der Hash-Eingang bleibt WELTMETER (Summe chunk*Kante+local), damit er den
-         * TRN_HGT_AT_POS-Produzenten weiter trifft (S2b 2026-08-11: gefuehrt wird
-         * chunk-relativ, die Sicht ist die Summe).
+         *
+         * The hash key stays in WORLD METRES (the sum chunk * edge + local), so that it keeps
+         * hitting the producer of TRN_HGT_AT_POS: the position is held chunk-relative, the key
+         * is the sum.
          */
         uint32_t pos_hash = static_cast<uint32_t>(
-            static_cast<int32_t>(static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE +
+            static_cast<int32_t>(static_cast<float>(pos.chunk_x) * chunk_size +
                                  pos.local_x) * 73856093 ^
-            static_cast<int32_t>(static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE +
+            static_cast<int32_t>(static_cast<float>(pos.chunk_z) * chunk_size +
                                  pos.local_z) * 19349663);
         float trn_hgt = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
         if (types::is_not_found(trn_hgt)) {
@@ -265,11 +283,10 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
         /**
          * STEP 4: Write the three bridge components (bridge to calc systems).
          *
-         * One component carried all seven values until 2026-08-15 and exceeded the
-         * five-field limit. The split follows the CONSUMPTION, not the field order:
-         * the four input axes share their readers, the two camera values share
-         * theirs, and the terrain height has exactly one reader of its own. All
-         * three are written here, in the same pass, from the same hub reads.
+         * The split follows the CONSUMPTION, not the field order: the four input axes share
+         * their readers, the two camera values share theirs, and the terrain height has exactly
+         * one reader of its own. All three are written here, in the same pass, from the same hub
+         * reads.
          */
         auto& inp = registry.get_or_emplace<PlayerInpExtComponent>(entity);
         inp.inp_fwd = inp_fwd;

@@ -5,21 +5,24 @@
  *
  * @file        player_pst_ser_sys.hpp
  * @brief       PlayerPstSerSystem - Player persistence serialization
- * @description Serializes dirty players and delegates persistence to Replication Layer.
+ * @description Serializes dirty players into a JSON request of ase-serial. The durable player
+ *              record is written on the Replica by ReplicaPlrMigPstSystem.
  *              Naming: Player + Pst(Persist) + Ser(Serialize) + System
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @usecase     usecase:5130 - play a character
+ * @actor       SS/PC
  * @category    entity/actor/player
  * @schedule    Preservation
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     2.0.0
+ * @modified    2026-11-04
+ * @version     2.1.0
  *
  * ARCHITECTURE:
  *
- *   PlayerPstDtyTag + PlayerSpndTag → PlayerPstSerSystem → Hub + SerialJsnPndTag
- *   (dirty player)                       (serialize)          REP_PST_*
+ *   PlayerPstDtyTag + PlayerSpndTag → PlayerPstSerSystem → SerialBufJsnComponent + SerialJsnPndTag
+ *   (dirty player)                       (serialize)          (request to ase-serial)
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -45,7 +48,7 @@ namespace ase::player {
  *
  * @schedule Preservation
  * @reads    PlayerPstDtyTag, PlayerSpndTag, PlayerSt*Component
- * @writes   Hub: REP_PST_SER, REP_PST_SYN, SerialBufJsnComponent, SerialJsnPndTag
+ * @writes   SerialBufJsnComponent, SerialJsnPndTag, PlayerBufPstComponent
  */
 class PlayerPstSerSystem : public ecs::System {
 public:

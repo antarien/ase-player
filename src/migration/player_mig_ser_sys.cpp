@@ -8,12 +8,12 @@
  * @layer       3 (Module)
  * @category    entity/actor/player
  * @schedule    Observation
- * @design      DSGN_021
- * @usecase     usecase:100692 - migrate figure between regions
- * @actor       Fleet Capacity Ledger (FLTCAP)
+ * @design      DSGN_016
+ * @usecase     usecase:101587 - freeze figure for region transit
+ * @actor       Engine Layer Serializer (ENGSRLZ)
  * @created     2026-07-28
- * @modified    2026-10-14
- * @version     2.0.0
+ * @modified    2026-11-01
+ * @version     2.1.0
  *
  * CAUSAL CHAIN (PLR_MIG_SER: armed migrate instruction → staged PlayerSnap row)
  *
@@ -165,6 +165,8 @@
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 // types.hpp for constants (chunk edge for the world-metre wire sum)
 #include <ase/player/types.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
@@ -226,6 +228,19 @@ void PlayerMigSerSystem::on_start(ecs::Registry& registry) {
 void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
     if (hub::row_count(registry, "HUB_PLR_MIG_ARM"_hs) == 0u) return;
 
+    // The chunk edge is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
+    // PlayerChnkCnstSynSystem; without it no image is staged this tick - the arming waits.
+    float chunk_size = 0.0f;
+    bool edge_loaded = false;
+    for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
+        (void)mgr;
+        chunk_size = edge.chunk_size;
+        edge_loaded = true;
+    }
+    if (!edge_loaded) {
+        return;
+    }
+
     /**
      * STAGED INDEX - the figures whose image already stands as a HUB_PLR_MIG_STG row. The
      * standing row is the re-entry barrier: the sender releases it together with the instruction,
@@ -248,7 +263,7 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * THE WIRE STAYS IN WORLD METRES (frozen PlayerSnap, 4x f32): the sum chunk * edge + local is
      * exact on cell edges; a (chunk:i32, local:f32) wire is TASKREGISTER:1724.
      */
-    hub::row_each(registry, "HUB_PLR_MIG_ARM"_hs, [&registry, &staged_by_fig](ecs::Entity plr_ent) {
+    hub::row_each(registry, "HUB_PLR_MIG_ARM"_hs, [&registry, &staged_by_fig, chunk_size](ecs::Entity plr_ent) {
         const uint32_t fig = static_cast<uint32_t>(plr_ent);
         if (staged_by_fig.find(fig) != staged_by_fig.end()) {
             return;
@@ -283,9 +298,9 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         char snap[types::PLAYER_SNAP_SZ] = {};
         const uint32_t snap_len = encode_player_snap(
             snap, epch.player_ref, epch.player_epoch,
-            static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x,
+            static_cast<float>(pos.chunk_x) * chunk_size + pos.local_x,
             pos.y,
-            static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_z,
+            static_cast<float>(pos.chunk_z) * chunk_size + pos.local_z,
             yaw.yaw, vel.vx, vel.vy, vel.vz, sts.sts);
 
         const ecs::Entity stg = hub::row_create(registry, "HUB_PLR_MIG_STG"_hs);

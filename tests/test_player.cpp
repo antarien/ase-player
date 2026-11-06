@@ -6,35 +6,28 @@
 /**
  * ASE Player Module Tests (ECS)
  *
- * doctest CHECK/REQUIRE only - never assert() (Release/NDEBUG no-op).
+ * @usecase     usecase:101557 - receive a spawn request
  *
- * WHY THIS FILE WAS CONVERTED ON 2026-08-20, and what the conversion UNCOVERED:
+ * doctest CHECK/REQUIRE only - never assert(). All five compile_commands.json of the servers
+ * carry -O3 -DNDEBUG, and under NDEBUG assert(expr) expands to ((void)0): the expression is never
+ * compiled, so an assert may name fields that no longer exist and the build stays green.
  *
- *   All five compile_commands.json of the servers carry -O3 -DNDEBUG; 141 of 141 test
- *   translation units, not one without. Under NDEBUG the preprocessor replaces assert(expr)
- *   with ((void)0) - THE EXPRESSION IS NEVER COMPILED. So an assert may name things that no
- *   longer exist, and the build stays green.
+ * WHAT IS DRIVEN HERE: the REAL systems of the module. The lifecycle chain answers spawn and
+ * despawn requests, the teleport lever moves a figure, the session start pulses once. Every
+ * system that splits world metres into chunk and local reads the chunk edge from the manager
+ * row; the test lays TER_CONST_CHUNK_SIZE on the hub and lets PlayerChnkCnstSynSystem carry it
+ * there, the way the server does in Ingestion.
  *
- *   This file did exactly that. Two lines checked `pos->x` and `pos->z`, but
- *   PlayerStaPosComponent has carried chunk_x / chunk_z / local_x / local_z / y since the S2b
- *   split of 2026-08-11 - the file even documents that split at the component test below. The
- *   dead assert hid a compile error for nine days.
+ * THE GROUND HEIGHT IS NOT COVERED. The spawn system reads it from the hub key TRN_HGT_AT_POS of
+ * the position hash and writes 0.0f when the key is absent; this suite sets no such key, so the
+ * spawn case checks 0.0f. Covering the height path would mean computing the producer's position
+ * hash inside the test, which the house form of the player suites forbids.
  *
- *   The height claim was wrong too: `pos->y == 10.0f  // From terrain height` cannot hold.
- *   player_life_spwn_sys.cpp:334-337 reads the ground from the HUB
- *   (hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs)), not from a terrain chunk. This test
- *   sets no Hub value, so ground_y stays 0.0f. See the two notes at the spawn test.
- *
- *   The target already linked doctest::doctest (tests/CMakeLists.txt:32-37); the file simply
- *   never used it. No build change was needed.
- *
- * IF A CHECK TURNS RED ON THE FIRST REAL RUN, THAT IS A FINDING, NOT A REGRESSION. The checks
- * were never executed; a failure appearing now was already failing, silently, for as long as
- * the build has carried -DNDEBUG. Do not "fix" it by weakening the check.
+ * A CHECK THAT TURNS RED ON A REAL RUN IS A FINDING, NOT A REGRESSION. Do not weaken the check.
  */
 
 #include <ase/player/player.hpp>
-// The lifecycle chain (split 2026-08-30): birth, errand, death - three systems where one stood.
+// The lifecycle chain: birth, errand, death - three systems in Dynamics.
 #include <ase/player/systems/lifecycle/player_life_spwn_sys.hpp>
 #include <ase/player/systems/lifecycle/player_life_roam_ini_sys.hpp>
 #include <ase/player/systems/lifecycle/player_life_desp_sys.hpp>
@@ -44,14 +37,16 @@
 #include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_mov_sys.hpp>
 #include <ase/player/systems/hub/player_hub_sess_strt_sys.hpp>
+// The chunk edge of the terrain protocol, laid on the manager row by its sync system
+#include <ase/player/systems/sync/player_chnk_cnst_syn_sys.hpp>
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
 #include <ase/player/components/input/player_inp_tlpt_comp.hpp>
 #include <ase/player/components/input/player_inp_trn_comp.hpp>
 #include <ase/player/components/tag/player_sess_strt_tag.hpp>
 #include <ase/player/components/tag/player_sess_done_tag.hpp>
 #include <ase/hub/api.hpp>
 #include <entt/core/hashed_string.hpp>
-// No <ase/terrain/...>: ase::terrain was removed from ase-player on 2026-08-18 under R15, and
-// the only code here that used it was dead scaffolding - see the tombstone below.
 #include <ase/ecs/system.hpp>
 #include <ase/ecs/app.hpp>
 #include <ase/ecs/internal/dependency_sorter.hpp>
@@ -70,11 +65,36 @@ namespace {
 constexpr uint32_t LIFECYCLE_STAGE_COUNT = 3u;
 
 /**
+ * The chunk edge the terrain protocol sets (TER_CONST_CHUNK_SIZE in hub_constants.json). The test
+ * lays it on the hub; every recombination of chunk and local below multiplies with this value.
+ */
+constexpr float TEST_CHUNK_EDGE_M = 32.0f;
+
+/**
+ * Lays the chunk edge on the hub and lets the REAL PlayerChnkCnstSynSystem fill the input row of
+ * the manager. Without it every player system that splits world metres finds no edge and leaves
+ * the pass, and the spawn request stays unanswered.
+ */
+void lay_chunk_edge(ase::ecs::Registry& registry) {
+    using namespace entt::literals;
+    bool has_mgr = false;
+    for (auto mgr : registry.view<PlayerMgrTag>()) {
+        (void)mgr;
+        has_mgr = true;
+    }
+    if (!has_mgr) {
+        registry.emplace<PlayerMgrTag>(registry.create());
+    }
+    hub::set(registry, hub::GLOBAL, "TER_CONST_CHUNK_SIZE"_hs, TEST_CHUNK_EDGE_M);
+    PlayerChnkCnstSynSystem edge_sync;
+    edge_sync.tick(registry, 0.0f);
+}
+
+/**
  * The lifecycle chain as player_module.hpp registers it in Dynamics: PlayerLifeSpwnSystem answers
  * spawn requests, PlayerLifeRoamIniSystem sends a newborn walker on its errand, and
- * PlayerLifeDespSystem answers despawn requests. Until 2026-08-30 the first one answered all
- * three; since the split a helper that ticks only it leaves every despawn request unanswered, and
- * the despawn case below was red for exactly that reason.
+ * PlayerLifeDespSystem answers despawn requests. A helper that ticked only the first one would
+ * leave every despawn request unanswered.
  *
  * The names of the stages it ticked land in `ran`, in tick order - the order case at the end of
  * this file reads them from there, so the list it checks is the list that runs.
@@ -108,6 +128,7 @@ ase::ecs::Entity do_spawn_request(
     request.x = x;
     request.z = z;
 
+    lay_chunk_edge(registry);
     run_lifecycle(registry);
 
     ase::ecs::Entity spawned_entity = ase::ecs::NullEntity;
@@ -160,42 +181,14 @@ ase::containers::Vector<ase::containers::Pair<std::string, ase::ecs::Entity>> do
     return result;
 }
 
-// DELETED 2026-08-20: `setup_terrain_chunk(Registry&, int32_t, int32_t, float)` and its six
-// call sites. It built terrain chunk entities and filled a TerrainChunkLayerResourceManager
-// with a height - and nothing in the code under test ever read any of it.
-//
-// MEASURED, twice on the same day and from two directions:
-//
-//   THE PRODUCER DOES NOT READ IT. player_life_spwn_sys.cpp:334-337 takes the ground height
-//   from the Hub key TRN_HGT_AT_POS and falls back to 0.0f when the key is absent. The
-//   helper filled a ResourceManager the spawn path never touches, so the height path was
-//   never covered by this file and could not be. That is why the spawn test below checks
-//   `pos->y == 0.0f` and says so.
-//
-//   THE BUILD SAYS THE SAME THING. ase::terrain was removed from ase-player on 2026-08-18
-//   under R15 (CMakeLists.txt:347 carries the entry), so `#include <ase/terrain/terrain.hpp>`
-//   stopped resolving. The compile error was not a regression - it was the layer boundary
-//   finally reporting scaffolding that had been unreachable all along. It only surfaced now
-//   because the dead assert() around it used to hide the whole block from the compiler.
-//
-// Removing it changes nothing observable: every call passed a height that no assertion ever
-// depended on. What it removes is a false suggestion - that this suite exercises the terrain
-// seam. It does not, and now it no longer pretends to.
-//
-// THE HEIGHT PATH REMAINS UNTESTED, and that is the open item, not this helper. A real test
-// would have to set the Hub key, which means recomputing the producer's pos_hash inside the
-// test - the "logic duplicate" the house form of the sibling suites forbids by name. That is
-// a test-design decision and is reported as such.
-
 }  // anonymous namespace
 
-// ============================================================================
-// Constants - compile time
-// ============================================================================
-//
-// Both blocks were runtime asserts. Every value on both sides is constexpr, so they are
-// decidable while building: a changed constant now breaks the build at the line that names
-// it, instead of at a run nobody may make.
+/**
+ * CONSTANTS, DECIDED WHILE BUILDING
+ *
+ * Every value on both sides is constexpr, so a changed constant breaks the build at the line that
+ * names it, instead of at a run nobody may make.
+ */
 
 static_assert(MOVEMENT_DEFAULT_WALK_SPEED > 0.0f);
 static_assert(MOVEMENT_DEFAULT_RUN_SPEED > MOVEMENT_DEFAULT_WALK_SPEED);
@@ -208,9 +201,9 @@ static_assert(PLAYER_STATE_RUNNING == 2);
 static_assert(PLAYER_STATE_JUMPING == 3);
 static_assert(PLAYER_STATE_FALLING == 4);
 
-// ============================================================================
-// Component Tests - runtime
-// ============================================================================
+/**
+ * COMPONENT TESTS, AT RUNTIME
+ */
 
 TEST_CASE("player components hold the values written into them") {
     ase::ecs::Registry registry;
@@ -224,7 +217,7 @@ TEST_CASE("player components hold the values written into them") {
     identity.last_input_ms = identity.spawned_at_ms;
     CHECK(std::strcmp(identity.player_id, "test_player_1") == 0);
 
-    // Add PlayerStaPosComponent (chunk-relativ seit S2b 2026-08-11: 10 m = Wabe 0, lokal 10)
+    // The position is chunk-relative: 10 m lies in cell 0 at local 10
     auto& pos = registry.emplace<PlayerStaPosComponent>(entity);
     pos.chunk_x = 0;
     pos.local_x = 10.0f;
@@ -236,7 +229,7 @@ TEST_CASE("player components hold the values written into them") {
     CHECK(pos.y == 5.0f);
     CHECK(pos.local_z == 20.0f);
 
-    // Der Blick wohnt seit S2b in der eigenen Komponente
+    // The view direction lives in its own component
     auto& yaw = registry.emplace<PlayerStaYawComponent>(entity);
     yaw.yaw = 1.57f;
     CHECK(yaw.yaw == 1.57f);
@@ -272,14 +265,8 @@ TEST_CASE("player components hold the values written into them") {
 TEST_CASE("spawn via PlayerLifeSpwnSystem") {
     ase::ecs::Registry registry;
 
-    // No terrain setup: the spawn path reads its ground height from the Hub, not from a
-    // terrain chunk. The two setup_terrain_chunk calls that stood here were inert - see the
-    // tombstone in the anonymous namespace. The second one also carried a stale chunk number
-    // ("(100, 200) → chunk (6, 12)" assumes an edge of 16; MOVEMENT_DEFAULT_CHUNK_SIZE is 32).
-
-    // No movement-settings singleton is needed any more: PlayerStMovComponent was a
-    // per-entity copy of the MOVEMENT_DEFAULT_* constants and was removed 2026-08-15.
-    // The systems read types.hpp directly.
+    // No terrain setup: the spawn path reads its ground height from the hub, not from a terrain
+    // chunk. The movement values come from types.hpp, the chunk edge from the manager row.
 
     // Spawn player via lifecycle system
     auto entity = do_spawn_request(registry, "spawn_test", 100.0f, 200.0f);
@@ -298,35 +285,23 @@ TEST_CASE("spawn via PlayerLifeSpwnSystem") {
     REQUIRE(pos != nullptr);
 
     /**
-     * THE POSITION IS CHUNK-RELATIVE, and the two lines that stood here were not.
+     * THE POSITION IS CHUNK-RELATIVE, AND THE SPLIT IS LOSSLESS.
      *
-     * They read `pos→x` and `pos→z` - fields PlayerStaPosComponent lost in the S2b split of
-     * 2026-08-11. Under NDEBUG the expression inside assert() is never compiled, so the dead
-     * check hid a compile error for nine days. Measured 2026-08-20.
-     *
-     * The replacement states the invariant the producer actually establishes
-     * (player_life_spwn_sys.cpp:364-367): the split is LOSSLESS, so chunk and local recombine
-     * to the requested world coordinate. It uses the module's own constant rather than a chunk
-     * number worked out by hand — the comment further up saying "(100, 200) → chunk (6, 12)"
-     * assumed an edge of 16 and is itself stale; MOVEMENT_DEFAULT_CHUNK_SIZE is 32.
+     * The producer splits the requested world coordinate into chunk and local with the edge it
+     * reads from the manager row, so chunk and local recombine to the request. The check uses the
+     * edge the test laid on the hub rather than a chunk number worked out by hand.
      */
-    CHECK(static_cast<float>(pos->chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos->local_x
+    CHECK(static_cast<float>(pos->chunk_x) * TEST_CHUNK_EDGE_M + pos->local_x
           == 100.0f);
-    CHECK(static_cast<float>(pos->chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos->local_z
+    CHECK(static_cast<float>(pos->chunk_z) * TEST_CHUNK_EDGE_M + pos->local_z
           == 200.0f);
 
     /**
-     * THE HEIGHT IS 0, NOT 10 — and that is a finding, not a weakened check.
+     * THE HEIGHT IS 0, AND THAT IS A FINDING, NOT A WEAKENED CHECK.
      *
-     * The line here claimed `pos→y == 10.0f  // From terrain height`. The spawn system does
-     * not read terrain: player_life_spwn_sys.cpp:334-337 takes the ground from the Hub key
-     * TRN_HGT_AT_POS and falls back to 0.0f when the key is absent. This test sets no Hub
-     * value, so 0.0f is what the producer writes.
-     *
-     * Asserting 10.0f would have been red the moment the checks were switched on. Setting the
-     * Hub key here to make it green would mean recomputing the producer's pos_hash in the test
-     * — a logic duplicate, which the house form of the sibling suites forbids by name. The
-     * height path therefore stays UNCOVERED, and that is reported rather than papered over.
+     * The spawn system does not read terrain: it takes the ground from the hub key TRN_HGT_AT_POS
+     * and writes 0.0f when the key is absent. This test sets no such key, so 0.0f is what the
+     * producer writes, and the height path stays uncovered (see the head of this file).
      */
     CHECK(pos->y == 0.0f);
 
@@ -334,9 +309,9 @@ TEST_CASE("spawn via PlayerLifeSpwnSystem") {
     REQUIRE(physics != nullptr);
     CHECK(physics->on_ground == true);
 
-    // Cannot spawn duplicate
-    auto dup = do_spawn_request(registry, "spawn_test", 0.0f, 0.0f);
-    CHECK(dup == ase::ecs::NullEntity);
+    // A second spawn under the same id is refused
+    auto again = do_spawn_request(registry, "spawn_test", 0.0f, 0.0f);
+    CHECK(again == ase::ecs::NullEntity);
 
     // Find non-existent
     auto notfound = do_find_player(registry, "nonexistent");
@@ -345,8 +320,6 @@ TEST_CASE("spawn via PlayerLifeSpwnSystem") {
 
 TEST_CASE("despawn via PlayerLifeSpwnSystem") {
     ase::ecs::Registry registry;
-
-    // No terrain setup — inert, see the tombstone.
 
     // Spawn and despawn
     do_spawn_request(registry, "despawn_test", 0.0f, 0.0f);
@@ -363,9 +336,6 @@ TEST_CASE("despawn via PlayerLifeSpwnSystem") {
 
 TEST_CASE("get_all_players via view") {
     ase::ecs::Registry registry;
-
-    // No terrain setup — inert, see the tombstone. Note that two of the three calls that
-    // stood here were identical (0,0,0.0f); even as scaffolding it had stopped meaning anything.
 
     // Spawn multiple players
     do_spawn_request(registry, "player_a", 0.0f, 0.0f);
@@ -445,10 +415,10 @@ TEST_CASE("teleport lever moves the position, never the velocity, and the telepo
     tlpt.tick(registry, 0.0f);
     phys.tick(registry, 0.0f);
     const auto& pos = registry.get<PlayerStaPosComponent>(entity);
-    CHECK(static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x ==
+    CHECK(static_cast<float>(pos.chunk_x) * TEST_CHUNK_EDGE_M + pos.local_x ==
           doctest::Approx(50.0f));
     CHECK(pos.local_x >= 0.0f);
-    CHECK(pos.local_x < MOVEMENT_DEFAULT_CHUNK_SIZE);
+    CHECK(pos.local_x < TEST_CHUNK_EDGE_M);
     const auto& vel = registry.get<PlayerStaVelComponent>(entity);
     CHECK(vel.vx == doctest::Approx(0.0f));
     CHECK(vel.vz == doctest::Approx(0.0f));
@@ -460,7 +430,7 @@ TEST_CASE("teleport lever moves the position, never the velocity, and the telepo
     sync.tick(registry, 0.0f);
     tlpt.tick(registry, 0.0f);
     phys.tick(registry, 0.0f);
-    CHECK(static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE + pos.local_x ==
+    CHECK(static_cast<float>(pos.chunk_x) * TEST_CHUNK_EDGE_M + pos.local_x ==
           doctest::Approx(50.0f));
     acc.tick(registry, 0.0f);
     CHECK(hub::get(registry, owner, "PLAYER_MOVEMENT_SUSPICIOUS"_hs) == doctest::Approx(0.0f));

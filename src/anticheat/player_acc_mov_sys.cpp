@@ -12,8 +12,8 @@
  * @schedule    Dynamics
  * @usecase     usecase:100206 - flag impossible motion
  * @created     2026-06-30
- * @modified    2026-10-12
- * @version     1.0.0
+ * @modified    2026-11-06
+ * @version     1.1.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_ACC_MOV: realised velocity → anti-cheat flag)
  *
@@ -27,6 +27,7 @@
  *   │  READS:                                                  │
  *   │    → PlayerStaIdntComponent (player identity)               │
  *   │    → PlayerStaVelComponent (realised velocity)            │
+ *   │    → PlayerInpCmbKnbkComponent (knockback, leaves delta)  │
  *   │                                                          │
  *   │  WRITES (Hub):                                           │
  *   │    → "PLAYER_MOVEMENT_SUSPICIOUS"_hs (1.0 / 0.0)         │
@@ -147,6 +148,9 @@
 #include <ase/player/components/state/player_sta_acmp_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
+#include <ase/player/components/input/player_inp_cmb_knbk_comp.hpp>
 // Hub for O(1) API
 #include <ase/hub/api.hpp>
 // Logging
@@ -175,6 +179,19 @@ void PlayerAccMovSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerAccMovSystem::tick(ecs::Registry& registry, float /*dt*/) {
+    // The chunk edge is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
+    // PlayerChnkCnstSynSystem; without it no step can be measured in metres this tick.
+    float chunk_size = 0.0f;
+    bool edge_loaded = false;
+    for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
+        (void)mgr;
+        chunk_size = edge.chunk_size;
+        edge_loaded = true;
+    }
+    if (!edge_loaded) {
+        return;
+    }
+
     /**
      * Per player: compare the realised horizontal speed (squared) against the engine movement
      * authority. PlayerCtrlMovSystem caps legit velocity at run_speed, so a realised horizontal
@@ -197,17 +214,22 @@ void PlayerAccMovSystem::tick(ecs::Registry& registry, float /*dt*/) {
         auto* acmp = registry.try_get<PlayerStaAcmpComponent>(entity);
         if (acmp != nullptr) {
             /**
-             * Delta chunk-relativ (S2b 2026-08-11): Wabendifferenz exakt in int, Restmeter in
-             * kleinen floats - die fruehere Differenz zweier absoluter f32-Weltmeter war bei
-             * grossen Adressen auf die ULP (bis 16 m) gerastert und damit als Teleport-Mass
-             * unbrauchbar.
+             * The delta is chunk-relative: the cell difference exact in int, the remaining metres in
+             * small floats, so the step keeps full precision at any address on the planet.
              */
-            const float dx = static_cast<float>(pos.chunk_x - acmp->last_chunk_x) *
-                                 MOVEMENT_DEFAULT_CHUNK_SIZE +
-                             (pos.local_x - acmp->last_local_x);
-            const float dz = static_cast<float>(pos.chunk_z - acmp->last_chunk_z) *
-                                 MOVEMENT_DEFAULT_CHUNK_SIZE +
-                             (pos.local_z - acmp->last_local_z);
+            float dx = static_cast<float>(pos.chunk_x - acmp->last_chunk_x) * chunk_size +
+                       (pos.local_x - acmp->last_local_x);
+            float dz = static_cast<float>(pos.chunk_z - acmp->last_chunk_z) * chunk_size +
+                       (pos.local_z - acmp->last_local_z);
+            /**
+             * A knockback of the combat star is a legitimate step: PlayerSimKnbkSystem moved the
+             * figure by its ground displacement this tick (disp_x on local_x, disp_y on local_z), so
+             * that share leaves the delta before the teleport test.
+             */
+            if (auto* knbk = registry.try_get<PlayerInpCmbKnbkComponent>(entity)) {
+                dx -= knbk->disp_x;
+                dz -= knbk->disp_y;
+            }
             if (dx * dx + dz * dz > PLR_AC_TELEPORT_STEP_SQ) {
                 suspicious = true;
             }

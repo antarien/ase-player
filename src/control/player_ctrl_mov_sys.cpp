@@ -3,54 +3,56 @@
  *
  * @file        player_ctrl_mov_sys.cpp
  * @brief       PlayerCtrlMovSystem - Calculate player velocity from input
- * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Calculation systems read from Components, not Hub (SYN Pattern).
+ * @description Calculation system of the SYN pattern: reads input, camera and the movement restriction
+ *              of the combat star from bridge components, never from the Hub. The restriction row
+ *              PlayerInpCmbComponent is server_only, so the system is server_only with it.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    action/control
  * @schedule    Dynamics
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-11-06
+ * @version     1.2.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_CTRL_MOV: Player Movement Calculation)
  *
- *   [PlayerInpExtComponent from PlayerSyncInpSystem]
+ *   [PlayerInpExtComponent from PlayerSyncInpSystem, PlayerInpCmbComponent from PlayerCmbSynSystem]
  *          │
- *          │ input values from Component (SYN Pattern)
+ *          │ input values and combat restriction from Components (SYN Pattern)
  *          ▼
  *   ┌─────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerCtrlMovSystem           │
- *   │  (SHARED - no Hub access)                   │
+ *   │  (no Hub access)                            │
  *   │                                             │
  *   │  READS (from Components):                   │
  *   │    - PlayerInpExtComponent (input bridge)   │
- *   │    - PlayerStaPosComponent (yaw)             │
- *   │    - PlayerStaVelComponent (current vel)     │
- *   │    - PlayerStaPhysComponent (on_ground)      │
- *   │    - PlayerStMovComponent (speed settings)  │
+ *   │    - PlayerInpCamComponent (camera yaw)     │
+ *   │    - PlayerInpCmbComponent (slow, stun)     │
+ *   │    - PlayerStaPhysComponent (on_ground)     │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStaVelComponent (vx, vy, vz)      │
- *   │    - PlayerStaPhysComponent (on_ground)      │
+ *   │    - PlayerStaVelComponent (vx, vy, vz)     │
+ *   │    - PlayerStaPhysComponent (on_ground)     │
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ velocity calculated
  *          ▼
- *   PlayerSimPhysSystem (applies velocity to position)
+ *   PlayerSimKnbkSystem (knockback), then PlayerSimPhysSystem (applies velocity to position)
+ *
+ * COMBAT RESTRICTION: slow and frost each take their fraction of the target speed, multiplied with
+ * each other; a running landing stun or blunder recovery sets the target speed to 0. Gravity and the
+ * jump are untouched.
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Hub):
- *   (none - uses SYN pattern, reads from PlayerInpExtComponent)
+ *   (none - uses SYN pattern, reads from PlayerInpExtComponent and PlayerInpCmbComponent)
  *
  * WRITES (to Hub for other modules):
  *   (none - uses SYN pattern, writes to Components only)
- *
- * NOTE: This is a SHARED calculation system using the SYN pattern.
- * Input data is synced from Hub to PlayerInpExtComponent by PlayerSyncInpSystem
- * before this system runs. This system operates on Component data only.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -147,11 +149,14 @@
 // Components from same module ONLY
 #include <ase/player/components/input/player_inp_ext_comp.hpp>
 #include <ase/player/components/input/player_inp_cam_comp.hpp>
+#include <ase/player/components/input/player_inp_cmb_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
+// ase-types (Layer 0) for the positive-float predicate of the stuns
+#include <ase/types/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
 // Math
@@ -182,34 +187,27 @@ void PlayerCtrlMovSystem::on_start(ecs::Registry& /*registry*/) {
 
 void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
     /**
-     * STEP 1: Movement settings come straight from types.hpp (2026-08-15).
-     *
-     * They used to be copied into PlayerStMovComponent per entity and read back
-     * here through a manager lookup that took the FIRST arbitrary entity carrying
-     * the component. Every field only ever held a MOVEMENT_DEFAULT_* constant, so
-     * the component was a per-entity duplicate of types.hpp - forbidden by
-     * CLAUDE.md ("'Config-Components' with constants = FORBIDDEN"). The fallback
-     * block that stood here was itself the proof: without a carrier entity the
-     * code fell back to exactly these constants.
+     * STEP 1: The movement settings are the MOVEMENT_DEFAULT_* constants of types.hpp.
      */
 
     /**
      * STEP 2: Process each player entity with input data (SYN Pattern)
-     * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
+     * Reads from PlayerInpExtComponent (filled by PlayerSyncInpSystem) and PlayerInpCmbComponent
+     * (filled by PlayerCmbSynSystem for the same figures).
      */
     auto view = registry.view<
         PlayerInpExtComponent,
         PlayerInpCamComponent,
+        PlayerInpCmbComponent,
         PlayerStaPosComponent,
         PlayerStaVelComponent,
         PlayerStaPhysComponent
     >();
 
-    for (auto [entity, inp, cam, pos, vel, physics] : view.each()) {
+    for (auto [entity, inp, cam, cmb, pos, vel, physics] : view.each()) {
         /**
          * STEP 3: Read input values from the bridge components (SYN Pattern).
-         * The axes live in PlayerInpExtComponent, the camera yaw in
-         * PlayerInpCamComponent - split 2026-08-15 along the consumption.
+         * The axes live in PlayerInpExtComponent, the camera yaw in PlayerInpCamComponent.
          */
         float forward = inp.inp_fwd;
         float strafe = inp.inp_str;
@@ -233,9 +231,14 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
         }
 
         /**
-         * STEP 5: Calculate target velocity
+         * STEP 5: Calculate target velocity, restricted by the combat star.
+         * Slow and frost each take their fraction; a running stun holds the figure in place.
          */
         float speed = sprint ? MOVEMENT_DEFAULT_RUN_SPEED : MOVEMENT_DEFAULT_WALK_SPEED;
+        speed *= (PLR_CMB_SCALE_FULL - cmb.slow_intensity) * (PLR_CMB_SCALE_FULL - cmb.freeze_slow);
+        if (ase::types::is_pos_float(cmb.landing_stun) || ase::types::is_pos_float(cmb.patzer_stun)) {
+            speed = PLR_CMB_UNIT_MIN;
+        }
         float control = physics.on_ground ? 1.0f : MOVEMENT_DEFAULT_AIR_CONTROL;
 
         float target_vx = move_x * speed;

@@ -126,9 +126,12 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/input/player_inp_ext_comp.hpp
     include/ase/player/components/input/player_inp_cam_comp.hpp
     include/ase/player/components/input/player_inp_trn_comp.hpp
+    include/ase/player/components/input/player_inp_chnk_cnst_comp.hpp
     include/ase/player/components/input/player_inp_tlpt_comp.hpp
     include/ase/player/components/input/player_inp_mig_dlvr_comp.hpp
     include/ase/player/components/input/player_inp_mig_ack_comp.hpp
+    include/ase/player/components/input/player_inp_cmb_comp.hpp
+    include/ase/player/components/input/player_inp_cmb_knbk_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (buffer/)
@@ -224,6 +227,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/simulation/player_sim_com_sys.hpp
     include/ase/player/systems/simulation/player_sim_eco_sys.hpp
     include/ase/player/systems/simulation/player_sim_tlpt_sys.hpp
+    include/ase/player/systems/simulation/player_sim_knbk_sys.hpp
     include/ase/player/systems/simulation/player_sim_wand_sys.hpp
     include/ase/player/systems/simulation/player_sim_rest_sys.hpp
     include/ase/player/systems/simulation/player_sim_wrld_sys.hpp
@@ -241,6 +245,8 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     include/ase/player/systems/sync/player_sync_inp_sys.hpp
     include/ase/player/systems/sync/player_sync_tlpt_sys.hpp
+    include/ase/player/systems/sync/player_chnk_cnst_syn_sys.hpp
+    include/ase/player/systems/sync/player_cmb_syn_sys.hpp
 
     #[[
     SOURCE FILES - RECEPTION
@@ -273,6 +279,7 @@ add_library(${PROJECT_NAME} SHARED
     src/simulation/player_sim_com_sys.cpp
     src/simulation/player_sim_eco_sys.cpp
     src/simulation/player_sim_tlpt_sys.cpp
+    src/simulation/player_sim_knbk_sys.cpp
     src/simulation/player_sim_wand_sys.cpp
     src/simulation/player_sim_rest_sys.cpp
     src/simulation/player_sim_wrld_sys.cpp
@@ -332,6 +339,8 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     src/sync/player_sync_inp_sys.cpp
     src/sync/player_sync_tlpt_sys.cpp
+    src/sync/player_chnk_cnst_syn_sys.cpp
+    src/sync/player_cmb_syn_sys.cpp
 
     #[[
     SOURCE FILES - LOG

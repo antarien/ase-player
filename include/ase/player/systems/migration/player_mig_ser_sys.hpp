@@ -20,12 +20,12 @@
  * @layer       3 (Module)
  * @category    entity/actor/player
  * @schedule    Observation
- * @design      DSGN_021
- * @usecase     usecase:100692 - migrate figure between regions
- * @actor       Fleet Capacity Ledger (FLTCAP)
+ * @design      DSGN_016
+ * @usecase     usecase:101587 - freeze figure for region transit
+ * @actor       Engine Layer Serializer (ENGSRLZ)
  * @created     2026-07-28
- * @modified    2026-10-14
- * @version     2.0.0
+ * @modified    2026-11-01
+ * @version     2.1.0
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *

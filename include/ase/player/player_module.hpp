@@ -13,8 +13,8 @@
  * @design      DSGN_030
  * @usecase     usecase:5130 - play a character
  * @created     2025-12-01
- * @modified    2026-10-12
- * @version     2.1.0
+ * @modified    2026-11-06
+ * @version     2.2.0
  *
  * ECS MODULE/PLUGIN DEFINITION COMPLIANCE
  *
@@ -49,6 +49,7 @@
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
 #include <ase/player/systems/sync/player_sync_tlpt_sys.hpp>
+#include <ase/player/systems/sync/player_chnk_cnst_syn_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_mov_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_act_sys.hpp>
 #include <ase/player/systems/anticheat/player_acc_cmb_sys.hpp>
@@ -63,6 +64,8 @@
 #include <ase/player/systems/simulation/player_sim_eco_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_tlpt_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_wrld_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_knbk_sys.hpp>
+#include <ase/player/systems/sync/player_cmb_syn_sys.hpp>
 #include <ase/player/systems/reception/player_spwn_rcv_sys.hpp>
 #include <ase/player/systems/migration/player_mig_aply_sys.hpp>
 #include <ase/player/systems/migration/player_mig_des_sys.hpp>
@@ -91,6 +94,20 @@ struct PlayerModule {
          * the entity the SAME tick — a backend-driven spawn with no human WebRTC client (Phase 13 Task 13.10).
          */
         app.add_system<PlayerSpwnRcvSystem>(ecs::Schedule::Reception);
+
+        /**
+         * INGESTION (Schedule::Ingestion)
+         * The chunk edge of the terrain protocol (TER_CONST_CHUNK_SIZE) onto the manager row, read
+         * by every player system that turns world metres into a chunk address and back.
+         */
+        app.add_system<PlayerChnkCnstSynSystem>(ecs::Schedule::Ingestion);
+
+        /**
+         * The movement restriction of the combat star (slow, frost, landing stun, blunder recovery,
+         * knockback) onto the bridge rows of every figure; PlayerCtrlMovSystem and
+         * PlayerSimKnbkSystem read them in Dynamics without touching the Hub.
+         */
+        app.add_system<PlayerCmbSynSystem>(ecs::Schedule::Ingestion);
 
         /**
          * DYNAMICS (Schedule::Dynamics, 30Hz)
@@ -156,6 +173,12 @@ struct PlayerModule {
         app.add_system_with<PlayerSimTlptSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlMovSystem");
 
+        // The knockback of the combat star moves the POSITION by the displacement of this frame and
+        // runs before PlayerSimPhysSystem for the same reason as the teleport lever: the physics step
+        // carries it across the cell edge in the same tick.
+        app.add_system_with<PlayerSimKnbkSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerCtrlMovSystem");
+
         /**
          * THE JOURNEY OF A BACKEND-DRIVEN WALKER (the phases first, the hub write after them)
          *
@@ -179,7 +202,8 @@ struct PlayerModule {
 
         app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimChtSystem")
-            .run_after("PlayerSimTlptSystem");
+            .run_after("PlayerSimTlptSystem")
+            .run_after("PlayerSimKnbkSystem");
 
         app.add_system_with<PlayerStaStsSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimPhysSystem");

@@ -3,7 +3,9 @@
  *
  * @file        player_pst_ser_sys.cpp
  * @brief       PlayerPstSerSystem - Player persistence serialization
- * @description Serializes dirty players and delegates persistence to Replication Layer.
+ * @description Serializes dirty players into a JSON request of ase-serial. The durable player
+ *              record is written on the Replica by ReplicaPlrMigPstSystem, which reads no Hub value
+ *              of this system (CAUSA_ASE_REPLICATION).
  *              Naming: Player + Pst(Persist) + Ser(Serialize) + System
  *
  * @module      ase-player
@@ -13,8 +15,8 @@
  * @category    entity/actor/player
  * @schedule    Preservation
  * @created     2026-01-22
- * @modified    2026-10-13
- * @version     2.1.1
+ * @modified    2026-11-04
+ * @version     2.2.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_PST_SER: Player Persistence Serialization)
  *
@@ -38,7 +40,6 @@
  *   │    - SerialBufJsnComponent (JSON buffer)    │
  *   │    - SerialJsnPndTag (serialization pnd)    │
  *   │    - SerialJsnResourceManager (source blob) │
- *   │    - Hub: REP_PST_SER, REP_PST_SYN          │
  *   │    - Removes PlayerPstDtyTag                │
  *   └─────────────────────────────────────────────┘
  *          │
@@ -53,9 +54,8 @@
  *   PlayerStaPosComponent → Position data
  *   PlayerSpndTag → the figures in the world, this module's own marker
  *
- * WRITES (to Hub for ase-replication):
- *   "REP_PST_SER"_hs → Serialization entity reference
- *   "REP_PST_SYN"_hs → Sync request flag
+ * WRITES (to Hub): none. The request travels as SerialBufJsnComponent + SerialJsnPndTag to
+ *   ase-serial; ReplicaPlrMigPstSystem writes the durable record on the Replica.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -160,8 +160,6 @@
 #include <ase/player/types.hpp>
 // Serialization (Layer 2)
 #include <ase/serial/serial.hpp>
-// Hub for HUB Pattern
-#include <ase/hub/api.hpp>
 // Logging
 #include <ase/log/log.hpp>
 
@@ -233,15 +231,7 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         registry.emplace<serial::SerialJsnPndTag>(ser);
 
         /**
-         * Hub: Write persistence metadata (HUB Pattern - WRITES)
-         * Replication module reads these to perform persistence
-         */
-        uint32_t owner = static_cast<uint32_t>(entity);
-        hub::set(registry, owner, "REP_PST_SER"_hs, static_cast<float>(ser));
-        hub::set(registry, owner, "REP_PST_SYN"_hs, 1.0f);
-
-        /**
-         * STEP 4: Update persistence buffer with the player_id BLOB ID
+         * STEP 3: Update persistence buffer with the player_id BLOB ID
          *
          * Die Kennung wandert nicht als Adresse in die Komponente, sondern als Blob-Kennung
          * desselben Verwalters, der oben schon die Quelldaten benennt. Erst die Laenge messen,
@@ -255,7 +245,7 @@ void PlayerPstSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         buf.plr_id_ref = blobs.store_blob(id.player_id, buf.plr_id_len);
 
         /**
-         * STEP 5: Remove dirty tag (processed)
+         * STEP 4: Remove dirty tag (processed)
          */
         registry.remove<PlayerPstDtyTag>(entity);
 

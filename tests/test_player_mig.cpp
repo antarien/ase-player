@@ -24,11 +24,16 @@
  *   4. two figures staged in one tick keep their own identity
  *
  * The arm is the hub row HUB_PLR_MIG_ARM on the figure, as WorldPlrBndSystem adopts it; the
- * staged image is a row of its own with the figure as its FIG field.
+ * staged image is a row of its own with the figure as its FIG field. The chunk edge the encoder
+ * multiplies with comes from the manager row, filled by the REAL PlayerChnkCnstSynSystem from
+ * the hub constant TER_CONST_CHUNK_SIZE the test lays.
  */
 
 #include <ase/player/player.hpp>
 #include <ase/player/systems/migration/player_mig_ser_sys.hpp>
+#include <ase/player/systems/sync/player_chnk_cnst_syn_sys.hpp>
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
@@ -54,6 +59,25 @@ namespace {
 using namespace ase;
 using namespace entt::literals;
 
+// The chunk edge the terrain protocol sets (TER_CONST_CHUNK_SIZE in hub_constants.json).
+constexpr float TEST_CHUNK_EDGE_M = 32.0f;
+
+// Lays the chunk edge on the hub and lets the REAL sync system fill the manager row; without it
+// the encoder finds no edge and stages nothing.
+void lay_chunk_edge(ecs::Registry& registry) {
+    bool has_mgr = false;
+    for (auto mgr : registry.view<player::PlayerMgrTag>()) {
+        (void)mgr;
+        has_mgr = true;
+    }
+    if (!has_mgr) {
+        registry.emplace<player::PlayerMgrTag>(registry.create());
+    }
+    hub::set(registry, hub::GLOBAL, "TER_CONST_CHUNK_SIZE"_hs, TEST_CHUNK_EDGE_M);
+    player::PlayerChnkCnstSynSystem edge_sync;
+    edge_sync.tick(registry, 0.0f);
+}
+
 // Reads a little-endian u32 back out of the staged image. memcpy, not a cast: the snap is a
 // char buffer and an aliased load through uint32_t* is undefined behaviour.
 uint32_t read_u32(const char* snap, uint32_t offset) {
@@ -75,9 +99,10 @@ float read_f32(const char* snap, uint32_t offset) {
 }
 
 // Builds one player carrying every component the serialize walk requires, plus the armed
-// migrate as the boundary watch files it. Values are distinct per field so a swapped offset
-// cannot pass unnoticed.
+// migrate as the boundary watch files it, and lays the chunk edge on the manager row. Values are
+// distinct per field so a swapped offset cannot pass unnoticed.
 ecs::Entity make_armed_player(ecs::Registry& registry, const char* uuid, uint32_t dst_region) {
+    lay_chunk_edge(registry);
     const auto plr = registry.create();
 
     auto& pos = registry.emplace<player::PlayerStaPosComponent>(plr);
@@ -154,8 +179,8 @@ TEST_CASE("PlayerMigSer: the staged row carries the frozen 42-byte PlayerSnap la
 
     SUBCASE("position is the world-metre sum chunk * edge + local, and y passes through") {
         // THE WIRE STAYS IN WORLD METRES (frozen PlayerSnap, 4x f32).
-        const float expect_x = 3.0f * player::MOVEMENT_DEFAULT_CHUNK_SIZE + 5.5f;
-        const float expect_z = -2.0f * player::MOVEMENT_DEFAULT_CHUNK_SIZE + 7.25f;
+        const float expect_x = 3.0f * TEST_CHUNK_EDGE_M + 5.5f;
+        const float expect_z = -2.0f * TEST_CHUNK_EDGE_M + 7.25f;
         CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_POS) == doctest::Approx(expect_x));
         CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_POS + 4u) == doctest::Approx(64.5f));
         CHECK(read_f32(snap, types::PLAYER_SNAP_OFF_POS + 8u) == doctest::Approx(expect_z));
@@ -190,7 +215,7 @@ TEST_CASE("PlayerMigSer: the epoch bump is monotonic and happens once per armed 
 
     SUBCASE("a second tick does NOT bump again - the standing row bars re-entry") {
         // Without that barrier the receiver would see two different epochs for one migrate and
-        // could not tell a duplicate from a fresh move.
+        // could not tell a repeated delivery from a fresh move.
         system.tick(registry, 0.0f);
         CHECK(registry.get<player::PlayerStaEpchComponent>(plr).player_epoch == epoch_after_first);
         CHECK(hub::row_count(registry, "HUB_PLR_MIG_STG"_hs) == 1u);
@@ -209,8 +234,8 @@ TEST_CASE("PlayerMigSer: the epoch bump is monotonic and happens once per armed 
         char snap[types::PLAYER_SNAP_SZ] = {};
         REQUIRE(hub::try_get_bytes(registry, static_cast<uint32_t>(second_row),
                                    "HUB_PLR_MIG_STG_SNAP"_hs, snap, types::PLAYER_SNAP_SZ));
-        // Monotonic means the number never goes backwards, which is what makes it usable as a
-        // duplicate discriminator on the receiving side.
+        // Monotonic means the number never goes backwards, which is what lets the receiving side
+        // tell a repeated delivery from a fresh one.
         CHECK(read_u32(snap, types::PLAYER_SNAP_OFF_EPOCH) == second);
     }
 }

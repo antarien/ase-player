@@ -10,15 +10,16 @@
  * @schedule    Reception
  * @design      DSGN_021
  * @usecase     usecase:100692 - migrate figure between regions
- * @actor       Fleet Capacity Ledger (FLTCAP)
+ * @actor       Border Passage Warden (BORDPASWAR)
  * @created     2026-10-14
- * @modified    2026-10-14
- * @version     1.0.0
+ * @modified    2026-11-01
+ * @version     1.1.0
  *
  * CAUSAL CHAIN (bridge entities → instantiated figures and released source copies)
  *
- *   [PlayerMigDesSystem copied the inbound rows into PlayerInpMigDlvrComponent /
- *    PlayerInpMigAckComponent bridge entities, the same tick]
+ *   [PlayerMigDesSystem filled PlayerInpMigDlvrComponent / PlayerInpMigAckComponent bridge
+ *    entities from the inbound rows, the same tick]
+ *   [PlayerChnkCnstSynSystem laid TER_CONST_CHUNK_SIZE on the manager row]
  *          │
  *          ▼
  *   ┌───────────────────────────────────────────────────────────┐
@@ -27,6 +28,7 @@
  *   │  READS:                                                   │
  *   │    - PlayerInpMigDlvrComponent (snap, snap_len, region)   │
  *   │    - PlayerInpMigAckComponent (player_ref, ack_epoch)     │
+ *   │    - PlayerInpChnkCnstComponent (chunk edge, manager)     │
  *   │    - PlayerStaEpchComponent (O(1) ref lookup, pre-pass)   │
  *   │    - PlayerStaIdntComponent (despawn identity, OWN row)   │
  *   │                                                           │
@@ -50,11 +52,13 @@
  *
  * EVERY BRIDGE FALLS. A refused delivery (wrong length, wrong schema, duplicate) is destroyed like
  * an applied one: half an image cannot be told from a whole one, and a bridge that stayed would
- * be applied again on the next tick.
+ * be applied again on the next tick. The one wait is the chunk edge: without it no delivery is
+ * placed and no bridge falls, so the deliveries are applied in the first tick the edge stands.
  *
  * HUB Pattern (ARCH_ASE_HUB_API v2.0)
  *
- * READS (from Hub): (none) - the rows arrive through PlayerMigDesSystem
+ * READS (from Hub): (none) - the rows arrive through PlayerMigDesSystem, the chunk edge through
+ *                   PlayerInpChnkCnstComponent
  * WRITES (to Hub): (none) - PlayerHubSpndSystem publishes the figure
  *
  * FLYWEIGHT PATTERN (Not used - the 42-byte image travels inline, no resource handle needed)
@@ -156,6 +160,9 @@
 // The bridge components PlayerMigDesSystem wrote
 #include <ase/player/components/input/player_inp_mig_dlvr_comp.hpp>
 #include <ase/player/components/input/player_inp_mig_ack_comp.hpp>
+// The chunk edge of the terrain protocol on the manager row
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
+#include <ase/player/components/tag/player_mgr_tag.hpp>
 // Own state rows the figure is built from
 #include <ase/player/components/state/player_sta_epch_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
@@ -167,7 +174,7 @@
 // Own despawn request and the embodiment marker
 #include <ase/player/components/request/player_req_desp_comp.hpp>
 #include <ase/player/components/tag/player_spnd_tag.hpp>
-// types.hpp for constants (chunk edge for the world-metre split)
+// types.hpp for constants
 #include <ase/player/types.hpp>
 // O(1) row index for the drain loops (SSOT HashMap, no std:: container) - L3→L0, allowed
 #include <ase/containers/hash_map.hpp>
@@ -191,8 +198,8 @@ using namespace entt::literals;
 namespace {
 
 // Decode one frozen PlayerSnap (little-endian) from a bridge buffer. The caller guarantees the
-// buffer holds types::PLAYER_SNAP_SZ bytes. Mirror of encode_player_snap in
-// player_mig_ser_sys.cpp - same offsets, same L0 SSOT. Pure: memcpy only.
+// buffer holds types::PLAYER_SNAP_SZ bytes. The inverse of encode_player_snap in
+// player_mig_ser_sys.cpp: both read the one set of offsets of the L0 SSOT. Pure: memcpy only.
 void decode_player_snap(const char* snap, uint16_t& schema, uint32_t& player_ref,
                         uint32_t& player_epoch, float& x, float& y, float& z, float& yaw,
                         float& vx, float& vy, float& vz, uint32_t& status) {
@@ -227,6 +234,22 @@ void PlayerMigAplySystem::tick(ecs::Registry& registry, float /*dt*/) {
     auto dlvr_view = registry.view<PlayerInpMigDlvrComponent>();
     auto ack_view = registry.view<PlayerInpMigAckComponent>();
     if (dlvr_view.empty() && ack_view.empty()) {
+        return;
+    }
+
+    /**
+     * THE CHUNK EDGE is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
+     * PlayerChnkCnstSynSystem. Without it no figure is placed and no bridge falls this tick - the
+     * deliveries wait for the first tick the edge stands.
+     */
+    float chunk_size = 0.0f;
+    bool edge_loaded = false;
+    for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
+        (void)mgr;
+        chunk_size = edge.chunk_size;
+        edge_loaded = true;
+    }
+    if (!edge_loaded) {
         return;
     }
 
@@ -315,13 +338,13 @@ void PlayerMigAplySystem::tick(ecs::Registry& registry, float /*dt*/) {
         /**
          * CHUNK-RELATIVE: the frozen PlayerSnap carries world metres (f32); the figure keeps the
          * exact chunk address plus local metres - floor and remainder as at spawn
-         * (player_life_spwn_sys.cpp), with this module's OWN chunk constant.
+         * (player_life_spwn_sys.cpp), on the chunk edge of the terrain protocol.
          */
         auto& pos = registry.get<PlayerStaPosComponent>(plr_ent);
-        pos.chunk_x = static_cast<int32_t>(math::floor(x / MOVEMENT_DEFAULT_CHUNK_SIZE));
-        pos.chunk_z = static_cast<int32_t>(math::floor(z / MOVEMENT_DEFAULT_CHUNK_SIZE));
-        pos.local_x = x - static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE;
-        pos.local_z = z - static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE;
+        pos.chunk_x = static_cast<int32_t>(math::floor(x / chunk_size));
+        pos.chunk_z = static_cast<int32_t>(math::floor(z / chunk_size));
+        pos.local_x = x - static_cast<float>(pos.chunk_x) * chunk_size;
+        pos.local_z = z - static_cast<float>(pos.chunk_z) * chunk_size;
         pos.y = y;
         auto& yaw_row = registry.get<PlayerStaYawComponent>(plr_ent);
         yaw_row.yaw = yaw;

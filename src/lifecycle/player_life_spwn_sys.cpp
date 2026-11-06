@@ -6,13 +6,13 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @usecase     usecase:5130 - play a character
- * @actor       SS/PC
+ * @usecase     usecase:101557 - receive a spawn request
+ * @actor       Player Presence Steward (PLAYPRESTE)
  * @category    ecs/entity/entitylifecycle
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-10-17
- * @version     2.1.0
+ * @modified    2026-11-01
+ * @version     2.2.0
  *
  * WHAT THIS FILE CARRIES AND WHAT IT DOES NOT
  *
@@ -181,6 +181,7 @@
 #include <ase/player/components/tag/player_drty_tag.hpp>
 #include <ase/player/components/tag/player_mgr_tag.hpp>
 #include <ase/player/components/tag/player_spnd_tag.hpp>
+#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Hub API - the life ask HUB_LIFE_ALIV_PLR; ase-lifecycle adopts the life row HUB_LIFE_ALIV, on
@@ -245,8 +246,20 @@ void PlayerLifeSpwnSystem::on_start(ecs::Registry& registry) {
 void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
      * STEP 1: Movement settings come straight from types.hpp - every field of them only ever
-     * holds a MOVEMENT_DEFAULT_* constant.
+     * holds a MOVEMENT_DEFAULT_* constant. The chunk edge does not: it is the terrain protocol's
+     * TER_CONST_CHUNK_SIZE, laid on the manager row by PlayerChnkCnstSynSystem. Without it no
+     * request is answered this tick - the requests wait instead of being placed on a guessed grid.
      */
+    float chunk_size = 0.0f;
+    bool edge_loaded = false;
+    for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
+        (void)mgr;
+        chunk_size = edge.chunk_size;
+        edge_loaded = true;
+    }
+    if (!edge_loaded) {
+        return;
+    }
 
     /**
      * THE PLAYER INDEX IS BUILT ONCE PER PASS, NOT ONCE PER REQUEST.
@@ -355,10 +368,10 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
              * every step would otherwise vanish (pattern character_life_spwn_sys.cpp).
              */
             auto& pos = registry.emplace<PlayerStaPosComponent>(result_entity);
-            pos.chunk_x = static_cast<int32_t>(math::floor(request.x / MOVEMENT_DEFAULT_CHUNK_SIZE));
-            pos.chunk_z = static_cast<int32_t>(math::floor(request.z / MOVEMENT_DEFAULT_CHUNK_SIZE));
-            pos.local_x = request.x - static_cast<float>(pos.chunk_x) * MOVEMENT_DEFAULT_CHUNK_SIZE;
-            pos.local_z = request.z - static_cast<float>(pos.chunk_z) * MOVEMENT_DEFAULT_CHUNK_SIZE;
+            pos.chunk_x = static_cast<int32_t>(math::floor(request.x / chunk_size));
+            pos.chunk_z = static_cast<int32_t>(math::floor(request.z / chunk_size));
+            pos.local_x = request.x - static_cast<float>(pos.chunk_x) * chunk_size;
+            pos.local_z = request.z - static_cast<float>(pos.chunk_z) * chunk_size;
             pos.y = ground_y;
 
             registry.emplace<PlayerStaYawComponent>(result_entity);
