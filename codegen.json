@@ -248,6 +248,12 @@
         },
         {
             "key": "PLR_PROJECT_HASH_LO"
+        },
+        {
+            "key": "PLR_SPAWN_X"
+        },
+        {
+            "key": "PLR_SPAWN_Z"
         }
     ],
     "channels": [

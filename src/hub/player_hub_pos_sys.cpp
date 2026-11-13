@@ -2,18 +2,19 @@
  * ASE ECS SYSTEM IMPLEMENTATION
  *
  * @file        player_hub_pos_sys.cpp
- * @brief       PlayerHubPosSystem - Write player positions to Hub for cross-module access
- * @description Publishes the world-metre view of every player to the Hub for L4 plugins and other modules.
+ * @brief       PlayerHubPosSystem - Write player positions and the spawn point to Hub for cross-module access
+ * @description Publishes the world-metre view of every player to the Hub for L4 plugins and other modules,
+ *              and once per figure the spawn point the terrain height seam samples.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @usecase     usecase:100049 - publish a hub value
- * @actor       Hub Value Bridge (HUBVAL)
+ * @actor       Protocol Channel Steward (PROTCHASTE)
  * @category    hub
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-11-04
- * @version     1.3.0
+ * @modified    2026-11-07
+ * @version     1.4.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_HUB_POS: Player Position Hub Publishing)
  *
@@ -33,11 +34,21 @@
  *   │    → "PLR_POS_Y"_hs (Hub)                   │
  *   │    → "PLR_POS_Z"_hs (Hub)                   │
  *   │    → "PLR_IS_PLAYER"_hs (Hub)               │
+ *   │    → "PLR_SPAWN_X"_hs (Hub, once)           │
+ *   │    → "PLR_SPAWN_Z"_hs (Hub, once)           │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ position available via Hub
+ *          │ position and spawn point available via Hub
  *          ▼
- *   L4 Plugins (read via sdk::get)
+ *   L4 Plugins (read via sdk::get), TerrainHgtSyncSystem (TerrainHgtSpwnTag)
+ *
+ * THE SPAWN POINT IS SET HERE, ONCE PER FIGURE (CONCEPT_TERRAIN_PLAYER_CHUNKS, "No player is
+ * spawned over HTTP"). TerrainHgtSyncSystem samples the ground height at PLR_SPAWN_X/PLR_SPAWN_Z.
+ * Its only setter was the spawn route of the Engine, which never reached the World process. On the
+ * first tick this system publishes a figure, the key is not yet measured for that owner, and the
+ * spawn point is the place of that first tick: PLR_SPAWN_X from the first horizontal axis and
+ * PLR_SPAWN_Z from the second horizontal axis of the same view, the axis PLR_POS_Y carries. Later
+ * ticks find it measured and leave it standing. The two values are copied, never computed.
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1)):
  *
@@ -45,11 +56,17 @@
  *   PlayerStaIdntComponent  → Player identity for iteration
  *   PlayerStaWrldComponent  → World-metre view (x, y horizontal, z height)
  *
+ * READS (from the star):
+ *   "PLR_SPAWN_X"_hs     → is_measured only: has this figure's spawn point been set
+ *
  * WRITES (to Hub for other modules):
  *   "PLR_POS_X"_hs       → first horizontal axis, world metres (float)
  *   "PLR_POS_Y"_hs       → second horizontal axis, world metres - never the height (float)
  *   "PLR_POS_Z"_hs       → height axis, metres (float)
  *   "PLR_IS_PLAYER"_hs   → 1.0f marker for player entities
+ *   "PLR_SPAWN_X"_hs     → spawn point, first horizontal axis, world metres (once per figure)
+ *   "PLR_SPAWN_Z"_hs     → spawn point, second horizontal axis (the PLR_POS_Y axis), world metres
+ *                          (once per figure)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -203,6 +220,17 @@ void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
         hub::set(registry, owner, "PLR_POS_Y"_hs, wrld.y);
         hub::set(registry, owner, "PLR_POS_Z"_hs, wrld.z);
         hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
+
+        /**
+         * STEP 3: The spawn point, once per figure (see the file head).
+         * Not yet measured means this is the first tick the figure is published; the place of
+         * this tick is its spawn point. The second horizontal axis goes to PLR_SPAWN_Z, the plane
+         * axis TerrainHgtSyncSystem reads as b.
+         */
+        if (!hub::is_measured(registry, owner, "PLR_SPAWN_X"_hs)) {
+            hub::set(registry, owner, "PLR_SPAWN_X"_hs, wrld.x);
+            hub::set(registry, owner, "PLR_SPAWN_Z"_hs, wrld.y);
+        }
     }
 }
 
