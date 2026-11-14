@@ -66,7 +66,8 @@
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Hub):
- *   (none - the ground height arrives one tick later through the SYN pair of this module)
+ *   (none - the ground height arrives with the first stand answer of ase-physics, taken back by
+ *   PlayerSimStndSystem)
  *
  * WRITES (to Hub for other modules):
  *   hub row HUB_LIFE_ALIV_PLR - hub::row_create with the field HUB_LIFE_ALIV_PLR_BODY, the ask
@@ -325,22 +326,13 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
 
         if (!player_exists) {
-            /* THE HEIGHT IS NOT FETCHED HERE, IT BELONGS TO THE SYN PAIR.
+            /* THE HEIGHT IS NOT FETCHED HERE, IT BELONGS TO ase-physics.
              *
-             * A hub read next to the `math::floor` of the chunk axes further down would put hub
-             * I/O and deterministic arithmetic into ONE system: HUB_IO_MIXED_WITH_MATH.
-             *
-             * A NEW SYNC SYSTEM WOULD BE THE WRONG ANSWER. `player_sync_inp_sys.cpp` already reads
-             * the same key and lays it into a bridge component that, by its own comment, has
-             * "exactly one reader".
-             *
-             * And this spawn CANNOT read the bridge: it hangs on a player that does not exist yet
-             * in this line. So it is born at y=0, and the SYN pair pulls the height in the next
-             * tick once the chunk is loaded. What falls away is a shortcut by ONE tick, not the
-             * height.
-             *
-             * The sentinel lesson stands where the read lies: `is_val_float` instead of
-             * `!is_not_found`, because the value becomes a COORDINATE. */
+             * ase-player holds no ground (CAUSA_ASE_PHYSICS, DoD 07-K). The figure is born at
+             * y = 0 without a frame; PlayerSimWalkSystem places it and files the step,
+             * ase-physics sets the body on the ground it measured under it, and
+             * PlayerSimStndSystem takes the answered height back. What falls away is a shortcut
+             * by one tick, not the height. */
             float ground_y = 0.0f;
 
             // Create player entity with ONLY player components
@@ -380,10 +372,9 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
 
             auto& physics = registry.emplace<PlayerStaPhysComponent>(result_entity);
             physics.on_ground = true;
-            physics.gravity_enabled = true;
 
             auto& sts = registry.emplace<PlayerStaStsComponent>(result_entity);
-            sts.sts = PLAYER_STATE_IDLE;
+            sts.sts = PLAYER_STATE_GROUND;
 
             auto& chunk = registry.emplace<PlayerStaChkComponent>(result_entity);
             chunk.chunk_x = pos.chunk_x;
@@ -400,8 +391,11 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
              * THE LIFE ASK. A settler LIVES, and whoever lives is observed: the observer adoption
              * (TerrainStrmObsSyncSystem PASS 2) sees only the rows of the kind HUB_LIFE_ALIV.
              * Without it the settler would wander invisibly, cell crossings without a single cell
-             * mark. Its soul is led by the SESSION (MS/PC): BdiAgtRegSystem leaves out every
-             * HUB_PLR_SPND row, so that no second will arises here.
+             * mark. Its soul is led by the player himself (SS/PC, DSGN_030 27.3): ase-character
+             * files the class row HUB_LIFE_SSPC on every figure of HUB_PLR_SPND in Reception, before
+             * the life row lands, and BdiAgtRegSystem leaves every HUB_LIFE_SSPC row out, so that no
+             * second will arises here. Once the player lets go (AI/PC) the class row falls and the
+             * figure lives on as an agent.
              *
              * HUB_LIFE_ALIV has one writer, ase-lifecycle. This system files the ask
              * HUB_LIFE_ALIV_PLR; LifecycleHubAlivPlyrRcvSystem adopts the figure in Ingestion of

@@ -6,30 +6,32 @@
  * @file        player_sim_tlpt_sys.hpp
  * @brief       PlayerSimTlptSystem - Applies the backend teleport jump to the player position
  * @description Calc half of the SYN pair for the teleport lever (Phase 13, register D0703):
- *              PlayerSyncTlptSystem mirrors PLR_CHEAT_TELEPORT into PlayerInpTlptComponent, this
- *              system moves the player's chunk-relative position by jump_m each tick — a real
+ *              PlayerSyncTlptSystem reads PLR_CHEAT_TELEPORT into PlayerInpTlptComponent in every tick,
+ *              this system moves the player's chunk-relative position by jump_m each tick — a real
  *              teleport chain on the real player entity, never a fabricated topic inject. No Hub
  *              access here. The velocity is not touched, so the speed authority of
  *              PlayerAccMovSystem stays quiet and its TELEPORT authority (per-tick delta above
  *              PLR_AC_TELEPORT_STEP) is what fires.
  *
- *              It runs before PlayerSimPhysSystem on purpose: the jump lands on local_x, and the
- *              physics step carries any overflow across the cell edge in the same tick, so no reader
- *              ever sees a local coordinate outside [0, edge). The view therefore selects exactly the
- *              players the physics step integrates.
+ *              A jumped figure is marked PlayerWalkRplcTag: ase-physics takes the place of the
+ *              HUB_PHYS_WALK row only when the placement count moves, so PlayerSimWalkSystem, ordered
+ *              after this system, lays the body again at the jumped place. The view selects the figures
+ *              with a walking frame (PlayerStaFrmComponent), the ones whose body ase-physics walks.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    process/simulation
  * @schedule    Dynamics
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2026-10-03
- * @modified    2026-10-03
- * @version     1.0.0
+ * @modified    2026-11-14
+ * @version     1.1.0
  *
  * ARCHITECTURE:
  *
  *   PlayerInpTlptComponent.jump_m → PlayerSimTlptSystem → PlayerStaPosComponent.local_x (+ jump)
- *   (bridge, from the Hub lever)    (no Hub access)       → PlayerSimPhysSystem carries the edge
+ *   (bridge, from the Hub lever)    (no Hub access)       → PlayerWalkRplcTag → PlayerSimWalkSystem
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -53,10 +55,9 @@ namespace ase::player {
 /**
  * @brief Applies the backend teleport jump to the player position (calc, no Hub)
  *
- * @schedule Dynamics — after PlayerCtrlMovSystem, before PlayerSimPhysSystem
- * @reads    PlayerInpTlptComponent.jump_m; PlayerInpTrnComponent, PlayerStaVelComponent,
- *           PlayerStaPhysComponent (selection: the players the physics step integrates)
- * @writes   PlayerStaPosComponent.local_x
+ * @schedule Dynamics — after PlayerCtrlMovSystem, before PlayerSimBndySystem and PlayerSimWalkSystem
+ * @reads    PlayerInpTlptComponent.jump_m; PlayerStaFrmComponent (selection: the figures ase-physics walks)
+ * @writes   PlayerStaPosComponent.local_x; PlayerWalkRplcTag
  */
 class PlayerSimTlptSystem : public ecs::System {
 public:

@@ -17,7 +17,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_ACC_MOV: realised velocity → anti-cheat flag)
  *
- *   [PlayerStaVelComponent — realised velocity after PlayerSimPhysSystem]
+ *   [PlayerStaVelComponent — realised velocity, vy taken from ase-physics by PlayerSimStndSystem]
  *          │
  *          │ vx, vz (horizontal)
  *          ▼

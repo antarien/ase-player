@@ -16,7 +16,7 @@
  * @module      ase-player
  * @layer       3 (Module)
  * @category    input
- * @parity      server_only
+ * @parity      shared
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-06

@@ -1,63 +1,58 @@
 /**
  * ASE ECS SYSTEM IMPLEMENTATION
  *
- * @file        player_sim_phys_sys.cpp
- * @brief       PlayerSimPhysSystem - Apply physics simulation to player entities
- * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Calculation systems read from Components, not Hub (SYN Pattern).
+ * @file        player_sim_stnd_sys.cpp
+ * @brief       PlayerSimStndSystem - takes the place ase-physics walked a figure to back into its chunk address
  *
  * @module      ase-player
  * @layer       3 (Modules)
- * @category    process/simulation
- * @schedule    Dynamics
  * @design      DSGN_030
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
- * @created     2026-01-22
- * @modified    2026-11-01
- * @version     1.2.0
+ * @category    process/simulation
+ * @schedule    Dynamics
+ * @created     2026-11-14
+ * @modified    2026-11-14
+ * @version     1.0.0
  *
- * CAUSAL CHAIN (CAUSA_PLR_SIM_PHYS: Player Physics Simulation)
+ * CAUSAL CHAIN (PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.13, DoD 07-K: the figure walks over slope and hollow and
+ * falls into a dug hole, because ase-physics walks it)
  *
- *   [PlayerStaVelComponent from PlayerCtrlMovSystem]
+ *   [PlayerHubStndSyncSystem laid the answer of ase-physics as PlayerInpStndComponent and PlayerStndGrndTag;
+ *    PlayerSimWalkSystem laid frame and placement count (PlayerStaFrmComponent, PlayerStaPlcmComponent)]
  *          │
- *          │ velocity calculated
  *          ▼
- *   ┌─────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerSimPhysSystem           │
- *   │  (SHARED - no Hub access)                   │
- *   │                                             │
- *   │  READS (from Components):                   │
- *   │    - PlayerInpTrnComponent (trn_hgt)        │
- *   │    - PlayerInpChnkCnstComponent (edge)      │
- *   │    - PlayerStaPosComponent (position)       │
- *   │    - PlayerStaVelComponent (velocity)       │
- *   │    - PlayerStaPhysComponent (physics state) │
- *   │                                             │
- *   │  WRITES (to Components):                    │
- *   │    - PlayerStaPosComponent (x, y, z)        │
- *   │    - PlayerStaVelComponent (vy on ground)   │
- *   │    - PlayerStaPhysComponent (on_ground)     │
- *   │    - PlayerDrtyTag (if moving)              │
- *   └─────────────────────────────────────────────┘
+ *   ┌──────────────────────────────────────────────────────────────────┐
+ *   │  THIS SYSTEM: PlayerSimStndSystem (Dynamics)                     │
+ *   │  READS (from Components):                                        │
+ *   │    PlayerInpStndComponent, PlayerStaFrmComponent,                │
+ *   │    PlayerStaPlcmComponent, PlayerStndGrndTag,                    │
+ *   │    PlayerInpChnkCnstComponent (manager row)                      │
+ *   │  WRITES (to Components):                                         │
+ *   │    PlayerStaPosComponent, PlayerStaVelComponent.vy,              │
+ *   │    PlayerStaPhysComponent.on_ground, PlayerDrtyTag               │
+ *   └──────────────────────────────────────────────────────────────────┘
  *          │
- *          │ position updated
  *          ▼
- *   PlayerStaStsSystem (updates player status)
+ *   [PlayerCtrlMovSystem steers from the ground contact; PlayerSimWalkSystem files the next step]
+ *
+ * THE FRAME. The answer stands in metres from the frame origin the figure filed: the origin is the chunk
+ * PlayerStaFrmComponent names plus the metres within it, the height is measured from its level. Adding the
+ * answer to the metres within the origin chunk and carrying whole chunks into the address keeps the local
+ * metres inside [0, edge) and the sum small, so no step is swallowed by the float precision of a far place
+ * (the cut of S2b 2026-08-11).
+ *
+ * THE GROUND IS STATED, NOT COMPUTED. Every taken answer first clears the ground contact; the second pass sets
+ * it again on exactly the figures whose answer carries the mark HUB_PHYS_STAND_GRND, one view per state.
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Hub):
- *   (none - uses SYN pattern, reads terrain height from PlayerInpTrnComponent and the chunk edge
- *   TER_CONST_CHUNK_SIZE from PlayerInpChnkCnstComponent on the manager row)
+ *   (none - uses SYN pattern, reads from PlayerInpStndComponent laid by PlayerHubStndSyncSystem)
  *
  * WRITES (to Hub for other modules):
- *   (none - uses SYN pattern, writes to Components only)
- *
- * NOTE: This is a SHARED calculation system using the SYN pattern.
- * Terrain height is filled from the Hub into PlayerInpTrnComponent by PlayerSyncInpSystem, the
- * chunk edge into PlayerInpChnkCnstComponent by PlayerChnkCnstSynSystem, before this system runs.
- * This system operates on Component data only.
+ *   (none - uses SYN pattern, writes to Components only; PlayerSimWalkSystem and PlayerHubWalkSystem file the
+ *   next step)
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -146,19 +141,23 @@
  */
 
 // INCLUDES - ONLY THESE ARE ALLOWED!
-// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>, <chrono>
+// FORBIDDEN: <vector>, <map>, <unordered_map>, <optional>, <algorithm>
 // ALLOWED:   <cstdint>, <cmath>, <cassert>, ase-* headers
 
 // Own header FIRST
-#include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_stnd_sys.hpp>
 // Components from same module ONLY
-#include <ase/player/components/input/player_inp_trn_comp.hpp>
 #include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
+#include <ase/player/components/input/player_inp_stnd_comp.hpp>
+#include <ase/player/components/state/player_sta_frm_comp.hpp>
+#include <ase/player/components/state/player_sta_plcm_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
 #include <ase/player/components/tag/player_mgr_tag.hpp>
+#include <ase/player/components/tag/player_stnd_grnd_tag.hpp>
+#include <ase/player/components/tag/player_walk_rplc_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -166,55 +165,34 @@
 // Math
 #include <ase/math/math.hpp>
 
+#include <cstdint>
+
 namespace ase::player {
 using namespace entt::literals;  // For "_hs hashed strings (Hub)
 
 /**
  * Anonymous namespace for helper FUNCTIONS (NOT static!)
- * IMPORTANT: Use anonymous namespace, NOT static keyword!
- *   ✅ namespace { void helper() {...} }   // CORRECT
- *   ❌ static void helper() {...}          // WRONG!
  * NO STRUCTS HERE! Structs = Data = Components!
  */
 namespace {
 
-/**
- * @brief Add one step in metres to the chunk-relative track, carry over into the chunk address
- *
- * S2b 2026-08-11 (the same cut as P22 in bdi_act_mov_sys.cpp): the step ALWAYS lands on the
- * small local metres with full float precision - `pos += vel*dt` on absolute world metres
- * swallowed every 0.04 m step at 204 million metres (place 7, ULP 16 m), and the settlers of
- * that place stood still (measured live 2026-08-11 14:09).
- *
- * @param chunk    Chunk address of the axis (exact, carried on when the edge is crossed)
- * @param local    Metres inside the chunk [0, edge)
- * @param delta_m  Step in metres
- * @param edge     Chunk edge in metres (PlayerInpChnkCnstComponent.chunk_size)
- */
-void advance_local(int32_t& chunk, float& local, float delta_m, float edge) {
-    local += delta_m;
-    while (local >= edge) { local -= edge; ++chunk; }
-    while (local < 0.0f)  { local += edge; --chunk; }
-}
+// No helpers - each axis is carried inline, so the validator sees every formula
 
 }  // anonymous namespace
 
 // SYSTEM IMPLEMENTATION (ORDER: on_start → tick → on_stop)
 // ALL THREE METHODS MUST BE IMPLEMENTED - NO EXCEPTIONS!
 
-void PlayerSimPhysSystem::on_start(ecs::Registry& /*registry*/) {
-    log::debug("[PlayerSimPhysSystem] Started");
+void PlayerSimStndSystem::on_start(ecs::Registry& /*registry*/) {
+    log::debug("[PlayerSimStndSystem] Started");
 }
 
-void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
+void PlayerSimStndSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Physics settings. Snap distance and velocity epsilon are constants of this module;
-     * the chunk edge is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
-     * PlayerChnkCnstSynSystem. Without it no figure moves this tick: a step carried over on a
-     * guessed edge would put it into the wrong chunk.
+     * STEP 1: The chunk edge is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
+     * PlayerChnkCnstSynSystem. Without it no answer is turned into a chunk address: a carry on a guessed edge
+     * would put the figure into the wrong chunk.
      */
-    float ground_snap = MOVEMENT_DEFAULT_GROUND_SNAP_DIST;
-    float vel_eps = MOVEMENT_DEFAULT_VELOCITY_EPSILON;
     float chunk_edge = 0.0f;
     bool edge_loaded = false;
     for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
@@ -227,55 +205,66 @@ void PlayerSimPhysSystem::tick(ecs::Registry& registry, float dt) {
     }
 
     /**
-     * STEP 2: Process each player entity with input data (SYN Pattern)
-     * Reads terrain height from PlayerInpTrnComponent (filled by PlayerSyncInpSystem)
+     * PASS 1: every answer that follows the current placement. The view carries no type the loop adds or
+     * removes; the dirty tag is not one of its types.
      */
-    auto view = registry.view<
-        PlayerInpTrnComponent,
-        PlayerStaPosComponent,
-        PlayerStaVelComponent,
-        PlayerStaPhysComponent
-    >();
-
-    for (auto [entity, trn, pos, vel, physics] : view.each()) {
+    for (auto [figure, stand, frame, placement, pos, vel, physics] :
+         registry.view<PlayerInpStndComponent, PlayerStaFrmComponent, PlayerStaPlcmComponent, PlayerStaPosComponent,
+                       PlayerStaVelComponent, PlayerStaPhysComponent>(entt::exclude<PlayerWalkRplcTag>).each()) {
         /**
-         * STEP 3: Apply velocity to position (chunk-relative, S2b 2026-08-11)
-         * The plane runs over the local track and never fades; the vertical stays small metres
-         * and may integrate directly.
+         * STEP 2: An answer to an older placement follows a place the figure no longer stands at.
          */
-        advance_local(pos.chunk_x, pos.local_x, vel.vx * dt, chunk_edge);
-        advance_local(pos.chunk_z, pos.local_z, vel.vz * dt, chunk_edge);
-        pos.y += vel.vy * dt;
-
-        /**
-         * STEP 4: Get terrain height from PlayerInpTrnComponent (SYN Pattern)
-         * Terrain height was read from the Hub by PlayerSyncInpSystem
-         */
-        float ground_height = trn.trn_hgt;
-
-        /**
-         * STEP 5: Ground collision detection and response
-         */
-        if (pos.y <= ground_height + ground_snap) {
-            pos.y = ground_height;
-            vel.vy = 0.0f;
-            physics.on_ground = true;
-        } else {
-            physics.on_ground = false;
+        if (stand.seq != placement.seq) {
+            continue;
         }
 
         /**
-         * STEP 6: Mark dirty if moving (using ase-math sqrt)
+         * STEP 3: The place along each horizontal axis: the metres within the origin chunk plus the answer, the
+         * whole chunks carried into the address, the rest the local metres in [0, edge).
          */
-        float vel_len = math::sqrt(vel.vx * vel.vx + vel.vz * vel.vz);
-        if (vel_len > vel_eps) {
-            registry.emplace_or_replace<PlayerDrtyTag>(entity);
+        const float along_x = frame.off_x + stand.x;
+        const float cells_x = math::floor(along_x / chunk_edge);
+        pos.chunk_x = frame.chunk_x + static_cast<int32_t>(cells_x);
+        pos.local_x = along_x - cells_x * chunk_edge;
+
+        const float along_z = frame.off_z + stand.z;
+        const float cells_z = math::floor(along_z / chunk_edge);
+        pos.chunk_z = frame.chunk_z + static_cast<int32_t>(cells_z);
+        pos.local_z = along_z - cells_z * chunk_edge;
+
+        /**
+         * STEP 4: The height above the frame level and the vertical speed of the body; the ground contact is
+         * cleared here and stated again in PASS 2.
+         */
+        pos.y = frame.level + stand.y;
+        vel.vy = stand.vel_y;
+        physics.on_ground = false;
+
+        /**
+         * STEP 5: A figure that moves changed its place for the star.
+         */
+        const float speed = math::sqrt(vel.vx * vel.vx + vel.vz * vel.vz + vel.vy * vel.vy);
+        if (speed > MOVEMENT_DEFAULT_VELOCITY_EPSILON) {
+            registry.emplace_or_replace<PlayerDrtyTag>(figure);
         }
+    }
+
+    /**
+     * PASS 2: the figures whose taken answer says they stand on their ground.
+     */
+    for (auto [figure, stand, placement, physics] :
+         registry.view<PlayerInpStndComponent, PlayerStaPlcmComponent, PlayerStaPhysComponent, PlayerStndGrndTag>(
+             entt::exclude<PlayerWalkRplcTag>).each()) {
+        (void)figure;
+        if (stand.seq != placement.seq) {
+            continue;
+        }
+        physics.on_ground = true;
     }
 }
 
-void PlayerSimPhysSystem::on_stop(ecs::Registry& /*registry*/) {
-    log::debug("[PlayerSimPhysSystem] Stopped");
+void PlayerSimStndSystem::on_stop(ecs::Registry& /*registry*/) {
+    log::debug("[PlayerSimStndSystem] Stopped");
 }
 
 }  // namespace ase::player

@@ -5,6 +5,7 @@
     "client_relevance": true,
     "dependencies": [
         "ase-combat",
+        "ase-gis",
         "ase-terrain",
         "ase-transport"
     ],
@@ -17,8 +18,8 @@
             "type": "float32",
             "default": 0.0,
             "scope": "sim_entity",
+            "description": "Frost fraction of the target speed (CMB_FRZ_STA_SLOW_FACTOR)",
             "source_module": "ase-combat",
-            "description": "Freeze slow factor",
             "hub_category": "metric",
             "range": {
                 "range_type": "percentage",
@@ -75,8 +76,8 @@
             "type": "float32",
             "default": 0.0,
             "scope": "sim_entity",
+            "description": "Landing stun, positive while it runs (CMB_LANDING_STUN)",
             "source_module": "ase-combat",
-            "description": "Runtime metric: landing stun in seconds remaining, non-negative without a ceiling (CmbStatKbkStunComponent), read by PlayerCmbSynSystem (usecase:101588).",
             "hub_category": "metric",
             "range": {
                 "range_type": "counter",
@@ -90,8 +91,8 @@
             "type": "float32",
             "default": 0.0,
             "scope": "sim_entity",
+            "description": "Recovery time left after a blunder (CMB_PATZER_STUN)",
             "source_module": "ase-combat",
-            "description": "Runtime metric: blunder recovery in seconds remaining, non-negative without a ceiling (CmbPtzSynSystem recovery), read by PlayerCmbSynSystem (usecase:101588).",
             "hub_category": "metric",
             "range": {
                 "range_type": "counter",
@@ -105,8 +106,8 @@
             "type": "float32",
             "default": 0.0,
             "scope": "sim_entity",
+            "description": "Slow fraction of the target speed (CMB_SLW_INTENSITY)",
             "source_module": "ase-combat",
-            "description": "Runtime metric: slow active flag (set 1.0 conditionally at runtime).",
             "hub_category": "metric",
             "range": {
                 "range_type": "percentage",
@@ -121,14 +122,25 @@
             "type": "float32",
             "default": 0.0,
             "scope": "sim_entity",
+            "description": "Slow fraction of the target speed (CMB_SLW_INTENSITY)",
             "source_module": "ase-combat",
-            "description": "Runtime metric: slow intensity.",
             "hub_category": "metric",
             "range": {
                 "range_type": "percentage",
                 "min": 0.0,
                 "max": 1.0
             }
+        },
+        {
+            "key": "GIS_HYD_CELL_DEPTH",
+            "component": "PlayerInpWatrComponent",
+            "field": "depth_m",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "description": "m - water depth of the chunk cell under the figure (GIS_HYD_CELL_DEPTH), never negative",
+            "source_module": "ase-gis",
+            "hub_category": "metric"
         },
         {
             "key": "TER_CONST_CHUNK_SIZE",
@@ -139,6 +151,50 @@
             "description": "Chunk edge in metres (TER_CONST_CHUNK_SIZE)",
             "source_module": "ase-terrain",
             "hub_category": "constant"
+        },
+        {
+            "key": "TRN_FLAT_HGT",
+            "component": "PlayerInpAreaComponent",
+            "field": "level",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-terrain",
+            "description": "Runtime metric: the height in metres ase-terrain levelled a flatten disc to - the height of its centre (per body owner: the entity named in the flatten row HUB_TERN_MUT_REQ_BODY; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem once the disc is applied. 0.0 is a height, so a reader asks is_measured first. Value 0.0.",
+            "hub_category": "metric"
+        },
+        {
+            "key": "TRN_FLAT_RAD",
+            "component": "PlayerInpAreaComponent",
+            "field": "radius_m",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-terrain",
+            "description": "Runtime metric: the radius in metres of the disc ase-terrain levelled for a body (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT from the flatten order. ase-physics reads it to tell a seed on the disc from one beyond its rim (usecase:100708). Value 0.0.",
+            "hub_category": "metric"
+        },
+        {
+            "key": "TRN_FLAT_X",
+            "component": "PlayerInpAreaComponent",
+            "field": "x",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-terrain",
+            "description": "Runtime metric: the centre of the levelled disc of a body, world metres east (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
+            "hub_category": "metric"
+        },
+        {
+            "key": "TRN_FLAT_Z",
+            "component": "PlayerInpAreaComponent",
+            "field": "z",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "source_module": "ase-terrain",
+            "description": "Runtime metric: the centre of the levelled disc of a body, world metres north (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
+            "hub_category": "metric"
         }
     ],
     "hub_reads": [
@@ -168,6 +224,9 @@
         },
         {
             "key": "CMB_SLW_INTENSITY"
+        },
+        {
+            "key": "GIS_HYD_CELL_DEPTH"
         },
         {
             "key": "NET_CONST_BIN_MSG_PLAYER_SPAWN"
@@ -200,7 +259,16 @@
             "key": "TER_CONST_CHUNK_SIZE"
         },
         {
-            "key": "TRN_HGT_AT_POS"
+            "key": "TRN_FLAT_HGT"
+        },
+        {
+            "key": "TRN_FLAT_RAD"
+        },
+        {
+            "key": "TRN_FLAT_X"
+        },
+        {
+            "key": "TRN_FLAT_Z"
         }
     ],
     "hub_writes": [
@@ -264,9 +332,11 @@
             "components": [
                 "PlayerInpCamComponent",
                 "PlayerInpChnkCnstComponent",
+                "PlayerInpCmbComponent",
                 "PlayerInpExtComponent",
+                "PlayerInpStndComponent",
                 "PlayerInpTlptComponent",
-                "PlayerInpTrnComponent",
+                "PlayerInpWatrComponent",
                 "PlayerReqRoamComponent",
                 "PlayerStaAcmpComponent",
                 "PlayerStaActComponent",
@@ -275,8 +345,22 @@
                 "PlayerStaComComponent",
                 "PlayerStaEcoComponent",
                 "PlayerStaEpchComponent",
+                "PlayerStaFrmComponent",
+                "PlayerStaIdntComponent",
                 "PlayerStaInvComponent",
-                "PlayerStaRoamComponent"
+                "PlayerStaPhysComponent",
+                "PlayerStaPlcmComponent",
+                "PlayerStaPosComponent",
+                "PlayerStaRoamComponent",
+                "PlayerStaVelComponent"
+            ]
+        },
+        {
+            "name": "player_manager",
+            "reliability": "reliable",
+            "type": "singleton",
+            "components": [
+                "PlayerMgrTag"
             ]
         },
         {
@@ -284,9 +368,17 @@
             "reliability": "reliable",
             "type": "create",
             "components": [
+                "PlayerDrtyTag",
+                "PlayerGaitRunTag",
+                "PlayerGaitStndTag",
+                "PlayerGaitWalkTag",
+                "PlayerJumpReqTag",
                 "PlayerRoamRestTag",
                 "PlayerRoamRunTag",
-                "PlayerRoamWandTag"
+                "PlayerRoamWandTag",
+                "PlayerStndGrndTag",
+                "PlayerStndWatrTag",
+                "PlayerWalkRplcTag"
             ]
         },
         {
@@ -294,14 +386,46 @@
             "reliability": "reliable",
             "type": "delete",
             "components": [
+                "PlayerDrtyTag",
+                "PlayerGaitRunTag",
+                "PlayerGaitStndTag",
+                "PlayerGaitWalkTag",
+                "PlayerJumpReqTag",
                 "PlayerRoamRestTag",
                 "PlayerRoamRunTag",
-                "PlayerRoamWandTag"
+                "PlayerRoamWandTag",
+                "PlayerStndGrndTag",
+                "PlayerStndWatrTag",
+                "PlayerWalkRplcTag"
             ]
         }
     ],
     "components": {
         "shared": [
+            {
+                "name": "PlayerDrtyTag",
+                "description": "PlayerDrtyTag - this player changed since the last outbound pass",
+                "fields": [],
+                "file": "tag/player_drty_tag.hpp"
+            },
+            {
+                "name": "PlayerGaitRunTag",
+                "description": "PlayerGaitRunTag - the figure runs: its horizontal speed lies above the walk ceiling",
+                "fields": [],
+                "file": "tag/player_gait_run_tag.hpp"
+            },
+            {
+                "name": "PlayerGaitStndTag",
+                "description": "PlayerGaitStndTag - the figure stands: its horizontal speed lies below the stand bound",
+                "fields": [],
+                "file": "tag/player_gait_stnd_tag.hpp"
+            },
+            {
+                "name": "PlayerGaitWalkTag",
+                "description": "PlayerGaitWalkTag - the figure walks: its horizontal speed lies from the stand bound up to the walk bound",
+                "fields": [],
+                "file": "tag/player_gait_walk_tag.hpp"
+            },
             {
                 "name": "PlayerInpCamComponent",
                 "description": "External camera input data from Hub for player systems",
@@ -335,6 +459,37 @@
                 "file": "input/player_inp_chnk_cnst_comp.hpp"
             },
             {
+                "name": "PlayerInpCmbComponent",
+                "description": "The movement restriction the combat star lays on a player figure",
+                "fields": [
+                    {
+                        "name": "slow_intensity",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Slow fraction of the target speed (CMB_SLW_INTENSITY)"
+                    },
+                    {
+                        "name": "freeze_slow",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Frost fraction of the target speed (CMB_FRZ_STA_SLOW_FACTOR)"
+                    },
+                    {
+                        "name": "landing_stun",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Landing stun, positive while it runs (CMB_LANDING_STUN)"
+                    },
+                    {
+                        "name": "patzer_stun",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Recovery time left after a blunder (CMB_PATZER_STUN)"
+                    }
+                ],
+                "file": "input/player_inp_cmb_comp.hpp"
+            },
+            {
                 "name": "PlayerInpExtComponent",
                 "description": "External movement input data from Hub for player systems",
                 "fields": [
@@ -366,8 +521,45 @@
                 "file": "input/player_inp_ext_comp.hpp"
             },
             {
+                "name": "PlayerInpStndComponent",
+                "description": "PlayerInpStndComponent - where ase-physics says the walking figure stands after its step",
+                "fields": [
+                    {
+                        "name": "x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - place along the axis of PLR_POS_X, relative to the frame origin the figure filed"
+                    },
+                    {
+                        "name": "y",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - height above the frame level the figure filed"
+                    },
+                    {
+                        "name": "z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - place along the axis of PLR_POS_Y, relative to the frame origin the figure filed"
+                    },
+                    {
+                        "name": "vel_y",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m/s - vertical speed after the step, upward positive; 0 on ground"
+                    },
+                    {
+                        "name": "seq",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "the placement count of the frame this place follows from"
+                    }
+                ],
+                "file": "input/player_inp_stnd_comp.hpp"
+            },
+            {
                 "name": "PlayerInpTlptComponent",
-                "description": "The teleport jump a backend-driven cheater makes per tick, mirrored from the Hub",
+                "description": "The teleport jump a backend-driven cheater makes per tick, filled from the Hub every tick",
                 "fields": [
                     {
                         "name": "jump_m",
@@ -379,17 +571,29 @@
                 "file": "input/player_inp_tlpt_comp.hpp"
             },
             {
-                "name": "PlayerInpTrnComponent",
-                "description": "External terrain height from Hub for player systems",
+                "name": "PlayerInpWatrComponent",
+                "description": "PlayerInpWatrComponent - how deep the water stands in the cell under the figure",
                 "fields": [
                     {
-                        "name": "trn_hgt",
+                        "name": "depth_m",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "Terrain height from TRN_HGT_AT_POS"
+                        "description": "m - water depth of the chunk cell under the figure (GIS_HYD_CELL_DEPTH), never negative"
                     }
                 ],
-                "file": "input/player_inp_trn_comp.hpp"
+                "file": "input/player_inp_watr_comp.hpp"
+            },
+            {
+                "name": "PlayerJumpReqTag",
+                "description": "PlayerJumpReqTag - the figure asks to jump this tick",
+                "fields": [],
+                "file": "tag/player_jump_req_tag.hpp"
+            },
+            {
+                "name": "PlayerMgrTag",
+                "description": "PlayerMgrTag - marks the one entity that carries the module's manager state",
+                "fields": [],
+                "file": "tag/player_mgr_tag.hpp"
             },
             {
                 "name": "PlayerReqRoamComponent",
@@ -538,6 +742,68 @@
                 "file": "state/player_sta_epch_comp.hpp"
             },
             {
+                "name": "PlayerStaFrmComponent",
+                "description": "PlayerStaFrmComponent - the origin and level a walking figure files its place from",
+                "fields": [
+                    {
+                        "name": "chunk_x",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "chunk of the frame origin along the axis of PLR_POS_X"
+                    },
+                    {
+                        "name": "chunk_z",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "chunk of the frame origin along the axis of PLR_POS_Y"
+                    },
+                    {
+                        "name": "off_x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - origin within that chunk along the axis of PLR_POS_X"
+                    },
+                    {
+                        "name": "off_z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - origin within that chunk along the axis of PLR_POS_Y"
+                    },
+                    {
+                        "name": "level",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - world height the place is measured from"
+                    }
+                ],
+                "file": "state/player_sta_frm_comp.hpp"
+            },
+            {
+                "name": "PlayerStaIdntComponent",
+                "description": "PlayerStaIdntComponent - who this figure is and since when",
+                "fields": [
+                    {
+                        "name": "player_id",
+                        "type": "string",
+                        "default": "{}",
+                        "description": "Lasting identifier of the figure (UUID text, 36 chars + null)"
+                    },
+                    {
+                        "name": "spawned_at_ms",
+                        "type": "uint64",
+                        "default": "0",
+                        "description": "Moment the figure came into being (ms, steady_clock epoch)"
+                    },
+                    {
+                        "name": "last_input_ms",
+                        "type": "uint64",
+                        "default": "0",
+                        "description": "Last input of this figure (ms, steady_clock epoch)"
+                    }
+                ],
+                "file": "state/player_sta_idnt_comp.hpp"
+            },
+            {
                 "name": "PlayerStaInvComponent",
                 "description": "Realised per-player inventory-modification rate \u2014 the EconomyAuditor contract surface",
                 "fields": [
@@ -549,6 +815,75 @@
                     }
                 ],
                 "file": "state/player_sta_inv_comp.hpp"
+            },
+            {
+                "name": "PlayerStaPhysComponent",
+                "description": "PlayerStaPhysComponent - what physics currently holds true for this player",
+                "fields": [
+                    {
+                        "name": "on_ground",
+                        "type": "bool",
+                        "default": "false",
+                        "description": "Ground contact, found by the simulation"
+                    }
+                ],
+                "file": "state/player_sta_phys_comp.hpp"
+            },
+            {
+                "name": "PlayerStaPlcmComponent",
+                "description": "PlayerStaPlcmComponent - on which plate a walking figure was placed, and how often",
+                "fields": [
+                    {
+                        "name": "owner",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "the area plate entity the frame is the disc of; InvalidEntityId for a chunk-corner frame"
+                    },
+                    {
+                        "name": "seq",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "placement count, raised each time the figure is put somewhere"
+                    }
+                ],
+                "file": "state/player_sta_plcm_comp.hpp"
+            },
+            {
+                "name": "PlayerStaPosComponent",
+                "description": "PlayerStaPosComponent - where the figure stands, relative to its chunk",
+                "fields": [
+                    {
+                        "name": "chunk_x",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "Chunk address X (exact, carries the face encoding without loss)"
+                    },
+                    {
+                        "name": "chunk_z",
+                        "type": "int32",
+                        "default": "0",
+                        "description": "Chunk address Z (exact)"
+                    },
+                    {
+                        "name": "local_x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Metres inside the chunk along X, [0, chunk edge)"
+                    },
+                    {
+                        "name": "local_z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Metres inside the chunk along Z, [0, chunk edge)"
+                    },
+                    {
+                        "name": "y",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "World metres along the vertical"
+                    }
+                ],
+                "file": "state/player_sta_pos_comp.hpp"
             },
             {
                 "name": "PlayerStaRoamComponent",
@@ -586,6 +921,49 @@
                     }
                 ],
                 "file": "state/player_sta_roam_comp.hpp"
+            },
+            {
+                "name": "PlayerStaVelComponent",
+                "description": "PlayerStaVelComponent - how fast and where to the figure is moving now",
+                "fields": [
+                    {
+                        "name": "vx",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Horizontal, world axis X (m/s)"
+                    },
+                    {
+                        "name": "vy",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Vertical - gravity acts here (m/s)"
+                    },
+                    {
+                        "name": "vz",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Horizontal, world axis Z (m/s)"
+                    }
+                ],
+                "file": "state/player_sta_vel_comp.hpp"
+            },
+            {
+                "name": "PlayerStndGrndTag",
+                "description": "PlayerStndGrndTag - ase-physics says the walking figure stands on its ground",
+                "fields": [],
+                "file": "tag/player_stnd_grnd_tag.hpp"
+            },
+            {
+                "name": "PlayerStndWatrTag",
+                "description": "PlayerStndWatrTag - the figure stands in water",
+                "fields": [],
+                "file": "tag/player_stnd_watr_tag.hpp"
+            },
+            {
+                "name": "PlayerWalkRplcTag",
+                "description": "PlayerWalkRplcTag - the figure was put somewhere and files a new frame with ase-physics",
+                "fields": [],
+                "file": "tag/player_walk_rplc_tag.hpp"
             }
         ],
         "server_only": [
@@ -627,6 +1005,62 @@
                 "file": "buffer/player_buf_pst_comp.hpp"
             },
             {
+                "name": "PlayerBufWalkComponent",
+                "description": "PlayerBufWalkComponent - the step a figure files with ase-physics this tick",
+                "fields": [
+                    {
+                        "name": "x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - place along the axis of PLR_POS_X, relative to the frame origin"
+                    },
+                    {
+                        "name": "y",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - height above the frame level"
+                    },
+                    {
+                        "name": "z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - place along the axis of PLR_POS_Y, relative to the frame origin"
+                    },
+                    {
+                        "name": "vel_x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m/s - horizontal velocity along the axis of PLR_POS_X"
+                    },
+                    {
+                        "name": "vel_z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m/s - horizontal velocity along the axis of PLR_POS_Y"
+                    }
+                ],
+                "file": "buffer/player_buf_walk_comp.hpp"
+            },
+            {
+                "name": "PlayerBufWalkFrmComponent",
+                "description": "PlayerBufWalkFrmComponent - the world origin of the frame a figure files its step in",
+                "fields": [
+                    {
+                        "name": "origin_x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - world place of the frame origin along the axis of PLR_POS_X"
+                    },
+                    {
+                        "name": "origin_z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - world place of the frame origin along the axis of PLR_POS_Y"
+                    }
+                ],
+                "file": "buffer/player_buf_walk_frm_comp.hpp"
+            },
+            {
                 "name": "PlayerChnkChgdTag",
                 "description": "PlayerChnkChgdTag - this player crossed into another chunk this tick",
                 "fields": [],
@@ -639,47 +1073,47 @@
                 "file": "tag/player_desp_pnd_tag.hpp"
             },
             {
-                "name": "PlayerDrtyTag",
-                "description": "PlayerDrtyTag - this player changed since the last outbound pass",
-                "fields": [],
-                "file": "tag/player_drty_tag.hpp"
-            },
-            {
                 "name": "PlayerInitTag",
                 "description": "PlayerInitTag - this player entity has completed its initialisation",
                 "fields": [],
                 "file": "tag/player_init_tag.hpp"
             },
             {
-                "name": "PlayerInpCmbComponent",
-                "description": "The movement restriction the combat star lays on a player figure",
+                "name": "PlayerInpAreaComponent",
+                "description": "PlayerInpAreaComponent - the loaded area a figure walks on",
                 "fields": [
                     {
-                        "name": "slow_intensity",
+                        "name": "level",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "Slow fraction of the target speed (CMB_SLW_INTENSITY)"
+                        "description": "m - world height the area is levelled to"
                     },
                     {
-                        "name": "freeze_slow",
+                        "name": "radius_m",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "Frost fraction of the target speed (CMB_FRZ_STA_SLOW_FACTOR)"
+                        "description": "m - radius of the area around its centre"
                     },
                     {
-                        "name": "landing_stun",
+                        "name": "x",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "Landing stun, positive while it runs (CMB_LANDING_STUN)"
+                        "description": "m - world centre of the area along the axis of PLR_POS_X"
                     },
                     {
-                        "name": "patzer_stun",
+                        "name": "z",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "Recovery time left after a blunder (CMB_PATZER_STUN)"
+                        "description": "m - world centre of the area along the axis of PLR_POS_Y"
+                    },
+                    {
+                        "name": "plate",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "the area plate entity the disc belongs to (HUB_PLR_AREA_PLATE)"
                     }
                 ],
-                "file": "input/player_inp_cmb_comp.hpp"
+                "file": "input/player_inp_area_comp.hpp"
             },
             {
                 "name": "PlayerInpCmbKnbkComponent",
@@ -757,16 +1191,29 @@
                 "file": "tag/player_inp_rmv_tag.hpp"
             },
             {
+                "name": "PlayerInpTurnComponent",
+                "description": "One turn on the spot as the host filed it - the bridge between the hub row and the turn",
+                "fields": [
+                    {
+                        "name": "figure",
+                        "type": "entity",
+                        "default": "ecs::NullEntity",
+                        "description": "Figure the turn is for (HUB_PLR_TURN_FIGURE)"
+                    },
+                    {
+                        "name": "yaw",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Radians the host turned (HUB_PLR_TURN_YAW)"
+                    }
+                ],
+                "file": "input/player_inp_turn_comp.hpp"
+            },
+            {
                 "name": "PlayerLoclTag",
                 "description": "PlayerLoclTag - this player belongs to the session sitting in front of the screen",
                 "fields": [],
                 "file": "tag/player_locl_tag.hpp"
-            },
-            {
-                "name": "PlayerMgrTag",
-                "description": "PlayerMgrTag - marks the one entity that carries the module's manager state",
-                "fields": [],
-                "file": "tag/player_mgr_tag.hpp"
             },
             {
                 "name": "PlayerPstDtyTag",
@@ -844,6 +1291,19 @@
                 "file": "request/player_req_spwn_res_comp.hpp"
             },
             {
+                "name": "PlayerReqTurnComponent",
+                "description": "The open course of a turn on the spot - what the figure has yet to turn",
+                "fields": [
+                    {
+                        "name": "open_yaw",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Turn still to make (rad), positive the way the yaw grows"
+                    }
+                ],
+                "file": "request/player_req_turn_comp.hpp"
+            },
+            {
                 "name": "PlayerSessDoneTag",
                 "description": "PlayerSessDoneTag - this player's session-start pulse has been lowered again",
                 "fields": [],
@@ -860,6 +1320,12 @@
                 "description": "PlayerSpndTag - this entity is a player that has actually entered the world",
                 "fields": [],
                 "file": "tag/player_spnd_tag.hpp"
+            },
+            {
+                "name": "PlayerSpwnHubTag",
+                "description": "PlayerSpwnHubTag - this spawn request came from a hub row of the embedding host",
+                "fields": [],
+                "file": "tag/player_spwn_hub_tag.hpp"
             },
             {
                 "name": "PlayerStaChkComponent",
@@ -879,31 +1345,6 @@
                     }
                 ],
                 "file": "state/player_sta_chk_comp.hpp"
-            },
-            {
-                "name": "PlayerStaIdntComponent",
-                "description": "PlayerStaIdntComponent - wer diese Figur ist und seit wann",
-                "fields": [
-                    {
-                        "name": "player_id",
-                        "type": "string",
-                        "default": "{}",
-                        "description": "dauerhafte Kennung der Figur (UUID-Text, 36 Zeichen + Null)"
-                    },
-                    {
-                        "name": "spawned_at_ms",
-                        "type": "uint64",
-                        "default": "0",
-                        "description": "Entstehungszeitpunkt der Figur (ms, steady_clock-Epoche)"
-                    },
-                    {
-                        "name": "last_input_ms",
-                        "type": "uint64",
-                        "default": "0",
-                        "description": "letzte Eingabe dieser Figur (ms, steady_clock-Epoche)"
-                    }
-                ],
-                "file": "state/player_sta_idnt_comp.hpp"
             },
             {
                 "name": "PlayerStaInpMovComponent",
@@ -937,62 +1378,6 @@
                 "file": "state/player_sta_inp_mov_comp.hpp"
             },
             {
-                "name": "PlayerStaPhysComponent",
-                "description": "PlayerStaPhysComponent - what physics currently holds true for this player",
-                "fields": [
-                    {
-                        "name": "on_ground",
-                        "type": "bool",
-                        "default": "false",
-                        "description": "Bodenkontakt, von der Simulation festgestellt"
-                    },
-                    {
-                        "name": "gravity_enabled",
-                        "type": "bool",
-                        "default": "false",
-                        "description": "wirkt die Schwerkraft gerade auf diese Figur"
-                    }
-                ],
-                "file": "state/player_sta_phys_comp.hpp"
-            },
-            {
-                "name": "PlayerStaPosComponent",
-                "description": "PlayerStaPosComponent - wo die Figur steht, chunk-relativ",
-                "fields": [
-                    {
-                        "name": "chunk_x",
-                        "type": "int32",
-                        "default": "0",
-                        "description": "Wabenadresse X (exakt, traegt die Face-Kodierung verlustfrei)"
-                    },
-                    {
-                        "name": "chunk_z",
-                        "type": "int32",
-                        "default": "0",
-                        "description": "Wabenadresse Z (exakt)"
-                    },
-                    {
-                        "name": "local_x",
-                        "type": "float32",
-                        "default": "0.0f",
-                        "description": "Meter in der Wabe X, [0, Wabenkante)"
-                    },
-                    {
-                        "name": "local_z",
-                        "type": "float32",
-                        "default": "0.0f",
-                        "description": "Meter in der Wabe Z, [0, Wabenkante)"
-                    },
-                    {
-                        "name": "y",
-                        "type": "float32",
-                        "default": "0.0f",
-                        "description": "Weltmeter entlang der Senkrechten (Achse unveraendert)"
-                    }
-                ],
-                "file": "state/player_sta_pos_comp.hpp"
-            },
-            {
                 "name": "PlayerStaStsComponent",
                 "description": "PlayerStaStsComponent - in welcher Lage sich die Figur gerade befindet",
                 "fields": [
@@ -1004,31 +1389,6 @@
                     }
                 ],
                 "file": "state/player_sta_sts_comp.hpp"
-            },
-            {
-                "name": "PlayerStaVelComponent",
-                "description": "PlayerStaVelComponent - wie schnell und wohin sich die Figur gerade bewegt",
-                "fields": [
-                    {
-                        "name": "vx",
-                        "type": "float32",
-                        "default": "0.0f",
-                        "description": "waagerecht, Weltachse X (m/s)"
-                    },
-                    {
-                        "name": "vy",
-                        "type": "float32",
-                        "default": "0.0f",
-                        "description": "SENKRECHT - hier greift die Schwerkraft an (m/s)"
-                    },
-                    {
-                        "name": "vz",
-                        "type": "float32",
-                        "default": "0.0f",
-                        "description": "waagerecht, Weltachse Z (m/s)"
-                    }
-                ],
-                "file": "state/player_sta_vel_comp.hpp"
             },
             {
                 "name": "PlayerStaWrldComponent",
@@ -1073,12 +1433,24 @@
     "systems": {
         "shared": [
             {
+                "name": "PlayerCtrlMovSystem",
+                "file": "control/player_ctrl_mov_sys.hpp"
+            },
+            {
                 "name": "PlayerSimRestSystem",
                 "file": "simulation/player_sim_rest_sys.hpp"
             },
             {
+                "name": "PlayerSimStndSystem",
+                "file": "simulation/player_sim_stnd_sys.hpp"
+            },
+            {
                 "name": "PlayerSimWandSystem",
                 "file": "simulation/player_sim_wand_sys.hpp"
+            },
+            {
+                "name": "PlayerStaGaitSystem",
+                "file": "state/player_sta_gait_sys.hpp"
             }
         ],
         "server_only": [
@@ -1107,6 +1479,10 @@
                 "file": "anticheat/player_acc_mov_sys.hpp"
             },
             {
+                "name": "PlayerAreaSynSystem",
+                "file": "sync/player_area_syn_sys.hpp"
+            },
+            {
                 "name": "PlayerChnkCnstSynSystem",
                 "file": "sync/player_chnk_cnst_syn_sys.hpp"
             },
@@ -1119,8 +1495,12 @@
                 "file": "control/player_ctrl_inp_sys.hpp"
             },
             {
-                "name": "PlayerCtrlMovSystem",
-                "file": "control/player_ctrl_mov_sys.hpp"
+                "name": "PlayerCtrlTurnSystem",
+                "file": "control/player_ctrl_turn_sys.hpp"
+            },
+            {
+                "name": "PlayerHubMotnSystem",
+                "file": "hub/player_hub_motn_sys.hpp"
             },
             {
                 "name": "PlayerHubPosSystem",
@@ -1141,6 +1521,26 @@
             {
                 "name": "PlayerHubSpndSystem",
                 "file": "hub/player_hub_spnd_sys.hpp"
+            },
+            {
+                "name": "PlayerHubSpwnSystem",
+                "file": "hub/player_hub_spwn_sys.hpp"
+            },
+            {
+                "name": "PlayerHubStndSyncSystem",
+                "file": "sync/player_hub_stnd_sync_sys.hpp"
+            },
+            {
+                "name": "PlayerHubTurnSystem",
+                "file": "hub/player_hub_turn_sys.hpp"
+            },
+            {
+                "name": "PlayerHubWalkSystem",
+                "file": "hub/player_hub_walk_sys.hpp"
+            },
+            {
+                "name": "PlayerHubWatrSyncSystem",
+                "file": "sync/player_hub_watr_sync_sys.hpp"
             },
             {
                 "name": "PlayerLifeDespSystem",
@@ -1179,6 +1579,10 @@
                 "file": "simulation/player_sim_act_sys.hpp"
             },
             {
+                "name": "PlayerSimBndySystem",
+                "file": "simulation/player_sim_bndy_sys.hpp"
+            },
+            {
                 "name": "PlayerSimChtSystem",
                 "file": "simulation/player_sim_cht_sys.hpp"
             },
@@ -1195,12 +1599,12 @@
                 "file": "simulation/player_sim_knbk_sys.hpp"
             },
             {
-                "name": "PlayerSimPhysSystem",
-                "file": "simulation/player_sim_phys_sys.hpp"
-            },
-            {
                 "name": "PlayerSimTlptSystem",
                 "file": "simulation/player_sim_tlpt_sys.hpp"
+            },
+            {
+                "name": "PlayerSimWalkSystem",
+                "file": "simulation/player_sim_walk_sys.hpp"
             },
             {
                 "name": "PlayerSimWrldSystem",

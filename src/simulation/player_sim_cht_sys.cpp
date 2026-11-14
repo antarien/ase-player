@@ -10,8 +10,9 @@
  * @layer       3 (Modules)
  * @category    state/abundance/change
  * @schedule    Dynamics
+ * @usecase     usecase:101588 - move player figure over ground
  * @created     2026-06-30
- * @modified    2026-06-30
+ * @modified    2026-11-14
  * @version     1.0.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_SIM_CHT: backend cheat request → forced superhuman velocity)
@@ -34,7 +35,7 @@
  *          │
  *          │ realised velocity now exceeds the movement authority
  *          ▼
- *   PlayerSimPhysSystem applies it → PlayerAccMovSystem flags PLAYER_MOVEMENT_SUSPICIOUS
+ *   PlayerSimWalkSystem files it, ase-physics walks it → PlayerAccMovSystem flags PLAYER_MOVEMENT_SUSPICIOUS
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1)):
  *

@@ -95,6 +95,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/request/player_req_spwn_comp.hpp
     include/ase/player/components/request/player_req_roam_comp.hpp
     include/ase/player/components/request/player_req_spwn_res_comp.hpp
+    include/ase/player/components/request/player_req_turn_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (state/)
@@ -118,6 +119,8 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/state/player_sta_yaw_comp.hpp
     include/ase/player/components/state/player_sta_epch_comp.hpp
     include/ase/player/components/state/player_sta_wrld_comp.hpp
+    include/ase/player/components/state/player_sta_frm_comp.hpp
+    include/ase/player/components/state/player_sta_plcm_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (input/)
@@ -125,19 +128,24 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     include/ase/player/components/input/player_inp_ext_comp.hpp
     include/ase/player/components/input/player_inp_cam_comp.hpp
-    include/ase/player/components/input/player_inp_trn_comp.hpp
     include/ase/player/components/input/player_inp_chnk_cnst_comp.hpp
     include/ase/player/components/input/player_inp_tlpt_comp.hpp
     include/ase/player/components/input/player_inp_mig_dlvr_comp.hpp
     include/ase/player/components/input/player_inp_mig_ack_comp.hpp
     include/ase/player/components/input/player_inp_cmb_comp.hpp
     include/ase/player/components/input/player_inp_cmb_knbk_comp.hpp
+    include/ase/player/components/input/player_inp_area_comp.hpp
+    include/ase/player/components/input/player_inp_stnd_comp.hpp
+    include/ase/player/components/input/player_inp_turn_comp.hpp
+    include/ase/player/components/input/player_inp_watr_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (buffer/)
-    Buffer components for persistence.
+    Buffer components for persistence and for the step filed to ase-physics (HUB_PHYS_WALK).
     ]]
     include/ase/player/components/buffer/player_buf_pst_comp.hpp
+    include/ase/player/components/buffer/player_buf_walk_comp.hpp
+    include/ase/player/components/buffer/player_buf_walk_frm_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (tag/)
@@ -154,9 +162,17 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/tag/player_mgr_tag.hpp
     include/ase/player/components/tag/player_pst_dty_tag.hpp
     include/ase/player/components/tag/player_spnd_tag.hpp
+    include/ase/player/components/tag/player_spwn_hub_tag.hpp
     include/ase/player/components/tag/player_roam_wand_tag.hpp
     include/ase/player/components/tag/player_roam_rest_tag.hpp
     include/ase/player/components/tag/player_roam_run_tag.hpp
+    include/ase/player/components/tag/player_gait_stnd_tag.hpp
+    include/ase/player/components/tag/player_gait_walk_tag.hpp
+    include/ase/player/components/tag/player_gait_run_tag.hpp
+    include/ase/player/components/tag/player_jump_req_tag.hpp
+    include/ase/player/components/tag/player_stnd_grnd_tag.hpp
+    include/ase/player/components/tag/player_stnd_watr_tag.hpp
+    include/ase/player/components/tag/player_walk_rplc_tag.hpp
 
     #[[
     HEADER FILES - SYSTEMS (control/)
@@ -164,6 +180,7 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     include/ase/player/systems/control/player_ctrl_inp_sys.hpp
     include/ase/player/systems/control/player_ctrl_mov_sys.hpp
+    include/ase/player/systems/control/player_ctrl_turn_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (hub/)
@@ -171,9 +188,13 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     include/ase/player/systems/hub/player_hub_pos_sys.hpp
     include/ase/player/systems/hub/player_hub_spnd_sys.hpp
+    include/ase/player/systems/hub/player_hub_spwn_sys.hpp
+    include/ase/player/systems/hub/player_hub_turn_sys.hpp
+    include/ase/player/systems/hub/player_hub_motn_sys.hpp
     include/ase/player/systems/hub/player_hub_roam_sys.hpp
     include/ase/player/systems/hub/player_hub_sess_reg_sys.hpp
     include/ase/player/systems/hub/player_hub_sess_strt_sys.hpp
+    include/ase/player/systems/hub/player_hub_walk_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (anticheat/)
@@ -221,7 +242,6 @@ add_library(${PROJECT_NAME} SHARED
     HEADER FILES - SYSTEMS (simulation/)
     Player physics simulation + backend cheat-induction systems (Phase 13 AP-3 archetype levers).
     ]]
-    include/ase/player/systems/simulation/player_sim_phys_sys.hpp
     include/ase/player/systems/simulation/player_sim_cht_sys.hpp
     include/ase/player/systems/simulation/player_sim_act_sys.hpp
     include/ase/player/systems/simulation/player_sim_com_sys.hpp
@@ -231,6 +251,9 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/simulation/player_sim_wand_sys.hpp
     include/ase/player/systems/simulation/player_sim_rest_sys.hpp
     include/ase/player/systems/simulation/player_sim_wrld_sys.hpp
+    include/ase/player/systems/simulation/player_sim_bndy_sys.hpp
+    include/ase/player/systems/simulation/player_sim_stnd_sys.hpp
+    include/ase/player/systems/simulation/player_sim_walk_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (state/)
@@ -238,6 +261,7 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     include/ase/player/systems/state/player_sta_chnk_sys.hpp
     include/ase/player/systems/state/player_sta_sts_sys.hpp
+    include/ase/player/systems/state/player_sta_gait_sys.hpp
 
     #[[
     HEADER FILES - SYSTEMS (sync/)
@@ -247,6 +271,9 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/systems/sync/player_sync_tlpt_sys.hpp
     include/ase/player/systems/sync/player_chnk_cnst_syn_sys.hpp
     include/ase/player/systems/sync/player_cmb_syn_sys.hpp
+    include/ase/player/systems/sync/player_area_syn_sys.hpp
+    include/ase/player/systems/sync/player_hub_stnd_sync_sys.hpp
+    include/ase/player/systems/sync/player_hub_watr_sync_sys.hpp
 
     #[[
     SOURCE FILES - RECEPTION
@@ -268,12 +295,12 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     src/control/player_ctrl_inp_sys.cpp
     src/control/player_ctrl_mov_sys.cpp
+    src/control/player_ctrl_turn_sys.cpp
 
     #[[
     SOURCE FILES - SIMULATION
     Player physics simulation + backend cheat-induction (Phase 13 AP-3 archetype levers).
     ]]
-    src/simulation/player_sim_phys_sys.cpp
     src/simulation/player_sim_cht_sys.cpp
     src/simulation/player_sim_act_sys.cpp
     src/simulation/player_sim_com_sys.cpp
@@ -283,12 +310,16 @@ add_library(${PROJECT_NAME} SHARED
     src/simulation/player_sim_wand_sys.cpp
     src/simulation/player_sim_rest_sys.cpp
     src/simulation/player_sim_wrld_sys.cpp
+    src/simulation/player_sim_bndy_sys.cpp
+    src/simulation/player_sim_stnd_sys.cpp
+    src/simulation/player_sim_walk_sys.cpp
 
     #[[
     SOURCE FILES - STATE
     Player state and chunk association.
     ]]
     src/state/player_sta_sts_sys.cpp
+    src/state/player_sta_gait_sys.cpp
     src/state/player_sta_chnk_sys.cpp
 
     #[[
@@ -300,9 +331,13 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     src/hub/player_hub_pos_sys.cpp
     src/hub/player_hub_spnd_sys.cpp
+    src/hub/player_hub_spwn_sys.cpp
+    src/hub/player_hub_turn_sys.cpp
+    src/hub/player_hub_motn_sys.cpp
     src/hub/player_hub_roam_sys.cpp
     src/hub/player_hub_sess_reg_sys.cpp
     src/hub/player_hub_sess_strt_sys.cpp
+    src/hub/player_hub_walk_sys.cpp
 
     #[[
     SOURCE FILES - ANTICHEAT
@@ -341,6 +376,9 @@ add_library(${PROJECT_NAME} SHARED
     src/sync/player_sync_tlpt_sys.cpp
     src/sync/player_chnk_cnst_syn_sys.cpp
     src/sync/player_cmb_syn_sys.cpp
+    src/sync/player_area_syn_sys.cpp
+    src/sync/player_hub_stnd_sync_sys.cpp
+    src/sync/player_hub_watr_sync_sys.cpp
 
     #[[
     SOURCE FILES - LOG

@@ -8,13 +8,16 @@
  * @layer       3 (Modules)
  * @category    process/simulation
  * @schedule    Dynamics
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2026-10-03
- * @modified    2026-10-03
- * @version     1.0.0
+ * @modified    2026-11-14
+ * @version     1.1.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_SIM_TLPT: bridged teleport lever → realised position jump)
  *
- *   [PlayerInpTlptComponent.jump_m — mirrored from PLR_CHEAT_TELEPORT by PlayerSyncTlptSystem]
+ *   [PlayerInpTlptComponent.jump_m - filled from the hub key PLR_CHEAT_TELEPORT in every tick by
+ *    PlayerSyncTlptSystem]
  *          │
  *          ▼
  *   ┌──────────────────────────────────────────────────────────┐
@@ -22,12 +25,15 @@
  *   │                                                          │
  *   │  READS:                                                  │
  *   │    → PlayerInpTlptComponent.jump_m                       │
+ *   │    → PlayerStaFrmComponent (selection: a walking body)   │
  *   │                                                          │
  *   │  WRITES:                                                 │
  *   │    → PlayerStaPosComponent.local_x (+ jump)              │
+ *   │    → PlayerWalkRplcTag (the body is laid again)          │
  *   └──────────────────────────────────────────────────────────┘
  *          │
- *          │ PlayerSimPhysSystem carries the overflow across the cell edge in the same tick
+ *          │ PlayerSimWalkSystem lays the body at the jumped place with a new placement count;
+ *          │ ase-physics stands it there and PlayerSimStndSystem carries the cell edge from its answer
  *          ▼
  *   PlayerAccMovSystem: per-tick delta above PLR_AC_TELEPORT_STEP → PLAYER_MOVEMENT_SUSPICIOUS
  *
@@ -38,12 +44,15 @@
  * the teleport check never. The jump therefore lands on local_x alone, and the velocity of the
  * player stays what the movement authority gave it.
  *
- * WHY BEFORE THE PHYSICS STEP
+ * WHY A NEW PLACEMENT
  *
- * local_x lives in [0, edge). The jump may leave that range; PlayerSimPhysSystem, ordered after
- * this system, adds its own step and then carries every overflow into chunk_x. No reader in the
- * tick sees an unnormalised coordinate, and the carry has one implementation, not two. The view
- * selects exactly the components the physics step requires, so no jumped player escapes it.
+ * ase-physics walks the body from its own place and takes the place of the HUB_PHYS_WALK row only when
+ * the placement count moves. A jump that only moved local_x would be lost in the next stand answer. The
+ * figure is therefore marked PlayerWalkRplcTag, and PlayerSimWalkSystem, ordered after this system,
+ * raises the placement count and files the jumped place. local_x may leave [0, edge) for the rest of
+ * this tick; the readers in between (PlayerSimBndySystem, PlayerSimWalkSystem) work on the world place
+ * chunk * edge + local, which an unnormalised local_x does not change, and the stand answer of the next
+ * tick is normalised by PlayerSimStndSystem.
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1)):
  *
@@ -147,11 +156,10 @@
 #include <ase/player/systems/simulation/player_sim_tlpt_sys.hpp>
 // Components from same module ONLY
 #include <ase/player/components/input/player_inp_tlpt_comp.hpp>
-// The four components PlayerSimPhysSystem integrates — the view selects exactly those players
-#include <ase/player/components/input/player_inp_trn_comp.hpp>
+// The walking frame selects the figures whose body ase-physics walks; the place is what the jump moves
+#include <ase/player/components/state/player_sta_frm_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
-#include <ase/player/components/state/player_sta_vel_comp.hpp>
-#include <ase/player/components/state/player_sta_phys_comp.hpp>
+#include <ase/player/components/tag/player_walk_rplc_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // ase-types (Layer 0) for the positive-float SSOT predicate
@@ -172,8 +180,8 @@ using namespace entt::literals;
  */
 namespace {
 
-// No helper functions needed - one addition per jumped player; the cell-edge carry is the physics
-// step's, ordered after this system.
+// No helper functions needed - one addition per jumped player; the body is laid again at the jumped
+// place by PlayerSimWalkSystem, and the stand answer of ase-physics carries the cell edge.
 
 }  // namespace
 
@@ -185,20 +193,17 @@ void PlayerSimTlptSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerSimTlptSystem::tick(ecs::Registry& registry, float /*dt*/) {
-    auto view = registry.view<PlayerInpTlptComponent, PlayerInpTrnComponent, PlayerStaPosComponent,
-                              PlayerStaVelComponent, PlayerStaPhysComponent>();
+    auto view = registry.view<PlayerInpTlptComponent, PlayerStaFrmComponent, PlayerStaPosComponent>();
 
-    for (auto [entity, inp, trn, pos, vel, phys] : view.each()) {
-        // Selection only: these three make this view the physics step's view, so every jump is
-        // carried across the cell edge in the same tick.
-        (void)entity;
-        (void)trn;
-        (void)vel;
-        (void)phys;
+    for (auto [entity, inp, frame, pos] : view.each()) {
+        // Selection only: the walking frame makes this the set of figures ase-physics walks.
+        (void)frame;
         if (!ase::types::is_pos_float(inp.jump_m)) {
             continue;  // lever cleared: no jump this tick
         }
         pos.local_x += inp.jump_m;
+        // A place moved without velocity is a placement: the body is laid again where the jump landed.
+        registry.emplace_or_replace<PlayerWalkRplcTag>(entity);
     }
 }
 

@@ -9,10 +9,12 @@
  *              displacements of the combat star on PlayerInpCmbKnbkComponent while a knockback runs, and
  *              this system adds them to the position of the figure. No Hub access here.
  *
- *              It runs after PlayerCtrlMovSystem and before PlayerSimPhysSystem: the displacement lands
- *              on the local coordinates, and the physics step carries any overflow across the cell edge
- *              in the same tick, so PlayerSimWrldSystem later reads a local coordinate inside [0, edge).
- *              The view therefore selects exactly the figures the physics step integrates.
+ *              It runs after PlayerCtrlMovSystem and before PlayerSimBndySystem and PlayerSimWalkSystem:
+ *              the displacement lands on the local coordinates, the rim bounds the displaced place, and
+ *              the figure is marked PlayerWalkRplcTag, so PlayerSimWalkSystem lays the walking body of
+ *              ase-physics again at the displaced place with a new placement count. The view selects
+ *              the figures with a walking frame (PlayerStaFrmComponent), the ones whose body ase-physics
+ *              walks.
  *
  *              WHY server_only: the bridge row it reads is a server_only row of this module; the
  *              calculation itself touches no hub API, no ctx resource and no stored entity id.
@@ -25,13 +27,14 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-06
- * @modified    2026-11-06
- * @version     1.0.0
+ * @modified    2026-11-14
+ * @version     1.1.0
  *
  * ARCHITECTURE
  *
  *   PlayerInpCmbKnbkComponent → PlayerSimKnbkSystem → PlayerStaPosComponent
  *   (bridge, from the Hub)      (no Hub access)       local_x += disp_x, local_z += disp_y, y += disp_z
+ *                                                     → PlayerWalkRplcTag → PlayerSimWalkSystem
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -55,10 +58,9 @@ namespace ase::player {
 /**
  * @brief Moves a knocked back player figure by the displacement of the combat star (calc, no Hub)
  *
- * @schedule Dynamics — after PlayerCtrlMovSystem, before PlayerSimPhysSystem
- * @reads    PlayerInpCmbKnbkComponent; PlayerInpTrnComponent, PlayerStaVelComponent,
- *           PlayerStaPhysComponent (selection: the figures the physics step integrates)
- * @writes   PlayerStaPosComponent.local_x, .local_z, .y
+ * @schedule Dynamics — after PlayerCtrlMovSystem, before PlayerSimBndySystem and PlayerSimWalkSystem
+ * @reads    PlayerInpCmbKnbkComponent; PlayerStaFrmComponent (selection: the figures ase-physics walks)
+ * @writes   PlayerStaPosComponent.local_x, .local_z, .y; PlayerWalkRplcTag
  */
 class PlayerSimKnbkSystem : public ecs::System {
 public:

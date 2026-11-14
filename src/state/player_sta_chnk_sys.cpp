@@ -16,7 +16,7 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_STA_CHNK: Player Chunk Tracking)
  *
- *   [PlayerStaPosComponent from PlayerSimPhysSystem]
+ *   [PlayerStaPosComponent from PlayerSimStndSystem, the place ase-physics answered]
  *          │
  *          │ position updated
  *          ▼

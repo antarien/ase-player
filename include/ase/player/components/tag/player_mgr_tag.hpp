@@ -5,29 +5,20 @@
  *
  * @file        player_mgr_tag.hpp
  * @brief       PlayerMgrTag - marks the one entity that carries the module's manager state
- * @description Der Marker der Verwalter-Entitaet: Systeme finden ueber ihn die eine Entitaet,
- *              auf der modulweite Zustaende liegen, statt ein Singleton zu halten.
+ * @description The marker of the manager entity: systems find through it the one entity that
+ *              carries module-wide state, such as the chunk edge the movement of every figure
+ *              needs, instead of holding a singleton.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    tag
- * @parity      server_only
+ * @parity      shared
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2025-12-25
- * @modified    2026-08-10
+ * @modified    2026-11-13
  * @version     00.00.00.00000 [seed]
- *
- * DER TYP-MARKER GEHOERT ANS ENDE, NICHT IN DIE MITTE.
- *
- * Schema-Nachzug von player_tag_mgr_component.hpp. Der alte Name trug `_tag_` als Wortteil in der
- * MITTE und dazu das Legacy-Suffix `_component`; das Schema verlangt den Typ-Marker als SUFFIX
- * (WRFL_ASE_NAMING_SCHEMA), also player_mgr_tag.hpp. Der STRUKTURNAME war bereits korrekt und
- * bleibt unveraendert - PlayerMgrTag, ein leeres Marker-Struct.
- *
- * WARUM DIESE MIGRATION AUF DEM KRITISCHEN PFAD LIEGT: ase-codegen ruft mod_cmpl_check und
- * verwirft die gesamte Modulausgabe, solange auch nur EIN Verstoss steht
- * (codegen_generate_json.py:check_ecs_compliance, Gate `violations == 0`, gemessen 2026-08-10:
- * ase-player wurde als `deleted` gefuehrt). Ohne diese Umzuege gibt es also keine Client-Paritaet
- * fuer die SHARED-Komponenten dieses Moduls.
  *
  * ECS TAG COMPLIANCE
  *
@@ -64,11 +55,11 @@
 namespace ase::player {
 
 /**
- * @brief PlayerMgrTag - die eine Verwalter-Entitaet des Moduls
+ * @brief PlayerMgrTag - the one manager entity of the module
  *
- * Ein Marker statt eines Singletons: modulweite Werte liegen als gewoehnliche Komponenten auf
- * einer gewoehnlichen Entitaet, und dieser Tag ist die einzige Art, sie zu finden. Damit bleibt
- * der Zugriff eine View wie jede andere - kein globaler Zustand, keine Sonderregel.
+ * A marker instead of a singleton: module-wide values lie as ordinary components on an ordinary
+ * entity, and this tag is the only way to find them. Access stays a View like any other - no
+ * global state, no special rule.
  */
 struct PlayerMgrTag {};
 

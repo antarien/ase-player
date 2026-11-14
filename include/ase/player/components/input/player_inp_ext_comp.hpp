@@ -10,8 +10,9 @@
  *              Renamed from player_inp_ext_component.hpp 2026-08-15 (legacy
  *              suffix `_component`) and reduced from seven fields to four: the
  *              component exceeded the five-field limit. The camera values moved
- *              to PlayerInpCamComponent, the terrain height to
- *              PlayerInpTrnComponent. The cut follows the CONSUMPTION - these
+ *              to PlayerInpCamComponent; the terrain height left the module,
+ *              ase-physics measures the ground under the walking body
+ *              (CAUSA_ASE_PHYSICS). The cut follows the CONSUMPTION - these
  *              four axes share their readers, the other three did not.
  *
  * META
@@ -20,8 +21,9 @@
  * @layer       3 (Module)
  * @category    input
  * @parity      shared
+ * @usecase     usecase:101554 - receive player input
  * @created     2026-01-22
- * @modified    2026-10-07
+ * @modified    2026-11-14
  * @version     2.0.0
  *
  * SYN PATTERN (Hub I/O vs Calculation Separation)
@@ -55,7 +57,7 @@
  * [ ] Pointer components in codegen.json components.server_only
  * [ ] Strings < 64 bytes use char[N] fixed arrays
  * [ ] Strings 64-256 bytes use appropriately sized char[N]
- * [ ] Strings > 256 bytes use registry.ctx() mit Lookup-ID?
+ * [ ] Strings > 256 bytes use registry.ctx() with lookup ID?
  * [ ] NO Entity-per-Character (strings are single attributes, not N-Items!)
  * [ ] Lookup-only strings use uint32_t hash (entt::hashed_string)
  * [ ] NO std::shared_ptr in components (use Flyweight Pattern via ctx!)
@@ -70,9 +72,9 @@
 namespace ase::player {
 
 /**
- * @brief Movement input axes mirrored from the Hub for this player entity.
+ * @brief Movement input axes of this player entity, the input filled from the Hub every tick.
  *
- * Written once per tick by PlayerSyncInpSystem (Integration) from the owner-keyed
+ * Filled in every tick by PlayerSyncInpSystem (Integration) from the owner-keyed
  * hub values PLR_INP_FWD/STR/SPRINT/JUMP; read by PlayerCtrlMovSystem,
  * PlayerCtrlInpSystem and PlayerStaStsSystem. The two flags ride as 0.0f/1.0f
  * because the hub value space is float32 - the readers threshold them at 0.5f.

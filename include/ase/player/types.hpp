@@ -65,14 +65,24 @@ constexpr uint32_t CHANNEL_PLR_STA_HASH = 0x706C7274;    // FNV-1a hash of "play
 /**
  * ENUMERATION VALUES - PLAYER STATE (NO enum class!)
  * Use with Tag-filtered Views, NOT switch/case!
+ * The state names the MEDIUM the figure is in. How it moves on the ground - standing, walking,
+ * running - is the gait tag set by PlayerStaGaitSystem. Values 1 and 2 stay unassigned, so a
+ * persisted or migrated state number keeps its meaning.
  */
-constexpr uint8_t PLAYER_STATE_IDLE = 0;      // Player is idle
-constexpr uint8_t PLAYER_STATE_WALKING = 1;   // Player is walking
-constexpr uint8_t PLAYER_STATE_RUNNING = 2;   // Player is running
+constexpr uint8_t PLAYER_STATE_GROUND = 0;    // Player is on ground (gait: PlayerGait*Tag)
 constexpr uint8_t PLAYER_STATE_JUMPING = 3;   // Player is jumping
 constexpr uint8_t PLAYER_STATE_FALLING = 4;   // Player is falling
 constexpr uint8_t PLAYER_STATE_SWIMMING = 5;  // Player is swimming
 constexpr uint8_t PLAYER_STATE_DEAD = 6;      // Player is dead
+
+/**
+ * WATER UNDER THE FIGURE (CAUSA_ASE_HYDRO, "Wasser je Ort", item 6; GIS_HYD_CELL_DEPTH of ase-gis)
+ * The bounds of a measured depth (hub_metrics.json range); the figure stands in water once the depth
+ * lies above PLAYER_WATR_DRY_M.
+ */
+constexpr float PLAYER_WATR_DEPTH_MIN_M = 0.0f;       // lowest valid GIS_HYD_CELL_DEPTH in m (hub_metrics.json range)
+constexpr float PLAYER_WATR_DEPTH_MAX_M = 10000.0f;   // highest valid GIS_HYD_CELL_DEPTH in m (hub_metrics.json range)
+constexpr float PLAYER_WATR_DRY_M = 0.0f;             // depth in m at or below which the cell carries no water
 
 /**
  * DEFAULT VALUES - MOVEMENT SPEEDS
@@ -83,14 +93,13 @@ constexpr float MOVEMENT_DEFAULT_RUN_SPEED = 8.0f;      // Run speed (m/s)
 constexpr float MOVEMENT_DEFAULT_JUMP_IMPULSE = 5.0f;   // Jump impulse (m/s)
 
 /**
- * DEFAULT VALUES - PHYSICS
- * Physics simulation parameters.
- * NOTE: Gravity constant imported from ase-math PHYSICS_GRAVITY_EARTH_MS2
+ * DEFAULT VALUES - STEERING
+ * How the wish of the figure turns into its horizontal velocity (PlayerCtrlMovSystem). Gravity, ground
+ * contact and falling are not values of this module: ase-physics owns them for every walking body
+ * (HUB_PHYS_WALK, PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.13).
  */
-constexpr float MOVEMENT_DEFAULT_GRAVITY = 9.8f;           // Gravity approximation (m/s^2)
 constexpr float MOVEMENT_DEFAULT_GROUND_FRICTION = 1e1f;   // Ground friction coefficient
 constexpr float MOVEMENT_DEFAULT_AIR_CONTROL = 0.3f;       // Air control factor (0-1)
-constexpr float MOVEMENT_DEFAULT_GROUND_SNAP_DIST = 0.1f;  // Ground snap distance (m)
 
 /**
  * DEFAULT VALUES - ROTATION
@@ -192,6 +201,19 @@ constexpr float MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD = 0.1f;  // Min speed thres
 constexpr float MOVEMENT_DEFAULT_VELOCITY_EPSILON = 0.01f;    // Velocity epsilon (m/s)
 
 /**
+ * GAIT BANDS - PlayerStaGaitSystem
+ * The horizontal speed puts a figure onto exactly one gait tag (PlayerGaitStndTag,
+ * PlayerGaitWalkTag, PlayerGaitRunTag). Standing lies strictly below the stand bound, walking
+ * from it up to and including the walk bound, running strictly above. The walk bound sits midway
+ * between the walk and the run gear, so a figure accelerating to run speed changes tag halfway.
+ */
+constexpr float PLAYER_GAIT_STND_SPEED_MAX = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;  // Below: stands (m/s)
+constexpr float PLAYER_GAIT_GEAR_MIDPOINT = 0.5f;                                   // Walk bound share between the gears
+constexpr float PLAYER_GAIT_WALK_SPEED_MAX =
+    MOVEMENT_DEFAULT_WALK_SPEED +
+    PLAYER_GAIT_GEAR_MIDPOINT * (MOVEMENT_DEFAULT_RUN_SPEED - MOVEMENT_DEFAULT_WALK_SPEED);  // Up to: walks (m/s)
+
+/**
  * ANTI-CHEAT MOVEMENT AUTHORITY (Phase 13 / Task 13.10)
  * Engine-level deterministic bound on a player's realised horizontal speed. A legit player's
  * velocity is capped at run_speed by PlayerCtrlMovSystem, so a realised horizontal speed above
@@ -282,6 +304,7 @@ constexpr uint32_t PLR_SPW_Z_OFF            = 69u; // spawn z:f32 offset
 constexpr uint32_t PLR_SPW_SPEED_OFF        = 73u; // roam speed:f32 offset (0 = spawn and stand)
 constexpr uint32_t PLR_SPW_RCV_BATCH_MAX    = 32u; // max spawn frames drained per tick (bounded)
 constexpr float    PLR_SPW_SPEED_NONE       = 0.0f;// speed value that means "no errand, just stand"
+constexpr const char* PLR_HUB_SPWN_SEAT_PREFIX = "seat-"; // player_id of a host entry (HUB_PLR_SPWN_REQ): this prefix, then the seat in decimal
 
 /**
  * SESSION INDEX REGISTER (PlayerHubSessRegSystem)
@@ -297,6 +320,24 @@ constexpr float    PLR_SPW_SPEED_NONE       = 0.0f;// speed value that means "no
 constexpr uint32_t PLR_SESS_SLOT_MAX        = 256u; // max published PLR_ACTIVE_<i> index slots
 constexpr uint32_t PLR_SESS_KEY_MAX         = 32u;  // char[N] capacity of a built "PLR_ACTIVE_<i>" key
 constexpr uint32_t PLR_SESS_DIGIT_MAX       = 10u;  // decimal digits a uint32 slot index can carry
+
+/**
+ * THE AREA BOUNDARY (PlayerSimBndySystem, usecase:101612 - keep figure in loaded area)
+ *
+ * The radius is a value of the area (TRN_FLAT_RAD of the plate, PlayerInpAreaComponent); the module adds
+ * only the margin the figure keeps from the rim, so the body never leans over the levelled edge.
+ */
+constexpr float PLR_AREA_EDGE_M             = 0.35f; // margin in metres the figure keeps from the rim of its area
+
+/**
+ * THE WALK FRAME (PlayerSimWalkSystem, usecase:101588 - move player figure over ground)
+ *
+ * A figure files its place with ase-physics relative to a frame (PlayerStaFrmComponent): the levelled disc of
+ * its area plate, or the corner of a chunk when it walks unbound. An unbound frame is laid again when the
+ * figure has walked this many chunks away from its corner on either axis, so the float place physics carries
+ * stays within a few chunk edges of zero and keeps its precision.
+ */
+constexpr int32_t PLR_WALK_FRAME_REACH_CHUNKS = 1;   // chunks an unbound figure walks from its frame corner before the frame is laid again
 
 /**
  * DEFAULT VALUES - CAMERA/VIEW

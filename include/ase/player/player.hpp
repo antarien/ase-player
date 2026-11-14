@@ -10,9 +10,12 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @design      DSGN_030
+ * @usecase     usecase:5130 - play a character
+ * @actor       SS/PC
  * @created     2025-12-01
- * @modified    2026-01-22
- * @version     2.0.0
+ * @modified    2026-11-13
+ * @version     2.1.0
  *
  * DESIGN REFERENCE: DESIGN_PLAYER (Player Entity Management)
  *
@@ -79,6 +82,13 @@
 #include <ase/player/components/tag/player_inp_rmv_tag.hpp>
 
 /**
+ * TAG COMPONENTS - Gait (3), set by PlayerStaGaitSystem from the horizontal speed
+ */
+#include <ase/player/components/tag/player_gait_stnd_tag.hpp>
+#include <ase/player/components/tag/player_gait_walk_tag.hpp>
+#include <ase/player/components/tag/player_gait_run_tag.hpp>
+
+/**
  * REQUEST COMPONENTS - Spawn/Despawn/Errand (5)
  */
 #include <ase/player/components/request/player_req_roam_comp.hpp>
@@ -99,16 +109,16 @@
 #include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
 
 /**
- * SYSTEMS - Simulation (3)
+ * SYSTEMS - Simulation (2)
  */
-#include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_wand_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_rest_sys.hpp>
 
 /**
- * SYSTEMS - State (1)
+ * SYSTEMS - State (2)
  */
 #include <ase/player/systems/state/player_sta_sts_sys.hpp>
+#include <ase/player/systems/state/player_sta_gait_sys.hpp>
 
 /**
  * SYSTEMS - State/Chunk (1)

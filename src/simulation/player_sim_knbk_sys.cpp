@@ -12,8 +12,8 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-06
- * @modified    2026-11-06
- * @version     1.0.0
+ * @modified    2026-11-14
+ * @version     1.1.0
  *
  * CAUSAL CHAIN (bridged knockback → realised displacement of the figure)
  *
@@ -25,16 +25,17 @@
  *   │                                                          │
  *   │  READS:                                                  │
  *   │    → PlayerInpCmbKnbkComponent (displacement)            │
- *   │    → PlayerInpTrnComponent, PlayerStaVelComponent,       │
- *   │      PlayerStaPhysComponent (selection only)             │
+ *   │    → PlayerStaFrmComponent (selection only)              │
  *   │                                                          │
  *   │  WRITES:                                                 │
  *   │    → PlayerStaPosComponent.local_x, .local_z, .y         │
+ *   │    → PlayerWalkRplcTag (the body is laid again)          │
  *   └──────────────────────────────────────────────────────────┘
  *          │
  *          ▼
- *   PlayerSimPhysSystem carries the cell edge; PlayerAccMovSystem subtracts the ground displacement
- *   from its teleport delta
+ *   PlayerSimWalkSystem lays the body at the displaced place with a new placement count, ase-physics
+ *   stands it and PlayerSimStndSystem carries the cell edge from its answer; PlayerAccMovSystem subtracts
+ *   the ground displacement from its teleport delta
  *
  * AXES: the combat star keeps X and Y on the ground and Z as the height; the figure keeps local_x
  * and local_z on the ground and y as the height. disp_x lands on local_x, disp_y on local_z and
@@ -142,11 +143,10 @@
 #include <ase/player/systems/simulation/player_sim_knbk_sys.hpp>
 // Components from same module ONLY
 #include <ase/player/components/input/player_inp_cmb_knbk_comp.hpp>
-// The four components PlayerSimPhysSystem integrates — the view selects exactly those figures
-#include <ase/player/components/input/player_inp_trn_comp.hpp>
+// The walking frame selects the figures whose body ase-physics walks; the place is what the knockback moves
+#include <ase/player/components/state/player_sta_frm_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
-#include <ase/player/components/state/player_sta_vel_comp.hpp>
-#include <ase/player/components/state/player_sta_phys_comp.hpp>
+#include <ase/player/components/tag/player_walk_rplc_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -165,8 +165,8 @@ using namespace entt::literals;
  */
 namespace {
 
-// No helper functions needed - three additions per knocked back figure; the cell-edge carry is the
-// physics step's, ordered after this system.
+// No helper functions needed - three additions per knocked back figure; the body is laid again at the
+// displaced place by PlayerSimWalkSystem, and the stand answer of ase-physics carries the cell edge.
 
 }  // namespace
 
@@ -178,19 +178,16 @@ void PlayerSimKnbkSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerSimKnbkSystem::tick(ecs::Registry& registry, float /*dt*/) {
-    auto view = registry.view<PlayerInpCmbKnbkComponent, PlayerInpTrnComponent, PlayerStaPosComponent,
-                              PlayerStaVelComponent, PlayerStaPhysComponent>();
+    auto view = registry.view<PlayerInpCmbKnbkComponent, PlayerStaFrmComponent, PlayerStaPosComponent>();
 
-    for (auto [entity, knbk, trn, pos, vel, phys] : view.each()) {
-        // Selection only: these make this view the physics step's view, so every displacement is
-        // carried across the cell edge in the same tick.
-        (void)entity;
-        (void)trn;
-        (void)vel;
-        (void)phys;
+    for (auto [entity, knbk, frame, pos] : view.each()) {
+        // Selection only: the walking frame makes this the set of figures ase-physics walks.
+        (void)frame;
         pos.local_x += knbk.disp_x;
         pos.local_z += knbk.disp_y;
         pos.y += knbk.disp_z;
+        // A place moved without velocity is a placement: the body is laid again at the displaced place.
+        registry.emplace_or_replace<PlayerWalkRplcTag>(entity);
     }
 }
 

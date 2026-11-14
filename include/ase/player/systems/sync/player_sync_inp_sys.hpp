@@ -12,17 +12,21 @@
  * @layer       3 (Modules)
  * @category    input
  * @schedule    Integration
+ * @usecase     usecase:101554 - receive player input
+ * @actor       Player Input Warden (PLAYINPWAR)
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-11-14
+ * @version     1.2.0
  *
  * ARCHITECTURE:
  *
- *   Hub Values  →PlayerSyncInpSystem  →PlayerInpExtComponent
+ *   Hub Values  →PlayerSyncInpSystem  →PlayerInpExtComponent, PlayerInpCamComponent
  *   PLR_INP_FWD     (reads Hub)             (bridge data)
  *   PLR_INP_STR
  *   PLR_CAM_YAW
- *   TRN_HGT_AT_POS
+ *
+ *   The ground under the figure is not read here: ase-physics stands the walking body on it and
+ *   answers with HUB_PHYS_STAND.
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -51,8 +55,8 @@ namespace ase::player {
  * Corrected 2026-08-20: this line said Synchronization (31); player_module.hpp registers the
  * system in Integration (12). The ORDERING half stays true - it does run before the
  * calculations - but from an early tier rather than a late one. Only the registration decides.
- * @reads    Hub values: PLR_INP_FWD, PLR_INP_STR, PLR_CAM_YAW, TRN_HGT_AT_POS
- * @writes   PlayerInpExtComponent
+ * @reads    Hub values: PLR_INP_FWD, PLR_INP_STR, PLR_INP_SPRINT, PLR_INP_JUMP, PLR_CAM_YAW, PLR_CAM_ORB
+ * @writes   PlayerInpExtComponent, PlayerInpCamComponent
  */
 class PlayerSyncInpSystem : public ecs::System {
 public:

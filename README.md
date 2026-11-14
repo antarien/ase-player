@@ -27,7 +27,7 @@ The **ase-player** module manages all aspects of player entities in the ASE engi
 1. **PlayerLifeSpawnSystem** - Process spawn/despawn requests
 2. **PlayerCtrlInputSystem** - Convert input to movement intent (runs after TerrainChunkSystem)
 3. **PlayerCtrlMoveSystem** - Apply movement intent to velocity
-4. **PlayerSimPhysSystem** - Physics simulation (gravity, collision, ground detection)
+4. **PlayerSimWalkSystem** / **PlayerSimStndSystem** - File the step with ase-physics and take its stand answer back (ase-physics owns gravity and ground contact)
 5. **PlayerStateStatusSystem** - Update player status (health, alive state)
 6. **PlayerSpatialChunkSystem** - Track current chunk, detect chunk changes
 7. **PlayerNetBroadcastSystem** - Mark dirty players for network sync
@@ -194,14 +194,12 @@ Applies movement intent to velocity:
 - Respects physics constraints (no air control)
 - Updates velocity component
 
-### PlayerSimPhysSystem
-Physics simulation and collision detection:
-- **Gravity**: Applies constant downward acceleration
-- **Ground Detection**: Raycasts to terrain height map
-- **Collision**: AABB collision with terrain
-- **Ground Snapping**: Snaps player to ground surface when close
-- **Velocity Damping**: Applies friction/air resistance
-- **Jump**: Impulse velocity when grounded and jump requested
+### PlayerSimWalkSystem and PlayerSimStndSystem
+Case usecase:101588 - move player figure over ground. ase-player computes no gravity and no ground; the walking body belongs to ase-physics (CAUSA_ASE_PHYSICS):
+- **Walk**: PlayerSimWalkSystem lays the frame and placement and files the step; PlayerHubWalkSystem puts it on the row `HUB_PHYS_WALK`
+- **Placement**: a teleport, knockback, migration or the rim lays `PlayerWalkRplcTag`, and the next walk raises the placement count
+- **Stand**: PlayerHubStndSyncSystem reads `HUB_PHYS_STAND` into `PlayerInpStndComponent` and `PlayerStndGrndTag`
+- **Take back**: PlayerSimStndSystem takes the answered place into the chunk address, `vy` and `on_ground`, and skips an answer of an older placement
 
 ### PlayerStateStatusSystem
 Updates player status:

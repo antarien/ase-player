@@ -11,8 +11,8 @@
  * @category    error/logging/output
  * @schedule    Observation
  * @created     2026-01-22
- * @modified    2026-10-13
- * @version     1.3.1
+ * @modified    2026-11-14
+ * @version     1.4.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_LOG_OBSV: Player State Observation Logging)
  *
@@ -30,6 +30,7 @@
  *   │    → PlayerSpndTag (spawned count)       │
  *   │    → PlayerDrtyTag (dirty count)           │
  *   │    → PlayerChnkChgdTag (chunk changes)  │
+ *   │    → PlayerStndWatrTag (figures in water)   │
  *   │                                             │
  *   │  WRITES:                                    │
  *   │    → log::debug (periodic output)           │
@@ -149,6 +150,10 @@
 #include <ase/player/components/tag/player_drty_tag.hpp>
 #include <ase/player/components/tag/player_chnk_chgd_tag.hpp>
 #include <ase/player/components/tag/player_spnd_tag.hpp>
+#include <ase/player/components/tag/player_gait_stnd_tag.hpp>
+#include <ase/player/components/tag/player_gait_walk_tag.hpp>
+#include <ase/player/components/tag/player_gait_run_tag.hpp>
+#include <ase/player/components/tag/player_stnd_watr_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
@@ -213,20 +218,36 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
     }
 
     /**
-     * STEP 3: Count states using individual counters (NO arrays!)
-     * Each state counted via named constant from types.hpp.
+     * STEP 3: Count the gait from its tags (PlayerStaGaitSystem) - one view per gait, no number
+     * compared. Standing, walking and running are not values of sts any more.
      */
     uint32_t idle_count = 0;
+    for (auto e : registry.view<PlayerGaitStndTag>()) {
+        (void)e;
+        ++idle_count;
+    }
+
     uint32_t walking_count = 0;
+    for (auto e : registry.view<PlayerGaitWalkTag>()) {
+        (void)e;
+        ++walking_count;
+    }
+
     uint32_t running_count = 0;
+    for (auto e : registry.view<PlayerGaitRunTag>()) {
+        (void)e;
+        ++running_count;
+    }
+
+    /**
+     * STEP 3b: Count the airborne media using individual counters (NO arrays!)
+     * Each medium counted via named constant from types.hpp.
+     */
     uint32_t jumping_count = 0;
     uint32_t falling_count = 0;
 
     for (auto [e, status] : registry.view<PlayerStaStsComponent>().each()) {
         (void)e;
-        if (status.sts == PLAYER_STATE_IDLE) { ++idle_count; continue; }
-        if (status.sts == PLAYER_STATE_WALKING) { ++walking_count; continue; }
-        if (status.sts == PLAYER_STATE_RUNNING) { ++running_count; continue; }
         if (status.sts == PLAYER_STATE_JUMPING) { ++jumping_count; continue; }
         if (status.sts == PLAYER_STATE_FALLING) { ++falling_count; continue; }
     }
@@ -254,14 +275,27 @@ void PlayerLogObsvSystem::tick(ecs::Registry& registry, float dt) {
     }
 
     /**
-     * STEP 5: Output debug log - genau eine Zeile je Herzschlag
+     * STEP 4b: Figures standing in water (PlayerStndWatrTag, laid by PlayerStaStsSystem from the depth
+     * ase-gis files under the figure; CAUSA_ASE_HYDRO, "Wasser je Ort", item 6)
+     */
+    uint32_t water_count = 0;
+    for (auto e : registry.view<PlayerStndWatrTag>()) {
+        (void)e;
+        ++water_count;
+    }
+
+    /**
+     * STEP 5: Output debug log - je Thema genau eine Zeile je Herzschlag. Gang und Medium stehen in
+     * der ersten, die Buchfuehrung in der zweiten: log::debug traegt hoechstens neun Werte
+     * (log_fmt9 in ase-log), und die Wasserzaehlung ist der zehnte.
      */
     log::debug("\x1b[38;5;141m[ase-player]\x1b[0m [PlayerLogObsvSystem] "
-               "players:{} -> idle:{} -> walk:{} -> run:{} -> jump:{} -> fall:{} -> "
-               "dirty:{} -> spawned:{} -> chk_chg:{}",
+               "players:{} -> idle:{} -> walk:{} -> run:{} -> jump:{} -> fall:{} -> water:{}",
                player_count, idle_count, walking_count, running_count,
-               jumping_count, falling_count, dirty_count, spawned_count,
-               chunk_changed_count);
+               jumping_count, falling_count, water_count);
+    log::debug("\x1b[38;5;141m[ase-player]\x1b[0m [PlayerLogObsvSystem] "
+               "dirty:{} -> spawned:{} -> chk_chg:{}",
+               dirty_count, spawned_count, chunk_changed_count);
 }
 
 void PlayerLogObsvSystem::on_stop(ecs::Registry& /*registry*/) {

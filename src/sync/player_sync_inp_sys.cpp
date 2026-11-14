@@ -13,8 +13,8 @@
  * @usecase     usecase:101554 - receive player input
  * @actor       Player Input Warden (PLAYINPWAR)
  * @created     2026-01-22
- * @modified    2026-11-01
- * @version     1.2.0
+ * @modified    2026-11-14
+ * @version     1.3.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_SYNC_INP: Player Input Synchronization)
  *
@@ -33,13 +33,10 @@
  *   │    → "PLR_INP_JUMP"_hs (jump flag)          │
  *   │    → "PLR_CAM_YAW"_hs (camera yaw)          │
  *   │    → "PLR_CAM_ORB"_hs (orbit mode)          │
- *   │    → "TRN_HGT_AT_POS"_hs (terrain height)   │
- *   │                                             │
- *   │  READS (from Components):                   │
- *   │    → PlayerInpChnkCnstComponent (edge)      │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    → PlayerInpExtComponent (all fields)     │
+ *   │    → PlayerInpExtComponent (input axes)     │
+ *   │    → PlayerInpCamComponent (camera values)  │
  *   └─────────────────────────────────────────────┘
  *          │
  *          │ input data in Component
@@ -53,9 +50,8 @@
  *   "PLR_INP_STR"_hs    → PlayerInpExtComponent.inp_str
  *   "PLR_INP_SPRINT"_hs → PlayerInpExtComponent.inp_sprint
  *   "PLR_INP_JUMP"_hs   → PlayerInpExtComponent.inp_jump
- *   "PLR_CAM_YAW"_hs    → PlayerInpExtComponent.cam_yaw
- *   "PLR_CAM_ORB"_hs    → PlayerInpExtComponent.cam_orb
- *   "TRN_HGT_AT_POS"_hs → PlayerInpExtComponent.trn_hgt
+ *   "PLR_CAM_YAW"_hs    → PlayerInpCamComponent.cam_yaw
+ *   "PLR_CAM_ORB"_hs    → PlayerInpCamComponent.cam_orb
  *
  * WRITES (to Components only - no Hub writes):
  *   (none)
@@ -165,11 +161,8 @@
 // Components from same module
 #include <ase/player/components/input/player_inp_ext_comp.hpp>
 #include <ase/player/components/input/player_inp_cam_comp.hpp>
-#include <ase/player/components/input/player_inp_trn_comp.hpp>
-#include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
-#include <ase/player/components/tag/player_mgr_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Foundation types for the NOT_FOUND predicate (SSOT)
@@ -203,19 +196,6 @@ void PlayerSyncInpSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
-    // The chunk edge is the terrain protocol's TER_CONST_CHUNK_SIZE, laid on the manager row by
-    // PlayerChnkCnstSynSystem; without it no world position can be keyed for the height this tick.
-    float chunk_size = 0.0f;
-    bool edge_loaded = false;
-    for (auto [mgr, edge] : registry.view<PlayerMgrTag, PlayerInpChnkCnstComponent>().each()) {
-        (void)mgr;
-        chunk_size = edge.chunk_size;
-        edge_loaded = true;
-    }
-    if (!edge_loaded) {
-        return;
-    }
-
     /**
      * STEP 1: Process each player entity with position (all players)
      * Sync Hub input values to PlayerInpExtComponent
@@ -223,6 +203,8 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
     auto view = registry.view<PlayerStaPosComponent, PlayerStaYawComponent>();
 
     for (auto [entity, pos, yaw] : view.each()) {
+        // Selection only: a placed figure is one that receives input.
+        (void)pos;
         uint32_t owner = static_cast<uint32_t>(entity);
 
         /**
@@ -264,29 +246,12 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
         }
 
         /**
-         * STEP 3: Read terrain height from Hub
-         *
-         * The hash key stays in WORLD METRES (the sum chunk * edge + local), so that it keeps
-         * hitting the producer of TRN_HGT_AT_POS: the position is held chunk-relative, the key
-         * is the sum.
-         */
-        uint32_t pos_hash = static_cast<uint32_t>(
-            static_cast<int32_t>(static_cast<float>(pos.chunk_x) * chunk_size +
-                                 pos.local_x) * 73856093 ^
-            static_cast<int32_t>(static_cast<float>(pos.chunk_z) * chunk_size +
-                                 pos.local_z) * 19349663);
-        float trn_hgt = hub::get(registry, pos_hash, "TRN_HGT_AT_POS"_hs);
-        if (types::is_not_found(trn_hgt)) {
-            trn_hgt = 0.0f;
-        }
-
-        /**
-         * STEP 4: Write the three bridge components (bridge to calc systems).
+         * STEP 3: Write the two bridge components (bridge to calc systems).
          *
          * The split follows the CONSUMPTION, not the field order: the four input axes share
-         * their readers, the two camera values share theirs, and the terrain height has exactly
-         * one reader of its own. All three are written here, in the same pass, from the same hub
-         * reads.
+         * their readers, the two camera values share theirs. Both are written here, in the same
+         * pass, from the same hub reads. The ground under the figure is not read here: ase-physics
+         * stands the walking body on it and answers with HUB_PHYS_STAND.
          */
         auto& inp = registry.get_or_emplace<PlayerInpExtComponent>(entity);
         inp.inp_fwd = inp_fwd;
@@ -297,9 +262,6 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
         auto& cam = registry.get_or_emplace<PlayerInpCamComponent>(entity);
         cam.cam_yaw = cam_yaw;
         cam.cam_orb = cam_orb;
-
-        auto& trn = registry.get_or_emplace<PlayerInpTrnComponent>(entity);
-        trn.trn_hgt = trn_hgt;
     }
 }
 

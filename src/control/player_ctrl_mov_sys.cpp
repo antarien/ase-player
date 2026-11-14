@@ -3,9 +3,9 @@
  *
  * @file        player_ctrl_mov_sys.cpp
  * @brief       PlayerCtrlMovSystem - Calculate player velocity from input
- * @description Calculation system of the SYN pattern: reads input, camera and the movement restriction
- *              of the combat star from bridge components, never from the Hub. The restriction row
- *              PlayerInpCmbComponent is server_only, so the system is server_only with it.
+ * @description SHARED calculation system of the SYN pattern: reads input, camera and the movement
+ *              restriction of the combat star from bridge components, never from the Hub, so the
+ *              device runs the same step as the server.
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -14,8 +14,8 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-11-06
- * @version     1.2.0
+ * @modified    2026-11-14
+ * @version     1.3.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_CTRL_MOV: Player Movement Calculation)
  *
@@ -34,17 +34,19 @@
  *   │    - PlayerStaPhysComponent (on_ground)     │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStaVelComponent (vx, vy, vz)     │
+ *   │    - PlayerStaVelComponent (vx, vz)         │
  *   │    - PlayerStaPhysComponent (on_ground)     │
+ *   │    - PlayerJumpReqTag (jump asked)          │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ velocity calculated
+ *          │ horizontal velocity calculated
  *          ▼
- *   PlayerSimKnbkSystem (knockback), then PlayerSimPhysSystem (applies velocity to position)
+ *   PlayerSimKnbkSystem (knockback), PlayerSimBndySystem (rim), then PlayerSimWalkSystem files the step
+ *   and PlayerHubWalkSystem writes it as HUB_PHYS_WALK; ase-physics walks the body, falls and stands it.
  *
  * COMBAT RESTRICTION: slow and frost each take their fraction of the target speed, multiplied with
- * each other; a running landing stun or blunder recovery sets the target speed to 0. Gravity and the
- * jump are untouched.
+ * each other; a running landing stun or blunder recovery sets the target speed to 0. The jump is
+ * untouched; gravity is not here, ase-physics resolves it.
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
@@ -153,6 +155,7 @@
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
+#include <ase/player/components/tag/player_jump_req_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // ase-types (Layer 0) for the positive-float predicate of the stuns
@@ -236,7 +239,7 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
          */
         float speed = sprint ? MOVEMENT_DEFAULT_RUN_SPEED : MOVEMENT_DEFAULT_WALK_SPEED;
         speed *= (PLR_CMB_SCALE_FULL - cmb.slow_intensity) * (PLR_CMB_SCALE_FULL - cmb.freeze_slow);
-        if (ase::types::is_pos_float(cmb.landing_stun) || ase::types::is_pos_float(cmb.patzer_stun)) {
+        if (types::is_pos_float(cmb.landing_stun) || types::is_pos_float(cmb.patzer_stun)) {
             speed = PLR_CMB_UNIT_MIN;
         }
         float control = physics.on_ground ? 1.0f : MOVEMENT_DEFAULT_AIR_CONTROL;
@@ -258,22 +261,17 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
         }
 
         /**
-         * STEP 7: Handle jump
+         * STEP 7: A jump is asked, never flown here. A figure on the ground that wants to jump is marked
+         * PlayerJumpReqTag; PlayerHubWalkSystem writes the impulse into its HUB_PHYS_WALK row once, and
+         * ase-physics lifts the body and lets it fall back. The figure leaves the ground at once, so it does not
+         * ask a second time before the stand answer comes back.
          */
         if (jump && physics.on_ground) {
-            vel.vy = MOVEMENT_DEFAULT_JUMP_IMPULSE;
+            registry.emplace_or_replace<PlayerJumpReqTag>(entity);
             physics.on_ground = false;
         }
 
-        /**
-         * STEP 8: Apply gravity
-         */
-        if (!physics.on_ground && physics.gravity_enabled) {
-            vel.vy -= MOVEMENT_DEFAULT_GRAVITY * dt;
-        }
-
         (void)pos;  // Position read for potential future use
-        (void)entity;  // Entity available for potential tagging
     }
 }
 

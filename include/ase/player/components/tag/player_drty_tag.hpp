@@ -5,30 +5,19 @@
  *
  * @file        player_drty_tag.hpp
  * @brief       PlayerDrtyTag - this player changed since the last outbound pass
- * @description Der Sende- und Anzeigepfad arbeitet nur an markierten Entitaeten; ohne Marke gilt
- *              der zuletzt uebertragene Stand als gueltig und niemand wiederholt ihn.
+ * @description The send and display path works only on marked entities; without the mark the
+ *              state sent last stands as valid and nobody repeats it.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    tag
- * @parity      server_only
+ * @parity      shared
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2025-12-25
- * @modified    2026-08-10
+ * @modified    2026-11-13
  * @version     00.00.00.00000 [seed]
- *
- * UMZUG MIT SYMBOL, KUERZEL AUS DER TAXONOMIE.
- *
- * Schema-Nachzug von player_tag_dirty_component.hpp. Der Typ-Marker stand als `_tag_` in der
- * MITTE statt als Suffix, und `dirty` ist mit fuenf Zeichen zu lang (max 4,
- * WRFL_ASE_NAMING_SCHEMA). Die Taxonomie-Tabelle fuehrt "dirty": "drty" - nachgeschlagen, nicht
- * geraten. Weil der Strukturname aus dem Dateinamen folgt, wandert er mit: PlayerDirtyTag wird
- * PlayerDrtyTag, ein leeres Marker-Struct, inhaltlich unveraendert.
- *
- * WARUM DIESE MIGRATION AUF DEM KRITISCHEN PFAD LIEGT: ase-codegen ruft mod_cmpl_check und
- * verwirft die GESAMTE Modulausgabe, solange auch nur ein Verstoss steht
- * (codegen_generate_json.py:check_ecs_compliance, Gate `violations == 0`; gemessen 2026-08-10
- * fuehrte der Lauf ase-player als `deleted`). Ohne diese Umzuege entsteht keine Client-Paritaet
- * fuer die SHARED-Komponenten dieses Moduls.
  *
  * ECS TAG COMPLIANCE
  *
@@ -65,11 +54,11 @@
 namespace ase::player {
 
 /**
- * @brief PlayerDrtyTag - seit dem letzten Ausgang veraendert
+ * @brief PlayerDrtyTag - changed since the last outbound pass
  *
- * Der Marker ersetzt den Vergleich: ohne ihn muesste jeder ausgehende Pass den alten Stand
- * mitfuehren und Feld fuer Feld gegenpruefen. Wer schreibt, setzt ihn; wer gesendet hat, nimmt
- * ihn ab. Damit ist "hat sich etwas geaendert" eine View-Frage und keine Rechnung.
+ * The marker replaces the comparison: without it every outbound pass would have to carry the old
+ * state along and check it field by field. Whoever writes sets it; whoever has sent removes it.
+ * "Has something changed" is thereby a question of the View and no calculation.
  */
 struct PlayerDrtyTag {};
 

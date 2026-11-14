@@ -4,14 +4,14 @@
  * ASE ECS COMPONENT (INPUT)
  *
  * @file        player_inp_tlpt_comp.hpp
- * @brief       The teleport jump a backend-driven cheater makes per tick, mirrored from the Hub
+ * @brief       The teleport jump a backend-driven cheater makes per tick, filled from the Hub every tick
  * @description Bridge component: PlayerSyncTlptSystem writes the backend lever here, the calc
  *              system PlayerSimTlptSystem reads it (SYN Pattern). Phase 13, register D0703: the
  *              teleport lever moves the POSITION of a real ase-player entity each tick without any
  *              velocity, so the teleport authority of PlayerAccMovSystem (PLR_AC_TELEPORT_STEP) is
  *              exercised on its own — the speed lever PLR_CHEAT_SPEED proves only the speed
  *              authority. Its own component and not a field beside the speed state: one lever, one
- *              consumer, the same cut as PlayerInpTrnComponent (the cut follows the consumption).
+ *              consumer (the cut follows the consumption).
  *              The category is `input` because the ORIGIN is external (the operator's lever), not
  *              because the value is a player input.
  *
@@ -21,8 +21,9 @@
  * @layer       3 (Module)
  * @category    input
  * @parity      shared
+ * @usecase     usecase:101588 - move player figure over ground
  * @created     2026-10-03
- * @modified    2026-10-07
+ * @modified    2026-11-14
  * @version     1.0.0
  *
  * SYN PATTERN (Hub I/O vs Calculation Separation)
@@ -53,7 +54,7 @@
  * [ ] Pointer components in codegen.json components.server_only
  * [ ] Strings < 64 bytes use char[N] fixed arrays
  * [ ] Strings 64-256 bytes use appropriately sized char[N]
- * [ ] Strings > 256 bytes use registry.ctx() mit Lookup-ID?
+ * [ ] Strings > 256 bytes use registry.ctx() with lookup ID?
  * [ ] NO Entity-per-Character (strings are single attributes, not N-Items!)
  * [ ] Lookup-only strings use uint32_t hash (entt::hashed_string)
  * [ ] NO std::shared_ptr in components (use Flyweight Pattern via ctx!)
@@ -68,12 +69,12 @@
 namespace ase::player {
 
 /**
- * @brief The per-tick teleport jump of a backend-driven cheater, mirrored from the Hub.
+ * @brief The per-tick teleport jump of a backend-driven cheater, the input filled from the Hub.
  *
- * Written by PlayerSyncTlptSystem (Integration) from PLR_CHEAT_TELEPORT under owner =
- * hash(player_id); present only on a player the lever was ever set for. Read by
- * PlayerSimTlptSystem (Dynamics), which adds jump_m to the chunk-relative position before the
- * physics step. 0 = the lever was cleared, no jump.
+ * Filled in every tick by PlayerSyncTlptSystem (Integration) from PLR_CHEAT_TELEPORT under
+ * owner = hash(player_id); present only on a player the lever was ever set for. Read by
+ * PlayerSimTlptSystem (Dynamics), which adds jump_m to the chunk-relative position and lays
+ * PlayerWalkRplcTag, so ase-physics takes the new place. 0 = the lever was cleared, no jump.
  */
 struct PlayerInpTlptComponent {
     float jump_m = 0.0f;  // Per-tick position jump (m); above PLR_AC_TELEPORT_STEP it is a teleport

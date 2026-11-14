@@ -2,17 +2,21 @@
  * ASE ECS SYSTEM IMPLEMENTATION
  *
  * @file        player_sta_sts_sys.cpp
- * @brief       PlayerStaStsSystem - Determine player movement state from velocity and physics
- * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
+ * @brief       PlayerStaStsSystem - Determine the medium of the player figure from ground contact and velocity
+ * @description SHARED System: reads velocity and physics components (no Hub access).
  *              Calculation systems read from Components, not Hub (SYN Pattern).
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    state/lifecycle/activity
  * @schedule    Dynamics
+ * @parity      shared
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-11-14
+ * @version     1.3.0
  *
  * CAUSAL CHAIN (CAUSA_PLR_STS: Player State Determination)
  *
@@ -25,30 +29,38 @@
  *   │  (SHARED - no Hub access)                   │
  *   │                                             │
  *   │  READS (from Components):                   │
- *   │    - PlayerInpExtComponent (inp_sprint)     │
- *   │    - PlayerStaVelComponent (vx, vy, vz)      │
- *   │    - PlayerStaPhysComponent (on_ground)      │
- *   │    - PlayerStMovComponent (min_speed)       │
+ *   │    - PlayerStaVelComponent (vy)             │
+ *   │    - PlayerStaPhysComponent (on_ground)     │
+ *   │    - PlayerInpWatrComponent (depth_m)       │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStaStsComponent (sts)             │
+ *   │    - PlayerStaStsComponent (sts)            │
+ *   │    - PlayerStndWatrTag (laid, taken off)    │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ state value updated
+ *          │ medium updated: ground, jumping, falling, water
  *          ▼
- *   PlayerStaChnkSystem (chunk association)
+ *   PlayerStaChnkSystem (chunk association), PlayerLogObsvSystem (figures in water)
+ *
+ * WATER UNDER THE FIGURE (CAUSA_ASE_HYDRO, "Wasser je Ort", item 6; B0358). PlayerHubWatrSyncSystem lays
+ * the depth of the cell under the figure on it in Reception; this system lays PlayerStndWatrTag while that
+ * depth lies above PLAYER_WATR_DRY_M and takes it off when the depth falls to it or the measurement is
+ * withdrawn. Two passes, neither of which filters on the tag it lays or takes.
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
  * READS (from Hub):
- *   (none - uses SYN pattern, reads from PlayerInpExtComponent)
+ *   (none - uses SYN pattern, reads components only)
  *
  * WRITES (to Hub for other modules):
  *   (none - uses SYN pattern, writes to Components only)
  *
- * NOTE: This is a SHARED calculation system using the SYN pattern.
- * Sprint input is synced from Hub to PlayerInpExtComponent by PlayerSyncInpSystem
- * before this system runs. This system operates on Component data only.
+ * THE STATE NAMES THE MEDIUM, THE GAIT IS A TAG (PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.5). Standing,
+ * walking and running used to be three values of sts, chosen here from the sprint input. They are
+ * the tags PlayerGaitStndTag, PlayerGaitWalkTag and PlayerGaitRunTag now, set by
+ * PlayerStaGaitSystem from the horizontal speed; a figure on the ground gets PLAYER_STATE_GROUND
+ * here whatever its gait. The sprint input keeps its reader in PlayerCtrlMovSystem, which picks the
+ * speed gear from it.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -143,17 +155,16 @@
 // Own header FIRST
 #include <ase/player/systems/state/player_sta_sts_sys.hpp>
 // Components from same module
-#include <ase/player/components/input/player_inp_ext_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
+#include <ase/player/components/input/player_inp_watr_comp.hpp>
+#include <ase/player/components/tag/player_stnd_watr_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
-// Math
-#include <ase/math/math.hpp>
 
 namespace ase::player {
 using namespace entt::literals;  // For "_hs hashed strings (Hub)
@@ -180,52 +191,26 @@ void PlayerStaStsSystem::on_start(ecs::Registry& /*registry*/) {
 
 void PlayerStaStsSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * STEP 1: Get movement settings from manager
-     * PlayerStMovComponent on manager entity defines min_speed_threshold.
-     */
-    float min_speed = MOVEMENT_DEFAULT_MIN_SPEED_THRESHOLD;
-
-    /**
-     * STEP 2: Create view for player entities with required components (SYN Pattern)
-     * Reads sprint input from PlayerInpExtComponent (filled by PlayerSyncInpSystem)
+     * STEP 1: Create view for player entities with required components (SYN Pattern)
+     * The gait on the ground (stand, walk, run) is not decided here: PlayerStaGaitSystem sets it
+     * as a tag from the horizontal speed. This system names the medium only.
      */
     auto view = registry.view<
-        PlayerInpExtComponent,
         PlayerStaIdntComponent,
         PlayerStaVelComponent,
         PlayerStaPhysComponent,
         PlayerStaStsComponent
     >();
 
-    for (auto [entity, inp, id, vel, physics, state] : view.each()) {
+    for (auto [entity, id, vel, physics, state] : view.each()) {
         (void)id;
         (void)entity;
 
         /**
-         * STEP 3: Calculate horizontal speed using ase-math
-         */
-        float speed_xz = math::sqrt(vel.vx * vel.vx + vel.vz * vel.vz);
-
-        /**
-         * STEP 4: Read sprint input from PlayerInpExtComponent (SYN Pattern)
-         */
-        float sprint_val = inp.inp_sprint;
-        if (!types::is_in_rng_f(sprint_val, 0.0f, 1.0f)) {
-            sprint_val = math::clamp(sprint_val, 0.0f, 1.0f);
-        }
-
-        bool is_sprinting = (sprint_val > 0.5f);
-
-        /**
-         * STEP 5: Determine state based on physics and velocity
-         * Uses data-driven approach with constants from types.hpp.
+         * STEP 2: Determine the medium from ground contact and vertical velocity
          */
         if (physics.on_ground) {
-            if (speed_xz > min_speed) {
-                state.sts = is_sprinting ? PLAYER_STATE_RUNNING : PLAYER_STATE_WALKING;
-            } else {
-                state.sts = PLAYER_STATE_IDLE;
-            }
+            state.sts = PLAYER_STATE_GROUND;
         } else {
             if (vel.vy > 0.0f) {
                 state.sts = PLAYER_STATE_JUMPING;
@@ -233,6 +218,29 @@ void PlayerStaStsSystem::tick(ecs::Registry& registry, float /*dt*/) {
                 state.sts = PLAYER_STATE_FALLING;
             }
         }
+    }
+
+    /**
+     * STEP 3: Water under the figure. The view walks the measured depth and never filters on the tag it
+     * lays, so laying or taking PlayerStndWatrTag leaves the set this pass walks unchanged. A cell above
+     * PLAYER_WATR_DRY_M carries water, a cell at or below it is dry; taking a tag the figure does not
+     * carry is a no-op. PlayerLogObsvSystem reports how many figures stand in water.
+     */
+    for (auto [entity, water] : registry.view<PlayerInpWatrComponent>().each()) {
+        if (water.depth_m > PLAYER_WATR_DRY_M) {
+            registry.emplace_or_replace<PlayerStndWatrTag>(entity);
+        } else {
+            registry.remove<PlayerStndWatrTag>(entity);
+        }
+    }
+
+    /**
+     * STEP 4: A figure whose depth is no longer measured keeps no water. The view walks the figures
+     * without a measured depth, again without filtering on the tag it takes.
+     */
+    for (auto [entity, id] : registry.view<PlayerStaIdntComponent>(entt::exclude<PlayerInpWatrComponent>).each()) {
+        (void)id;
+        registry.remove<PlayerStndWatrTag>(entity);
     }
 }
 

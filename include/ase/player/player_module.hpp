@@ -37,14 +37,21 @@
 #include <ase/player/systems/lifecycle/player_life_desp_sys.hpp>
 #include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
 #include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
-#include <ase/player/systems/simulation/player_sim_phys_sys.hpp>
+#include <ase/player/systems/control/player_ctrl_turn_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_stnd_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_walk_sys.hpp>
 #include <ase/player/systems/state/player_sta_sts_sys.hpp>
+#include <ase/player/systems/state/player_sta_gait_sys.hpp>
 #include <ase/player/systems/state/player_sta_chnk_sys.hpp>
 #include <ase/player/systems/hub/player_hub_pos_sys.hpp>
 #include <ase/player/systems/hub/player_hub_roam_sys.hpp>
 #include <ase/player/systems/hub/player_hub_sess_reg_sys.hpp>
 #include <ase/player/systems/hub/player_hub_sess_strt_sys.hpp>
 #include <ase/player/systems/hub/player_hub_spnd_sys.hpp>
+#include <ase/player/systems/hub/player_hub_spwn_sys.hpp>
+#include <ase/player/systems/hub/player_hub_turn_sys.hpp>
+#include <ase/player/systems/hub/player_hub_motn_sys.hpp>
+#include <ase/player/systems/hub/player_hub_walk_sys.hpp>
 #include <ase/player/systems/persistence/player_pst_ser_sys.hpp>
 #include <ase/player/systems/log/player_log_obsv_sys.hpp>
 #include <ase/player/systems/sync/player_sync_inp_sys.hpp>
@@ -65,7 +72,11 @@
 #include <ase/player/systems/simulation/player_sim_tlpt_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_wrld_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_knbk_sys.hpp>
+#include <ase/player/systems/simulation/player_sim_bndy_sys.hpp>
 #include <ase/player/systems/sync/player_cmb_syn_sys.hpp>
+#include <ase/player/systems/sync/player_area_syn_sys.hpp>
+#include <ase/player/systems/sync/player_hub_stnd_sync_sys.hpp>
+#include <ase/player/systems/sync/player_hub_watr_sync_sys.hpp>
 #include <ase/player/systems/reception/player_spwn_rcv_sys.hpp>
 #include <ase/player/systems/migration/player_mig_aply_sys.hpp>
 #include <ase/player/systems/migration/player_mig_des_sys.hpp>
@@ -94,6 +105,25 @@ struct PlayerModule {
          * the entity the SAME tick — a backend-driven spawn with no human WebRTC client (Phase 13 Task 13.10).
          */
         app.add_system<PlayerSpwnRcvSystem>(ecs::Schedule::Reception);
+        /**
+         * The same request for the entry of an embedding host: every row HUB_PLR_SPWN_REQ of
+         * ase-pl-avatar becomes a PlayerReqSpwnComponent (usecase:101557 - receive a spawn request).
+         */
+        app.add_system<PlayerHubSpwnSystem>(ecs::Schedule::Reception);
+        /**
+         * The turn on the spot of an embedding host: every row HUB_PLR_TURN_REQ of ase-pl-avatar becomes a
+         * PlayerInpTurnComponent on a request entity of its own, taken by PlayerCtrlTurnSystem in Dynamics
+         * of the same tick (usecase:101554 - receive player input, fig.turn 07.7).
+         */
+        app.add_system<PlayerHubTurnSystem>(ecs::Schedule::Reception);
+        /**
+         * The answer of ase-physics (row HUB_PHYS_STAND, mark HUB_PHYS_STAND_GRND) onto every walking
+         * figure; PlayerSimStndSystem reads it in Dynamics without touching the Hub (07.13).
+         */
+        app.add_system<PlayerHubStndSyncSystem>(ecs::Schedule::Reception);
+        // The water depth ase-gis files under every figure (GIS_HYD_CELL_DEPTH; CAUSA_ASE_HYDRO, "Wasser je
+        // Ort", item 6; B0358): PlayerStaStsSystem lays PlayerStndWatrTag from it in Dynamics.
+        app.add_system<PlayerHubWatrSyncSystem>(ecs::Schedule::Reception);
 
         /**
          * INGESTION (Schedule::Ingestion)
@@ -108,6 +138,12 @@ struct PlayerModule {
          * PlayerSimKnbkSystem read them in Dynamics without touching the Hub.
          */
         app.add_system<PlayerCmbSynSystem>(ecs::Schedule::Ingestion);
+
+        /**
+         * The loaded area of its plate (row HUB_PLR_AREA, disc TRN_FLAT_*) onto every bound figure;
+         * PlayerSimBndySystem reads it in Dynamics without touching the Hub (07.7).
+         */
+        app.add_system<PlayerAreaSynSystem>(ecs::Schedule::Ingestion);
 
         /**
          * DYNAMICS (Schedule::Dynamics, 30Hz)
@@ -145,13 +181,31 @@ struct PlayerModule {
         app.add_system_with<PlayerCtrlInpSystem>(ecs::Schedule::Dynamics)
             .run_after("TerrainChkSystem");
 
-        app.add_system_with<PlayerCtrlMovSystem>(ecs::Schedule::Dynamics)
+        /**
+         * THE TURN ON THE SPOT (fig.turn 07.7). PlayerCtrlTurnSystem turns a standing figure out of the
+         * open course its host filed. The edge puts the walking input of this tick before it: a figure
+         * that walks keeps the heading PlayerCtrlInpSystem gave it, and its open course is dropped.
+         */
+        app.add_system_with<PlayerCtrlTurnSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlInpSystem");
+
+        /**
+         * THE PLACE ase-physics WALKED THE FIGURE TO (07.13). Gravity, ground and falling are values of
+         * ase-physics; PlayerSimStndSystem takes its answer back into the chunk address before the
+         * steering reads the ground contact. The edge to the birth lets a figure born in this pass carry
+         * no answer yet instead of a stale one.
+         */
+        app.add_system_with<PlayerSimStndSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerLifeSpwnSystem");
+
+        app.add_system_with<PlayerCtrlMovSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerCtrlInpSystem")
+            .run_after("PlayerSimStndSystem");
 
         /**
          * CHEAT SIMULATION (SERVER-ONLY, Phase 13 / Task 13.10 + AP-3)
          * Overrides the input-capped velocity for a backend-driven cheating player (speed-hack), so
-         * PlayerSimPhysSystem applies it and PlayerAccMovSystem flags it. No-op for normal players.
+         * PlayerSimWalkSystem files it to ase-physics and PlayerAccMovSystem flags it. No-op for normal players.
          * The AP-3 archetype levers induce realised activity/communication/economy rates the same way
          * (real state on the real player entity, never a fabricated topic inject).
          */
@@ -168,14 +222,14 @@ struct PlayerModule {
             .run_after("PlayerCtrlMovSystem");
 
         // The teleport lever (register D0703) moves the POSITION, not the velocity, and must run
-        // before PlayerSimPhysSystem: the physics step carries the jump across the cell edge in the
-        // same tick, so no reader sees a local coordinate outside [0, edge).
+        // before PlayerSimBndySystem and PlayerSimWalkSystem: the jump is a new placement, filed to
+        // ase-physics in the same tick, and PlayerStaChnkSystem carries it across the cell edge.
         app.add_system_with<PlayerSimTlptSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlMovSystem");
 
         // The knockback of the combat star moves the POSITION by the displacement of this frame and
-        // runs before PlayerSimPhysSystem for the same reason as the teleport lever: the physics step
-        // carries it across the cell edge in the same tick.
+        // runs before PlayerSimBndySystem and PlayerSimWalkSystem for the same reason as the teleport
+        // lever: the displaced place is a new placement filed in the same tick.
         app.add_system_with<PlayerSimKnbkSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerCtrlMovSystem");
 
@@ -200,16 +254,46 @@ struct PlayerModule {
         app.add_system_with<PlayerHubRoamSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimRestSystem");
 
-        app.add_system_with<PlayerSimPhysSystem>(ecs::Schedule::Dynamics)
+        // The area keeps the figure inside its loaded disc (07.7). It runs after every system that sets
+        // place or velocity in this frame and before every reader of them: status, gait, chunk stamp and
+        // the filed step see the bounded values of this frame.
+        app.add_system_with<PlayerSimBndySystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimChtSystem")
             .run_after("PlayerSimTlptSystem")
             .run_after("PlayerSimKnbkSystem");
 
+        /**
+         * THE STEP FILED TO ase-physics (07.13, SYN pattern). PlayerSimWalkSystem lays frame and placement
+         * and files the wish; PlayerHubWalkSystem copies it onto HUB_PHYS_WALK and computes nothing. Both
+         * edges are read orders.
+         */
+        app.add_system_with<PlayerSimWalkSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimBndySystem");
+
+        app.add_system_with<PlayerHubWalkSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimWalkSystem");
+
         app.add_system_with<PlayerStaStsSystem>(ecs::Schedule::Dynamics)
-            .run_after("PlayerSimPhysSystem");
+            .run_after("PlayerSimStndSystem")
+            .run_after("PlayerSimBndySystem");
+
+        // The gait tags read the velocity PlayerSimStndSystem took from ase-physics and
+        // PlayerSimBndySystem bounded in this frame (07.5, 07.7, 07.13).
+        app.add_system_with<PlayerStaGaitSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerSimStndSystem")
+            .run_after("PlayerSimBndySystem");
+
+        // The motion row of the star (07.8): course, horizontal velocity and the gait mark of this
+        // frame, read by the drawing host. Both edges are read orders: the gait tag is settled, and
+        // a figure born in this pass already stands on the roster.
+        app.add_system_with<PlayerHubMotnSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerStaGaitSystem")
+            .run_after("PlayerHubSpndSystem");
 
         app.add_system_with<PlayerStaChnkSystem>(ecs::Schedule::Dynamics)
-            .run_after("PlayerStaStsSystem");
+            .run_after("PlayerStaStsSystem")
+            .run_after("PlayerSimBndySystem")
+            .run_after("PlayerSimWalkSystem");
 
         /**
          * THE WORLD-METRE VIEW, THEN ITS PUBLICATION (SYN pattern)

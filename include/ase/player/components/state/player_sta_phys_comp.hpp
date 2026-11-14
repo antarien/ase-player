@@ -5,30 +5,19 @@
  *
  * @file        player_sta_phys_comp.hpp
  * @brief       PlayerStaPhysComponent - what physics currently holds true for this player
- * @description Bodenkontakt und Schwerkraftschalter: der gemessene Zustand, aus dem die
- *              Bewegungssysteme ableiten, ob gesprungen, gefallen oder gelaufen wird.
+ * @description Ground contact: the measured state from which the movement systems derive whether
+ *              the figure may jump, falls or walks.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    state
- * @parity      server_only
+ * @parity      shared
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2025-12-25
- * @modified    2026-08-10
+ * @modified    2026-11-14
  * @version     00.00.00.00000 [seed]
- *
- * UMZUG MIT SYMBOL: `st` IST ZU KURZ.
- *
- * Schema-Nachzug von player_st_phys_component.hpp. Zwei Dinge stimmten nicht: das Legacy-Suffix
- * `_component` (Schema verlangt `_comp`) und das Kuerzel `st` mit nur zwei Zeichen - die
- * Taxonomie verlangt 3 bis 4, `state` heisst `sta` (WRFL_ASE_NAMING_SCHEMA). Weil der
- * Strukturname aus dem Dateinamen folgt, wandert er mit: PlayerStPhysComponent wird
- * PlayerStaPhysComponent. Die FELDER bleiben Zeichen fuer Zeichen dieselben.
- *
- * WARUM DIESE MIGRATION AUF DEM KRITISCHEN PFAD LIEGT: ase-codegen ruft mod_cmpl_check und
- * verwirft die GESAMTE Modulausgabe, solange auch nur ein Verstoss steht
- * (codegen_generate_json.py:check_ecs_compliance, Gate `violations == 0`; gemessen 2026-08-10
- * fuehrte der Lauf ase-player als `deleted`). Ohne diese Umzuege entsteht keine Client-Paritaet
- * fuer die SHARED-Komponenten dieses Moduls.
  *
  * ECS COMPONENT COMPLIANCE
  *
@@ -53,7 +42,7 @@
  * [ ] Strings < 64 bytes use char[N] fixed arrays
  * [ ] Strings 64-256 bytes use appropriately sized char[N]
  * [ ] Strings > 256 bytes use Pointer Pattern (uint64_t ptr, uint16_t len)
- * [ ] Strings > 256 bytes use registry.ctx() mit Lookup-ID?
+ * [ ] Strings > 256 bytes use registry.ctx() with lookup ID?
  * [ ] NO Entity-per-Character (strings are single attributes, not N-Items!)
  * [ ] Lookup-only strings use uint32_t hash (entt::hashed_string)
  * [ ] NO std::shared_ptr in components (use Flyweight Pattern via ctx!)
@@ -66,15 +55,15 @@
 namespace ase::player {
 
 /**
- * @brief PlayerStaPhysComponent - der physikalische Befund dieses Taktes
+ * @brief PlayerStaPhysComponent - the physical finding of this tick
  *
- * Zwei Wahrheitswerte, und beide sind MESSUNGEN, keine Wuensche: ob die Figur den Boden beruehrt,
- * stellt die Simulation fest, und ob die Schwerkraft auf sie wirkt, ist eine Eigenschaft ihrer
- * Lage - nicht der Eingabe. Deshalb stehen sie hier und nicht bei den Eingabewerten.
+ * One truth value, and it is a MEASUREMENT, not a wish: whether the figure touches the ground is
+ * found by ase-physics and taken back from its stand answer HUB_PHYS_STAND. That is why it stands
+ * here and not with the input values. Gravity is no property of the figure: ase-physics pulls every
+ * walking body.
  */
 struct PlayerStaPhysComponent {
-    bool on_ground = false;         // Bodenkontakt, von der Simulation festgestellt
-    bool gravity_enabled = false;   // wirkt die Schwerkraft gerade auf diese Figur
+    bool on_ground = false;         // Ground contact, found by the simulation
 };
 
 }  // namespace ase::player

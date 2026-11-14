@@ -12,8 +12,8 @@
  * @usecase     usecase:100692 - migrate figure between regions
  * @actor       Border Passage Warden (BORDPASWAR)
  * @created     2026-10-14
- * @modified    2026-11-01
- * @version     1.1.0
+ * @modified    2026-11-14
+ * @version     1.2.0
  *
  * CAUSAL CHAIN (bridge entities → instantiated figures and released source copies)
  *
@@ -35,6 +35,7 @@
  *   │  WRITES:                                                  │
  *   │    - PlayerStaEpch/Pos/Yaw/Vel/Sts/Chk + PlayerSpndTag    │
  *   │      (instantiate or in-place update, OWN types)          │
+ *   │    - PlayerWalkRplcTag (the body is laid again)           │
  *   │    - PlayerReqDespComponent (module-own despawn request)  │
  *   │    - destroys the bridge entities after the walks         │
  *   └───────────────────────────────────────────────────────────┘
@@ -174,6 +175,7 @@
 // Own despawn request and the embodiment marker
 #include <ase/player/components/request/player_req_desp_comp.hpp>
 #include <ase/player/components/tag/player_spnd_tag.hpp>
+#include <ase/player/components/tag/player_walk_rplc_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
 // O(1) row index for the drain loops (SSOT HashMap, no std:: container) - L3→L0, allowed
@@ -346,6 +348,9 @@ void PlayerMigAplySystem::tick(ecs::Registry& registry, float /*dt*/) {
         pos.local_x = x - static_cast<float>(pos.chunk_x) * chunk_size;
         pos.local_z = z - static_cast<float>(pos.chunk_z) * chunk_size;
         pos.y = y;
+        // The delivered place is a placement: PlayerSimWalkSystem lays the walking body of ase-physics
+        // again at it with a new placement count, so the old body state of an in-place update is dropped.
+        registry.emplace_or_replace<PlayerWalkRplcTag>(plr_ent);
         auto& yaw_row = registry.get<PlayerStaYawComponent>(plr_ent);
         yaw_row.yaw = yaw;
         auto& vel = registry.get<PlayerStaVelComponent>(plr_ent);

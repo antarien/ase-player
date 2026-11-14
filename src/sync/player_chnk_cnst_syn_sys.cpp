@@ -41,7 +41,7 @@
  *          │
  *          │ the chunk edge, without the hub
  *          ▼
- *   [PlayerLifeSpwnSystem, PlayerSimPhysSystem, PlayerSimWrldSystem, PlayerAccMovSystem,
+ *   [PlayerLifeSpwnSystem, PlayerSimWalkSystem, PlayerSimStndSystem, PlayerSimWrldSystem, PlayerAccMovSystem,
  *    PlayerMigSerSystem, PlayerMigAplySystem, PlayerSyncInpSystem]
  *
  * HUB Pattern (MIG_ASE_HUB_API v2.0):

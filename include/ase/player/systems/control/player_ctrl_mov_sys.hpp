@@ -12,9 +12,13 @@
  * @layer       3 (Modules)
  * @category    action/control
  * @schedule    Dynamics
+ * @parity      shared
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     1.1.0
+ * @modified    2026-11-13
+ * @version     1.2.0
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *

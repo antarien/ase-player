@@ -4,47 +4,38 @@
  * ASE ECS COMPONENT (STATE)
  *
  * @file        player_sta_pos_comp.hpp
- * @brief       PlayerStaPosComponent - wo die Figur steht, chunk-relativ
- * @description Der Ort einer Spielerfigur als Wabenadresse plus Meter in der Wabe. Aus diesem
- *              Wert leiten sich die Wabe ab, in der sie sich aufhaelt, die
- *              Regionszustaendigkeit, der Gelaendestrom um sie herum und jede Farbspur, die
- *              ihr Weg im Geoid hinterlaesst.
+ * @brief       PlayerStaPosComponent - where the figure stands, relative to its chunk
+ * @description The place of a player figure as a chunk address plus metres inside the chunk. The
+ *              chunk it stays in, the region in charge of it, the terrain stream around it and
+ *              every colour trace its path leaves on the geoid are derived from this value.
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    state
- * @parity      server_only
+ * @parity      shared
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2025-12-25
- * @modified    2026-08-11
+ * @modified    2026-11-13
  * @version     00.00.00.00000 [seed]
  *
- * CHUNK-RELATIV SEIT 2026-08-11 (S2b, Spiegelschnitt zu SpatialIdxPosComponent; Registerlage:
- * TASKREGISTER:521 "Positionen chunk-relativ fuehren" und TASKREGISTER:1724 "PlayerSnap v2 ...
- * (chunk:i32, local:f32)" - der DRAHT selbst bleibt hier unangetastet, siehe unten).
+ * CHUNK-RELATIVE PLACE: an absolute float32 axis in world metres does not carry the address
+ * space. At 204 million metres the float32 step is 16 metres, and every 0.04 m step of the physics
+ * (taken back by PlayerSimStndSystem) would vanish. The chunk address is therefore an exact int32 (it carries the
+ * face encoding without loss), and the metres inside the chunk are a small float with full
+ * precision. ase-spatial lays its SpatialIdxPosComponent out the same way.
  *
- * Die absolute f32-Weltmeterachse traegt den Adressraum nicht: LIVE GEMESSEN 2026-08-11 14:09
- * wurde siedler_7 an Ort 7 bei x=204144660 Weltmetern gespawnt - dort ist die float32-ULP
- * 16 Meter, und jeder 0.04-m-Schritt der Physik (player_sim_phys_sys STEP 3, pos.x += vel*dt)
- * verpufft. Die fuenf Ort-Siedler standen still, erzeugten keine Uebertritte und keine Spur.
- * Dieselbe Falle hat P22 in ase-spatial geschnitten (spatial_idx_pos_comp.hpp, Messung
- * 03-05 Uhr: 4352 Wegstueck-Uhren, null bewegte Koerper). Die Loesung ist dieselbe: die
- * Wabenadresse als int32 EXAKT (traegt die Face-Kodierung verlustfrei), die Meter in der Wabe
- * als kleiner float mit voller Praezision.
+ * The yaw is not part of the place: the view direction lives in PlayerStaYawComponent.
  *
- * DER GIERWINKEL IST UMGEZOGEN: Blick ist nicht Ort (5-Felder-Grenze, Praezedenz "extent is
- * not location" aus dem P22-Schnitt) - er wohnt jetzt in PlayerStaYawComponent.
+ * THE WIRE: PlayerSnap (ase/types/region_wire.hpp, 4x f32) carries world metres. Serialisers form
+ * chunk * chunk edge + local, receivers split it by floor and remainder (as in
+ * character_life_spwn_sys.cpp). For sums of chunk edges the f32 metres are exact, because
+ * multiples of the edge below 2^28 lie on mantissa bits.
  *
- * DER DRAHT BLEIBT UNANGETASTET: der eingefrorene PlayerSnap (ase/types/region_wire.hpp,
- * 4x f32) traegt weiterhin Weltmeter; Serialisierer bilden die Summe
- * chunk * Wabenkante + local, Empfaenger zerlegen per floor/Rest (Muster
- * character_life_spwn_sys.cpp). Fuer Wabenkanten-Summen sind f32-Meter exakt (Vielfache der
- * Kante unterhalb 2^28 liegen auf Mantissenbits). Das Wire-v2 aus TASKREGISTER:1724 ist
- * Entscheidungsklasse des Betreibers und NICHT Teil dieses Schnitts.
- *
- * ACHSENFALLE, GEMESSEN 2026-08-10: in DIESEM Modul ist Y die Senkrechte - die Physik schreibt
- * y aus der Fallgeschwindigkeit, und das Wabenraster spannen X und Z auf. Auf der Geoid-/
- * GIS-Seite ist dagegen Z die Hoehenachse. Wer Werte zwischen beiden Welten traegt, TAUSCHT
- * also - er kopiert nicht.
+ * AXES: in this module Y is the vertical - the physics writes y from the falling speed, and X and
+ * Z span the chunk grid. On the geoid and GIS side Z is the height axis. A value carried between
+ * both sides has its axes swapped on the way.
  *
  * ECS COMPONENT COMPLIANCE
  *
@@ -69,7 +60,7 @@
  * [ ] Strings < 64 bytes use char[N] fixed arrays
  * [ ] Strings 64-256 bytes use appropriately sized char[N]
  * [ ] Strings > 256 bytes use Pointer Pattern (uint64_t ptr, uint16_t len)
- * [ ] Strings > 256 bytes use registry.ctx() mit Lookup-ID?
+ * [ ] Strings > 256 bytes use registry.ctx() with lookup ID?
  * [ ] NO Entity-per-Character (strings are single attributes, not N-Items!)
  * [ ] Lookup-only strings use uint32_t hash (entt::hashed_string)
  * [ ] NO std::shared_ptr in components (use Flyweight Pattern via ctx!)
@@ -84,17 +75,17 @@
 namespace ase::player {
 
 /**
- * @brief PlayerStaPosComponent - Ort dieses Taktes, chunk-relativ
+ * @brief PlayerStaPosComponent - place in this tick, relative to the chunk
  *
- * Die Wabenadresse ist exakt (int32), die Meter in der Wabe sind klein und tragen volle
- * float-Praezision - ein Schritt verpufft nie, egal wo auf dem Planeten die Figur steht.
+ * The chunk address is exact (int32), the metres inside the chunk are small and carry full float
+ * precision - a step never vanishes, wherever on the planet the figure stands.
  */
 struct PlayerStaPosComponent {
-    int32_t chunk_x = 0;    // Wabenadresse X (exakt, traegt die Face-Kodierung verlustfrei)
-    int32_t chunk_z = 0;    // Wabenadresse Z (exakt)
-    float local_x = 0.0f;   // Meter in der Wabe X, [0, Wabenkante)
-    float local_z = 0.0f;   // Meter in der Wabe Z, [0, Wabenkante)
-    float y = 0.0f;         // Weltmeter entlang der Senkrechten (Achse unveraendert)
+    int32_t chunk_x = 0;    // Chunk address X (exact, carries the face encoding without loss)
+    int32_t chunk_z = 0;    // Chunk address Z (exact)
+    float local_x = 0.0f;   // Metres inside the chunk along X, [0, chunk edge)
+    float local_z = 0.0f;   // Metres inside the chunk along Z, [0, chunk edge)
+    float y = 0.0f;         // World metres along the vertical
 };
 
 }  // namespace ase::player

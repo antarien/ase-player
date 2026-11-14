@@ -4,13 +4,13 @@
 # via a '# @toml-load-after: ase-x ase-y' line.
 [module]
 name = "ase-player"
-version = "00.01.31.00081"
+version = "00.01.41.00091"
 type = "module"
 layer = 3
 api_version = 4
 
 [dependencies]
-ase-hub = "^00.02"
+ase-hub = "^00.03"
 
 [dependencies.optional]
 
