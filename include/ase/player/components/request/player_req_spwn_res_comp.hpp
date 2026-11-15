@@ -19,6 +19,10 @@
  * @version     00.00.00.00000 [seed]
  * @author      Jan Ohlmann (ADG/ASE/AOW)
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * UMZUG MIT SYMBOL: `spawn` IST ZU LANG.
  *
  * Schema-Nachzug von player_req_spawn_res_component.hpp. Der Validator nannte drei Maengel

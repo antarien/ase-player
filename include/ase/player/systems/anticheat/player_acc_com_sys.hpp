@@ -16,7 +16,11 @@
  * @schedule    Dynamics
  * @created     2026-07-19
  * @modified    2026-07-19
- * @version     1.0.0
+ * @version     00.01.42.00092 [feat]
+ *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
  *
  * ARCHITECTURE (SERVER-ONLY authority — never transpiled to the client):
  *

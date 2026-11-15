@@ -18,7 +18,11 @@
  * @schedule    Dynamics
  * @created     2026-08-09
  * @modified    2026-08-09
- * @version     1.0.0
+ * @version     00.01.42.00092 [feat]
+ *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
  *
  * ARCHITECTURE (SYN: the two phase systems decide, this one does the I/O and nothing else):
  *

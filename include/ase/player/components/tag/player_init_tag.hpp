@@ -16,6 +16,10 @@
  * @modified    2026-08-10
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * DER TYP-MARKER GEHOERT ANS ENDE, NICHT IN DIE MITTE.
  *
  * Schema-Nachzug von player_tag_init_component.hpp. Der alte Name trug `_tag_` als Wortteil in der

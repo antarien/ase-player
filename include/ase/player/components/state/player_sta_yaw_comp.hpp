@@ -18,6 +18,10 @@
  * @modified    2026-08-11
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * Der Winkel stand bewusst beim Ort und nicht beim Tempo: eine Figur kann stehen und sich
  * trotzdem umsehen, und sie kann seitwaerts laufen, ohne die Blickrichtung zu aendern. Beides
  * bleibt wahr - nur wohnt der Blick jetzt in seiner eigenen Zeile, exakt wie die Ausdehnung

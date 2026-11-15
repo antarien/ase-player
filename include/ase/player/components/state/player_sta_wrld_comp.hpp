@@ -27,7 +27,11 @@
  * @category    property/spatial/position/coordinate/cartesian
  * @created     2026-10-12
  * @modified    2026-10-12
- * @version     1.0.0
+ * @version     00.01.42.00092 [feat]
+ *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
  *
  * ECS COMPONENT COMPLIANCE
  *

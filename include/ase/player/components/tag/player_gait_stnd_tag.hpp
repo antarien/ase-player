@@ -21,6 +21,10 @@
  * @modified    2026-11-13
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * KUERZEL AUS DER TAXONOMIE: "gait": "gait", "standing": "stnd" (data/taxonomy), nachgeschlagen.
  *
  * DIESER MARKER BLEIBT IM MODUL. Fremde Module und der Adapter lesen die Gangart als Hub-Wert,

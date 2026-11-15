@@ -16,6 +16,10 @@
  * @modified    2026-08-10
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * UMZUG MIT SYMBOL, KUERZEL AUS DER TAXONOMIE.
  *
  * Schema-Nachzug von player_tag_chunk_changed_component.hpp. Drei Dinge stimmten nicht: der

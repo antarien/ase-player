@@ -17,6 +17,10 @@
  * @modified    2026-08-10
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * UMZUG MIT INHALTLICHER KORREKTUR: HIER STANDEN ZWEI ROHE ADRESSEN.
  *
  * Schema-Nachzug von player_buf_pst_component.hpp. Der Validator nannte drei Arten von Maengeln

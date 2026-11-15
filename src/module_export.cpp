@@ -1,3 +1,9 @@
+/**
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ */
+
 #include <ase/ecs/plugin_interface.hpp>
 #include <ase/player/player_module.hpp>
 

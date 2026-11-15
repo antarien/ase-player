@@ -1,6 +1,10 @@
 // The doctest entry point is a compile definition of this target, set in tests/CMakeLists.txt —
 // it reaches the translation unit before every #include, so doctest still generates exactly one
 // main() here. A #define in the source would be a macro definition in C++, which is forbidden.
+//
+// Copyright (c) Jan Ohlmann. All rights reserved.
+// Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+// SPDX-License-Identifier: LicenseRef-ASE-LIC
 #include <doctest/doctest.h>
 
 /**

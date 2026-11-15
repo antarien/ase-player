@@ -16,6 +16,10 @@
  * @modified    2026-08-10
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * UMZUG MIT SYMBOL, UND DAS KUERZEL KOMMT AUS DER TAXONOMIE, NICHT AUS DEM BAUCH.
  *
  * Schema-Nachzug von player_tag_local_component.hpp. Zwei Dinge stimmten nicht: der Typ-Marker

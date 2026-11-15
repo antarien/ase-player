@@ -16,6 +16,10 @@
  * @modified    2026-08-10
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * UMZUG MIT SYMBOL: `st` IST ZU KURZ.
  *
  * Schema-Nachzug von player_st_chk_component.hpp. Zwei Dinge stimmten nicht: das Legacy-Suffix

@@ -24,7 +24,11 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @created     2026-10-03
  * @modified    2026-11-14
- * @version     1.0.0
+ * @version     00.01.42.00092 [feat]
+ *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
  *
  * SYN PATTERN (Hub I/O vs Calculation Separation)
  *

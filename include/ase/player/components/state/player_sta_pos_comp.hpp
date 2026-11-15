@@ -20,6 +20,10 @@
  * @modified    2026-11-13
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * CHUNK-RELATIVE PLACE: an absolute float32 axis in world metres does not carry the address
  * space. At 204 million metres the float32 step is 16 metres, and every 0.04 m step of the physics
  * (taken back by PlayerSimStndSystem) would vanish. The chunk address is therefore an exact int32 (it carries the

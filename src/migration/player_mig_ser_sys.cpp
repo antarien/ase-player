@@ -13,7 +13,11 @@
  * @actor       Engine Layer Serializer (ENGSRLZ)
  * @created     2026-07-28
  * @modified    2026-11-01
- * @version     2.1.0
+ * @version     00.01.42.00092 [feat]
+ *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
  *
  * CAUSAL CHAIN (PLR_MIG_SER: armed migrate instruction → staged PlayerSnap row)
  *

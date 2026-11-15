@@ -13,7 +13,11 @@
  * @actor       SS/PC
  * @created     2026-11-14
  * @modified    2026-11-14
- * @version     1.0.0
+ * @version     00.01.42.00092 [feat]
+ *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
  *
  * CAUSAL CHAIN (PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.13, DoD 07-K: ase-physics resolves gravity and ground
  * contact of the figure and answers with HUB_PHYS_STAND)

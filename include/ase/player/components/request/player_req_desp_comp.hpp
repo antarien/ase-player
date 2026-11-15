@@ -15,6 +15,10 @@
  * @modified    2026-08-10
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * DER UMZUG, NICHT DER UMBAU. Diese Datei ist der Schema-Nachzug von
  * player_req_desp_component.hpp: der Dateiname trug die Altform `_component.hpp`, das Schema
  * verlangt `_comp.hpp` (WRFL_ASE_NAMING_SCHEMA). Der STRUKTURNAME war bereits korrekt und bleibt

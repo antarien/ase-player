@@ -16,7 +16,11 @@
  * @schedule    Preservation
  * @created     2026-01-22
  * @modified    2026-11-04
- * @version     2.2.0
+ * @version     00.01.42.00092 [feat]
+ *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
  *
  * CAUSAL CHAIN (CAUSA_PLR_PST_SER: Player Persistence Serialization)
  *

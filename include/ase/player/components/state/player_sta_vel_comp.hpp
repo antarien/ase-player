@@ -20,6 +20,10 @@
  * @modified    2026-11-13
  * @version     00.00.00.00000 [seed]
  *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
  * THE WIRE: the three values travel as an f32 triple in PlayerSnap (ase/types/region_wire.hpp)
  * across the region border - a running figure goes on running on the other side.
  *
