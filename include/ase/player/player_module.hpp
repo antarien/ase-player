@@ -5,7 +5,7 @@
  *
  * @file        player_module.hpp
  * @brief       Module registration for ase-player
- * @description Registers all systems with the App scheduler (Bevy-style).
+ * @description Registers all systems with the App scheduler.
  *
  * @module      ase-player
  * @layer       3 (Modules)
