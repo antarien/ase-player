@@ -13,7 +13,7 @@
  * @category    hub
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-11-07
+ * @modified    2026-11-16
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -37,7 +37,6 @@
  *   │    → "PLR_POS_X"_hs (Hub)                   │
  *   │    → "PLR_POS_Y"_hs (Hub)                   │
  *   │    → "PLR_POS_Z"_hs (Hub)                   │
- *   │    → "PLR_IS_PLAYER"_hs (Hub)               │
  *   │    → "PLR_SPAWN_X"_hs (Hub, once)           │
  *   │    → "PLR_SPAWN_Z"_hs (Hub, once)           │
  *   └─────────────────────────────────────────────┘
@@ -67,7 +66,6 @@
  *   "PLR_POS_X"_hs       → first horizontal axis, world metres (float)
  *   "PLR_POS_Y"_hs       → second horizontal axis, world metres - never the height (float)
  *   "PLR_POS_Z"_hs       → height axis, metres (float)
- *   "PLR_IS_PLAYER"_hs   → 1.0f marker for player entities
  *   "PLR_SPAWN_X"_hs     → spawn point, first horizontal axis, world metres (once per figure)
  *   "PLR_SPAWN_Z"_hs     → spawn point, second horizontal axis (the PLR_POS_Y axis), world metres
  *                          (once per figure)
@@ -219,11 +217,15 @@ void PlayerHubPosSystem::tick(ecs::Registry& registry, float /*dt*/) {
          * PlayerSimWrldSystem, the same way ase-spatial keeps it in SpatialIdxWrldSystem, so a
          * consumer that pours PLR_POS_* and SPT_POS_* into the same three fields gets the same for
          * both kinds of body.
+         *
+         * THE MEASURED PLACE IS ALSO THE ANSWER TO "IS THIS A PLAYER". This view holds players
+         * and nothing else, so a measured PLR_POS_X on an owner says it is one; ase-pl-predator
+         * (PredatorTgtSynSystem) reads it that way. No second key carries that statement as a
+         * fixed number beside the place.
          */
         hub::set(registry, owner, "PLR_POS_X"_hs, wrld.x);
         hub::set(registry, owner, "PLR_POS_Y"_hs, wrld.y);
         hub::set(registry, owner, "PLR_POS_Z"_hs, wrld.z);
-        hub::set(registry, owner, "PLR_IS_PLAYER"_hs, 1.0f);
 
         /**
          * STEP 3: The spawn point, once per figure (see the file head).

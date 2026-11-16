@@ -12,7 +12,7 @@
  * @usecase     usecase:101587 - freeze figure for region transit
  * @actor       Engine Layer Serializer (ENGSRLZ)
  * @created     2026-07-28
- * @modified    2026-11-01
+ * @modified    2026-11-15
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -57,7 +57,7 @@
  *
  * HUB Pattern (ARCH_ASE_HUB_API v2.0)
  *
- * READS (from Hub): row HUB_PLR_MIG_ARM (HUB_PLR_MIG_ARM_DST_REGION, HUB_PLR_MIG_ARM_PROJ_HASH),
+ * READS (from Hub): row HUB_PLR_MIG_ARM (HUB_PLR_MIG_ARM_PROJ_HASH),
  *                   row HUB_PLR_MIG_STG (HUB_PLR_MIG_STG_FIG)
  * WRITES (to Hub): row HUB_PLR_MIG_STG (row_create; HUB_PLR_MIG_STG_FIG, HUB_PLR_MIG_STG_SNAP)
  *
@@ -279,10 +279,8 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
                        "HUB_PLR_MIG_ARM_FIGURE");
             return;
         }
-        uint32_t dst_region = 0u;
         uint32_t proj_hash = 0u;
-        if (!hub::try_get_u32(registry, fig, "HUB_PLR_MIG_ARM_DST_REGION"_hs, dst_region) ||
-            !hub::try_get_u32(registry, fig, "HUB_PLR_MIG_ARM_PROJ_HASH"_hs, proj_hash)) {
+        if (!hub::try_get_u32(registry, fig, "HUB_PLR_MIG_ARM_PROJ_HASH"_hs, proj_hash)) {
             log::error(log::ERR::CAT::HUB_NOT_FOUND, "PlayerMigSerSystem", fig,
                        "HUB_PLR_MIG_ARM_FIELDS");
             return;
@@ -311,8 +309,8 @@ void PlayerMigSerSystem::tick(ecs::Registry& registry, float /*dt*/) {
         const uint32_t stg_owner = static_cast<uint32_t>(stg);
         hub::set_u32(registry, stg_owner, "HUB_PLR_MIG_STG_FIG"_hs, fig);
         hub::set_bytes(registry, stg_owner, "HUB_PLR_MIG_STG_SNAP"_hs, snap, snap_len);
-        log::info("[PlayerMigSer] PlayerSnap staged: player_ref={} epoch={} dst_region={} proj_hash={} ({} bytes)",
-                  epch.player_ref, epch.player_epoch, dst_region, proj_hash, snap_len);
+        log::info("[PlayerMigSer] PlayerSnap staged: player_ref={} epoch={} proj_hash={} ({} bytes)",
+                  epch.player_ref, epch.player_epoch, proj_hash, snap_len);
     });
 }
 

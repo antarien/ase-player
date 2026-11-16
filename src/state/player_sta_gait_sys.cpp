@@ -18,7 +18,7 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-13
- * @modified    2026-11-13
+ * @modified    2026-11-15
  * @version     00.00.00.00000 [seed]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -202,46 +202,48 @@ void PlayerStaGaitSystem::tick(ecs::Registry& registry, float /*dt*/) {
     const float walk_max_sq = PLAYER_GAIT_WALK_SPEED_MAX * PLAYER_GAIT_WALK_SPEED_MAX;
 
     /**
-     * STEP 1: figures that are not standing yet but whose speed has fallen below the walking floor
+     * THE VIEW NEVER FILTERS ON A GAIT MARKER. Each step lays a marker the walk would otherwise
+     * filter on (an exclude of the marker it sets), and that changes the iteration set from
+     * inside the loop. The figures are walked over identity and velocity alone; the speed band
+     * decides, and emplace_or_replace lays the marker whether the figure held it already or not.
      */
-    auto to_stnd = registry.view<PlayerStaIdntComponent, PlayerStaVelComponent>(
-        entt::exclude<PlayerGaitStndTag>);
-    for (auto [entity, id, vel] : to_stnd.each()) {
+    auto figures = registry.view<PlayerStaIdntComponent, PlayerStaVelComponent>();
+
+    /**
+     * STEP 1: figures whose speed has fallen below the walking floor stand
+     */
+    for (auto [entity, id, vel] : figures.each()) {
         (void)id;
         if (!(speed_xz_sq(vel.vx, vel.vz) < stnd_max_sq)) {
             continue;
         }
         registry.remove<PlayerGaitWalkTag, PlayerGaitRunTag>(entity);
-        registry.emplace<PlayerGaitStndTag>(entity);
+        registry.emplace_or_replace<PlayerGaitStndTag>(entity);
     }
 
     /**
-     * STEP 2: figures that are not walking yet but whose speed lies in the walking band
+     * STEP 2: figures whose speed lies in the walking band walk
      */
-    auto to_walk = registry.view<PlayerStaIdntComponent, PlayerStaVelComponent>(
-        entt::exclude<PlayerGaitWalkTag>);
-    for (auto [entity, id, vel] : to_walk.each()) {
+    for (auto [entity, id, vel] : figures.each()) {
         (void)id;
         const float speed_sq = speed_xz_sq(vel.vx, vel.vz);
         if (!types::is_in_rng_f(speed_sq, stnd_max_sq, walk_max_sq)) {
             continue;
         }
         registry.remove<PlayerGaitStndTag, PlayerGaitRunTag>(entity);
-        registry.emplace<PlayerGaitWalkTag>(entity);
+        registry.emplace_or_replace<PlayerGaitWalkTag>(entity);
     }
 
     /**
-     * STEP 3: figures that are not running yet but whose speed lies above the walking ceiling
+     * STEP 3: figures whose speed lies above the walking ceiling run
      */
-    auto to_run = registry.view<PlayerStaIdntComponent, PlayerStaVelComponent>(
-        entt::exclude<PlayerGaitRunTag>);
-    for (auto [entity, id, vel] : to_run.each()) {
+    for (auto [entity, id, vel] : figures.each()) {
         (void)id;
         if (!(speed_xz_sq(vel.vx, vel.vz) > walk_max_sq)) {
             continue;
         }
         registry.remove<PlayerGaitStndTag, PlayerGaitWalkTag>(entity);
-        registry.emplace<PlayerGaitRunTag>(entity);
+        registry.emplace_or_replace<PlayerGaitRunTag>(entity);
     }
 }
 

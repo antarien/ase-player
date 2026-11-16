@@ -12,7 +12,7 @@
  * @usecase     usecase:100692 - migrate figure between regions
  * @actor       Border Passage Warden (BORDPASWAR)
  * @created     2026-10-14
- * @modified    2026-11-14
+ * @modified    2026-11-15
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -33,7 +33,8 @@
  *   │    - PlayerInpMigDlvrComponent (snap, snap_len, region)   │
  *   │    - PlayerInpMigAckComponent (player_ref, ack_epoch)     │
  *   │    - PlayerInpChnkCnstComponent (chunk edge, manager)     │
- *   │    - PlayerStaEpchComponent (O(1) ref lookup, pre-pass)   │
+ *   │    - PlayerStaEpchComponent (O(1) ref lookup, pre-pass;   │
+ *   │      the held epoch an echo must match)                   │
  *   │    - PlayerStaIdntComponent (despawn identity, OWN row)   │
  *   │                                                           │
  *   │  WRITES:                                                  │
@@ -382,6 +383,20 @@ void PlayerMigAplySystem::tick(ecs::Registry& registry, float /*dt*/) {
             // NOT_FOUND: the echo names a figure this tier does not (or no longer) run
             log::error(log::ERR::CAT::INVALID_ENTITY, "PlayerMigAplySystem",
                        ack.player_ref, "MIG_ACK_PLAYER_REF");
+            continue;
+        }
+        /**
+         * THE ECHO MUST NAME THE MIGRATE IN FLIGHT. PlayerMigSerSystem bumps the epoch of the
+         * figure once per armed migrate; the destination echoes the epoch it took over. An echo
+         * of an older epoch belongs to a migrate the figure has since overtaken (it was armed
+         * again and a newer image is under way) - despawning on it would drop the copy the newer
+         * migrate still has to replace. The index above is built from the epoch row, so the row
+         * stands on every hit.
+         */
+        const auto& held = registry.get<PlayerStaEpchComponent>(ack_hit->second);
+        if (ack.ack_epoch != held.player_epoch) {
+            log::info("[PlayerMigAply] stale migrate ack for player_ref={} (epoch {} != held {}) - source copy kept",
+                      ack.player_ref, ack.ack_epoch, held.player_epoch);
             continue;
         }
         const auto* src_id = registry.try_get<PlayerStaIdntComponent>(ack_hit->second);

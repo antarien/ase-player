@@ -21,11 +21,13 @@
  * correct - the contract that matters is the BYTES of the staged row, and those are produced by
  * ticking the system.
  *
- * THE FOUR CASES:
+ * THE FIVE CASES:
  *   1. the frozen 42-byte PlayerSnap layout, read back at the L0 offsets from HUB_PLR_MIG_STG
  *   2. the per-player epoch bump is monotonic - the source of migrate idempotency
  *   3. a standing HUB_PLR_MIG_STG row bars re-entry across ticks
  *   4. two figures staged in one tick keep their own identity
+ *   5. the REAL PlayerMigAplySystem despawns the source copy only on the echo of the epoch the
+ *      figure holds; a stale echo keeps the copy, and every echo bridge falls
  *
  * The arm is the hub row HUB_PLR_MIG_ARM on the figure, as WorldPlrBndSystem adopts it; the
  * staged image is a row of its own with the figure as its FIG field. The chunk edge the encoder
@@ -35,8 +37,11 @@
 
 #include <ase/player/player.hpp>
 #include <ase/player/systems/migration/player_mig_ser_sys.hpp>
+#include <ase/player/systems/migration/player_mig_aply_sys.hpp>
 #include <ase/player/systems/sync/player_chnk_cnst_syn_sys.hpp>
 #include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
+#include <ase/player/components/input/player_inp_mig_ack_comp.hpp>
+#include <ase/player/components/request/player_req_desp_comp.hpp>
 #include <ase/player/components/tag/player_mgr_tag.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
@@ -104,8 +109,9 @@ float read_f32(const char* snap, uint32_t offset) {
 
 // Builds one player carrying every component the serialize walk requires, plus the armed
 // migrate as the boundary watch files it, and lays the chunk edge on the manager row. Values are
-// distinct per field so a swapped offset cannot pass unnoticed.
-ecs::Entity make_armed_player(ecs::Registry& registry, const char* uuid, uint32_t dst_region) {
+// distinct per field so a swapped offset cannot pass unnoticed. The arm names the project of the
+// region left and no destination - the Replica resolves the owner (ReplicaPlrMigSystem).
+ecs::Entity make_armed_player(ecs::Registry& registry, const char* uuid) {
     lay_chunk_edge(registry);
     const auto plr = registry.create();
 
@@ -131,7 +137,6 @@ ecs::Entity make_armed_player(ecs::Registry& registry, const char* uuid, uint32_
 
     const uint32_t fig = static_cast<uint32_t>(plr);
     hub::row_adopt(registry, plr, "HUB_PLR_MIG_ARM"_hs);
-    hub::set_u32(registry, fig, "HUB_PLR_MIG_ARM_DST_REGION"_hs, dst_region);
     hub::set_u32(registry, fig, "HUB_PLR_MIG_ARM_PROJ_HASH"_hs, 0xABCD1234u);
 
     return plr;
@@ -151,6 +156,34 @@ ecs::Entity staged_row_of(ecs::Registry& registry, ecs::Entity plr) {
     return found;
 }
 
+// Files one migrate echo as PlayerMigDesSystem leaves it: a bridge entity with the wire identity
+// and the epoch the destination took over.
+void file_ack(ecs::Registry& registry, uint32_t player_ref, uint32_t ack_epoch) {
+    auto& ack = registry.emplace<player::PlayerInpMigAckComponent>(registry.create());
+    ack.player_ref = player_ref;
+    ack.ack_epoch = ack_epoch;
+}
+
+// Test-side count of the despawn requests the apply filed. Walks the storage, never
+// destroys - the request belongs to PlayerLifeSpwnSystem.
+uint32_t despawn_requests(ecs::Registry& registry) {
+    uint32_t count = 0u;
+    for (auto req : registry.view<player::PlayerReqDespComponent>()) {
+        (void)req;
+        ++count;
+    }
+    return count;
+}
+
+uint32_t ack_bridges(ecs::Registry& registry) {
+    uint32_t count = 0u;
+    for (auto bridge : registry.view<player::PlayerInpMigAckComponent>()) {
+        (void)bridge;
+        ++count;
+    }
+    return count;
+}
+
 }  // namespace
 
 TEST_CASE("PlayerMigSer: the staged row carries the frozen 42-byte PlayerSnap layout") {
@@ -158,7 +191,7 @@ TEST_CASE("PlayerMigSer: the staged row carries the frozen 42-byte PlayerSnap la
     player::PlayerMigSerSystem system;
 
     const char* uuid = "11111111-2222-3333-4444-555555555555";
-    const auto plr = make_armed_player(registry, uuid, 42u);
+    const auto plr = make_armed_player(registry, uuid);
 
     system.tick(registry, 0.0f);
 
@@ -202,7 +235,7 @@ TEST_CASE("PlayerMigSer: the staged row carries the frozen 42-byte PlayerSnap la
     }
 
     SUBCASE("the instruction stays on the figure for the sender") {
-        // The sender takes destination and project from the arm and withdraws it after the ship.
+        // The sender takes the project from the arm and withdraws it after the ship.
         CHECK(hub::row_has(registry, plr, "HUB_PLR_MIG_ARM"_hs));
     }
 }
@@ -211,7 +244,7 @@ TEST_CASE("PlayerMigSer: the epoch bump is monotonic and happens once per armed 
     ecs::Registry registry;
     player::PlayerMigSerSystem system;
 
-    const auto plr = make_armed_player(registry, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", 9u);
+    const auto plr = make_armed_player(registry, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
 
     system.tick(registry, 0.0f);
     const auto epoch_after_first = registry.get<player::PlayerStaEpchComponent>(plr).player_epoch;
@@ -248,7 +281,7 @@ TEST_CASE("PlayerMigSer: an unarmed player is never staged") {
     ecs::Registry registry;
     player::PlayerMigSerSystem system;
 
-    const auto plr = make_armed_player(registry, "00000000-0000-0000-0000-000000000000", 1u);
+    const auto plr = make_armed_player(registry, "00000000-0000-0000-0000-000000000000");
     // Take the arm away: without it the walk must not touch the entity at all.
     hub::row_withdraw(registry, plr, "HUB_PLR_MIG_ARM"_hs);
 
@@ -266,8 +299,8 @@ TEST_CASE("PlayerMigSer: two players staged in one tick keep their own ref and e
 
     const char* uuid_a = "aaaa1111-0000-0000-0000-000000000001";
     const char* uuid_b = "bbbb2222-0000-0000-0000-000000000002";
-    const auto plr_a = make_armed_player(registry, uuid_a, 11u);
-    const auto plr_b = make_armed_player(registry, uuid_b, 22u);
+    const auto plr_a = make_armed_player(registry, uuid_a);
+    const auto plr_b = make_armed_player(registry, uuid_b);
 
     system.tick(registry, 0.0f);
 
@@ -290,4 +323,62 @@ TEST_CASE("PlayerMigSer: two players staged in one tick keep their own ref and e
     CHECK(read_u32(snap_b, types::PLAYER_SNAP_OFF_ID) == entt::hashed_string::value(uuid_b));
     CHECK(read_u32(snap_a, types::PLAYER_SNAP_OFF_EPOCH) == 1u);
     CHECK(read_u32(snap_b, types::PLAYER_SNAP_OFF_EPOCH) == 1u);
+}
+
+TEST_CASE("PlayerMigAply: the source copy falls only on the echo of the epoch it holds") {
+    ecs::Registry registry;
+    player::PlayerMigAplySystem apply;
+
+    // The source copy as the serializer leaves it after the second armed migrate: identity text,
+    // wire identity and the held epoch 2. The apply resolves an echo through the epoch row.
+    const char* uuid = "cccc3333-0000-0000-0000-000000000003";
+    const uint32_t ref = entt::hashed_string::value(uuid);
+    lay_chunk_edge(registry);
+    const auto plr = registry.create();
+    auto& idnt = registry.emplace<player::PlayerStaIdntComponent>(plr);
+    utils::str_copy(idnt.player_id, static_cast<uint32_t>(sizeof(idnt.player_id)), uuid);
+    auto& epch = registry.emplace<player::PlayerStaEpchComponent>(plr);
+    epch.player_ref = ref;
+    epch.player_epoch = 2u;
+
+    SUBCASE("an echo of an overtaken epoch keeps the copy and its bridge falls") {
+        file_ack(registry, ref, 1u);
+        apply.tick(registry, 0.0f);
+        CHECK(despawn_requests(registry) == 0u);
+        CHECK(ack_bridges(registry) == 0u);
+        CHECK(registry.valid(plr));
+    }
+
+    SUBCASE("the echo of the held epoch files exactly one despawn request for the copy") {
+        file_ack(registry, ref, 2u);
+        apply.tick(registry, 0.0f);
+        REQUIRE(despawn_requests(registry) == 1u);
+        CHECK(ack_bridges(registry) == 0u);
+        for (auto [req, desp] : registry.view<player::PlayerReqDespComponent>().each()) {
+            (void)req;
+            CHECK(std::strcmp(desp.player_id, uuid) == 0);
+        }
+    }
+
+    SUBCASE("a stale and a current echo in one tick: one request, both bridges fall") {
+        file_ack(registry, ref, 1u);
+        file_ack(registry, ref, 2u);
+        apply.tick(registry, 0.0f);
+        CHECK(despawn_requests(registry) == 1u);
+        CHECK(ack_bridges(registry) == 0u);
+    }
+
+    SUBCASE("without the chunk edge no echo is honoured and no bridge falls") {
+        // The edge gates the whole apply (deliveries need it to place a figure); the echoes wait
+        // with them for the first tick the edge stands.
+        ecs::Registry bare;
+        const auto copy = bare.create();
+        auto& bare_epch = bare.emplace<player::PlayerStaEpchComponent>(copy);
+        bare_epch.player_ref = ref;
+        bare_epch.player_epoch = 2u;
+        file_ack(bare, ref, 2u);
+        apply.tick(bare, 0.0f);
+        CHECK(despawn_requests(bare) == 0u);
+        CHECK(ack_bridges(bare) == 1u);
+    }
 }
