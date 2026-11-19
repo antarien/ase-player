@@ -160,18 +160,7 @@
             "default": 0.0,
             "scope": "sim_entity",
             "source_module": "ase-terrain",
-            "description": "Runtime metric: the height in metres ase-terrain levelled a flatten disc to - the height of its centre (per body owner: the entity named in the flatten row HUB_TERN_MUT_REQ_BODY; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem once the disc is applied. 0.0 is a height, so a reader asks is_measured first. Value 0.0.",
-            "hub_category": "metric"
-        },
-        {
-            "key": "TRN_FLAT_RAD",
-            "component": "PlayerInpAreaComponent",
-            "field": "radius_m",
-            "type": "float32",
-            "default": 0.0,
-            "scope": "sim_entity",
-            "source_module": "ase-terrain",
-            "description": "Runtime metric: the radius in metres of the disc ase-terrain levelled for a body (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT from the flatten order. ase-physics reads it to tell a seed on the disc from one beyond its rim (usecase:100708). Value 0.0.",
+            "description": "Runtime metric: the world height in metres of the stem foot of a body, the origin of its frame (per body owner: the entity named in the flatten row HUB_TERN_MUT_REQ_BODY; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem once the order is applied. ase-gis does not read it: the levelled cells reach the grid through HUB_TERN_MCRO (CAUSA_ASE_GIS B0542). Readers: PhysicsHubGrndSyncSystem (ase-physics, usecase:100708) takes it as origin_y of PhysicsInpOwnrFrmComponent; RadixHubFrmSyncSystem (ase-radix, usecase:6459) as origin_y of RadixInpFrmComponent on a patch; FloraHubFlatSyncSystem (ase-pl-flora, usecase:100387) as the level of FloraInpFlatComponent on a patch; PlayerAreaSynSystem (ase-player, usecase:101612) reads it on the area plate of a figure (HUB_PLR_AREA_PLATE) into PlayerInpAreaComponent.level; CameraAreaSynSystem (ase-camera, usecase:101612) reads it on the area plate of the followed figure and keeps the player camera above it. NO GROUND: a body stands on the ase-gis elevation cells (the HeightMapShape3D of the Godot client), never on this value. 0.0 is a height, so a reader asks is_measured first. Value 0.0.",
             "hub_category": "metric"
         },
         {
@@ -182,7 +171,7 @@
             "default": 0.0,
             "scope": "sim_entity",
             "source_module": "ase-terrain",
-            "description": "Runtime metric: the centre of the levelled disc of a body, world metres east (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
+            "description": "Runtime metric: the world place of the stem foot of a body, metres east, the origin of its frame (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. Readers: PhysicsHubGrndSyncSystem (ase-physics, usecase:100708, origin_x of PhysicsInpOwnrFrmComponent); RadixHubFrmSyncSystem (ase-radix, usecase:6459, origin_x of RadixInpFrmComponent); PlayerAreaSynSystem (ase-player, usecase:101612, PlayerInpAreaComponent.x on the area plate). 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
             "hub_category": "metric"
         },
         {
@@ -193,7 +182,7 @@
             "default": 0.0,
             "scope": "sim_entity",
             "source_module": "ase-terrain",
-            "description": "Runtime metric: the centre of the levelled disc of a body, world metres north (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
+            "description": "Runtime metric: the world place of the stem foot of a body, metres north, the origin of its frame (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. Readers: PhysicsHubGrndSyncSystem (ase-physics, usecase:100708, origin_z of PhysicsInpOwnrFrmComponent); RadixHubFrmSyncSystem (ase-radix, usecase:6459, origin_z of RadixInpFrmComponent); PlayerAreaSynSystem (ase-player, usecase:101612, PlayerInpAreaComponent.z on the area plate). 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
             "hub_category": "metric"
         }
     ],
@@ -229,6 +218,75 @@
             "key": "GIS_HYD_CELL_DEPTH"
         },
         {
+            "key": "HUB_CONST_SHARE_MAX"
+        },
+        {
+            "key": "HUB_CONST_SHARE_MIN"
+        },
+        {
+            "key": "HUB_GIS_GRND_EAST"
+        },
+        {
+            "key": "HUB_GIS_GRND_NORTH"
+        },
+        {
+            "key": "HUB_GIS_GRND_SOUTH"
+        },
+        {
+            "key": "HUB_GIS_GRND_WEST"
+        },
+        {
+            "key": "HUB_PHYS_STAND_SEQ"
+        },
+        {
+            "key": "HUB_PHYS_STAND_VEL_Y"
+        },
+        {
+            "key": "HUB_PHYS_STAND_X"
+        },
+        {
+            "key": "HUB_PHYS_STAND_Y"
+        },
+        {
+            "key": "HUB_PHYS_STAND_Z"
+        },
+        {
+            "key": "HUB_PLR_AREA_PLATE"
+        },
+        {
+            "key": "HUB_PLR_MIG_ACK_EPOCH"
+        },
+        {
+            "key": "HUB_PLR_MIG_ACK_PLAYER_REF"
+        },
+        {
+            "key": "HUB_PLR_MIG_ARM_PROJ_HASH"
+        },
+        {
+            "key": "HUB_PLR_MIG_DLV_DST_REGION"
+        },
+        {
+            "key": "HUB_PLR_MIG_DLV_SNAP"
+        },
+        {
+            "key": "HUB_PLR_SPWN_CHAR"
+        },
+        {
+            "key": "HUB_PLR_SPWN_SEAT"
+        },
+        {
+            "key": "HUB_PLR_SPWN_X"
+        },
+        {
+            "key": "HUB_PLR_SPWN_Z"
+        },
+        {
+            "key": "HUB_PLR_TURN_FIGURE"
+        },
+        {
+            "key": "HUB_PLR_TURN_YAW"
+        },
+        {
             "key": "NET_CONST_BIN_MSG_PLAYER_SPAWN"
         },
         {
@@ -262,16 +320,95 @@
             "key": "TRN_FLAT_HGT"
         },
         {
-            "key": "TRN_FLAT_RAD"
-        },
-        {
             "key": "TRN_FLAT_X"
         },
         {
             "key": "TRN_FLAT_Z"
         }
     ],
+    "hub_outputs": [
+        {
+            "key": "PLR_CAM_YAW",
+            "component": "PlayerStaRoamComponent",
+            "field": "heading",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "description": "Course of the current leg (radians), published as PLR_CAM_YAW",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "signed"
+            }
+        },
+        {
+            "key": "PLR_INP_FWD",
+            "component": "PlayerStaRoamComponent",
+            "field": "forward",
+            "type": "float32",
+            "default": 0.0,
+            "scope": "sim_entity",
+            "description": "Forward input magnitude of the errand, published while walking",
+            "hub_category": "metric",
+            "range": {
+                "range_type": "signed"
+            }
+        }
+    ],
     "hub_writes": [
+        {
+            "key": "HUB_CRT_CHR_BODY"
+        },
+        {
+            "key": "HUB_CRT_CHR_KEY"
+        },
+        {
+            "key": "HUB_LIFE_ALIV_PLR_BODY"
+        },
+        {
+            "key": "HUB_PHYS_WALK_JUMP"
+        },
+        {
+            "key": "HUB_PHYS_WALK_ORIGIN_X"
+        },
+        {
+            "key": "HUB_PHYS_WALK_ORIGIN_Z"
+        },
+        {
+            "key": "HUB_PHYS_WALK_OWNER"
+        },
+        {
+            "key": "HUB_PHYS_WALK_SEQ"
+        },
+        {
+            "key": "HUB_PHYS_WALK_VEL_X"
+        },
+        {
+            "key": "HUB_PHYS_WALK_VEL_Z"
+        },
+        {
+            "key": "HUB_PHYS_WALK_X"
+        },
+        {
+            "key": "HUB_PHYS_WALK_Y"
+        },
+        {
+            "key": "HUB_PHYS_WALK_Z"
+        },
+        {
+            "key": "HUB_PLR_MIG_STG_FIG"
+        },
+        {
+            "key": "HUB_PLR_MIG_STG_SNAP"
+        },
+        {
+            "key": "HUB_PLR_MOTN_VEL_X"
+        },
+        {
+            "key": "HUB_PLR_MOTN_VEL_Y"
+        },
+        {
+            "key": "HUB_PLR_MOTN_YAW"
+        },
         {
             "key": "PLAYER_MOVEMENT_SUSPICIOUS"
         },
@@ -313,6 +450,9 @@
         },
         {
             "key": "PLR_PROJECT_HASH_LO"
+        },
+        {
+            "key": "PLR_SEAT"
         },
         {
             "key": "PLR_SPAWN_X"
@@ -965,6 +1105,12 @@
         ],
         "server_only": [
             {
+                "name": "PlayerAreaBndyTag",
+                "description": "PlayerAreaBndyTag - the figure stands on the rim of its loaded area",
+                "fields": [],
+                "file": "tag/player_area_bndy_tag.hpp"
+            },
+            {
                 "name": "PlayerBufPstComponent",
                 "description": "PlayerBufPstComponent - was von dieser Figur auf dem Weg in die Ablage ist",
                 "fields": [
@@ -1064,6 +1210,12 @@
                 "file": "tag/player_chnk_chgd_tag.hpp"
             },
             {
+                "name": "PlayerChrPndTag",
+                "description": "PlayerChrPndTag - the character of this answered spawn request was told to the star",
+                "fields": [],
+                "file": "tag/player_chr_pnd_tag.hpp"
+            },
+            {
                 "name": "PlayerDespPndTag",
                 "description": "PlayerDespPndTag - this player is due to be despawned",
                 "fields": [],
@@ -1083,31 +1235,25 @@
                         "name": "level",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "m - world height the area is levelled to"
-                    },
-                    {
-                        "name": "radius_m",
-                        "type": "float32",
-                        "default": "0.0f",
-                        "description": "m - radius of the area around its centre"
+                        "description": "m - TRN_FLAT_HGT, world height the plate is levelled to"
                     },
                     {
                         "name": "x",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "m - world centre of the area along the axis of PLR_POS_X"
+                        "description": "m - TRN_FLAT_X, world anchor of the plate along the axis of PLR_POS_X"
                     },
                     {
                         "name": "z",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "m - world centre of the area along the axis of PLR_POS_Y"
+                        "description": "m - TRN_FLAT_Z, world anchor of the plate along the axis of PLR_POS_Y"
                     },
                     {
                         "name": "plate",
                         "type": "uint32",
                         "default": "0",
-                        "description": "the area plate entity the disc belongs to (HUB_PLR_AREA_PLATE)"
+                        "description": "the area plate entity the anchor belongs to (HUB_PLR_AREA_PLATE)"
                     }
                 ],
                 "file": "input/player_inp_area_comp.hpp"
@@ -1136,6 +1282,37 @@
                     }
                 ],
                 "file": "input/player_inp_cmb_knbk_comp.hpp"
+            },
+            {
+                "name": "PlayerInpGrndComponent",
+                "description": "PlayerInpGrndComponent - the edges of the loaded ase-gis raster around a figure",
+                "fields": [
+                    {
+                        "name": "west",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - west edge of the loaded raster on the chunk row of the figure, along PLR_POS_X"
+                    },
+                    {
+                        "name": "east",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - east edge of the loaded raster on the same chunk row, along PLR_POS_X"
+                    },
+                    {
+                        "name": "south",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - south edge of the loaded raster on the chunk column of the figure, along PLR_POS_Y"
+                    },
+                    {
+                        "name": "north",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - north edge of the loaded raster on the same chunk column, along PLR_POS_Y"
+                    }
+                ],
+                "file": "input/player_inp_grnd_comp.hpp"
             },
             {
                 "name": "PlayerInpMigAckComponent",
@@ -1219,6 +1396,19 @@
                 "file": "tag/player_pst_dty_tag.hpp"
             },
             {
+                "name": "PlayerReqChrComponent",
+                "description": "PlayerReqChrComponent - the character a spawn request names for its figure",
+                "fields": [
+                    {
+                        "name": "character_hash",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "hash of the key of the character the figure plays"
+                    }
+                ],
+                "file": "request/player_req_chr_comp.hpp"
+            },
+            {
                 "name": "PlayerReqDespComponent",
                 "description": "Raised by the Integration layer, drained by the player lifecycle pass.",
                 "fields": [
@@ -1242,6 +1432,19 @@
                     }
                 ],
                 "file": "request/player_req_desp_res_comp.hpp"
+            },
+            {
+                "name": "PlayerReqSlotComponent",
+                "description": "PlayerReqSlotComponent - the seat a spawn request of the host names for its figure",
+                "fields": [
+                    {
+                        "name": "seat",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "seat of the device player (HUB_PLR_SPWN_SEAT); seat 0 is the host itself"
+                    }
+                ],
+                "file": "request/player_req_slot_comp.hpp"
             },
             {
                 "name": "PlayerReqSpwnComponent",
@@ -1313,6 +1516,12 @@
                 "file": "tag/player_sess_strt_tag.hpp"
             },
             {
+                "name": "PlayerSlotPndTag",
+                "description": "PlayerSlotPndTag - the seat of this answered spawn request was put on its figure",
+                "fields": [],
+                "file": "tag/player_slot_pnd_tag.hpp"
+            },
+            {
                 "name": "PlayerSpndTag",
                 "description": "PlayerSpndTag - this entity is a player that has actually entered the world",
                 "fields": [],
@@ -1373,6 +1582,19 @@
                     }
                 ],
                 "file": "state/player_sta_inp_mov_comp.hpp"
+            },
+            {
+                "name": "PlayerStaSlotComponent",
+                "description": "PlayerStaSlotComponent - the seat of the device player a figure belongs to",
+                "fields": [
+                    {
+                        "name": "seat",
+                        "type": "uint32",
+                        "default": "0",
+                        "description": "seat of the device player (HUB_PLR_SPWN_SEAT); seat 0 is the host itself"
+                    }
+                ],
+                "file": "state/player_sta_slot_comp.hpp"
             },
             {
                 "name": "PlayerStaStsComponent",
@@ -1496,6 +1718,10 @@
                 "file": "control/player_ctrl_turn_sys.hpp"
             },
             {
+                "name": "PlayerHubChrPubSystem",
+                "file": "hub/player_hub_chr_pub_sys.hpp"
+            },
+            {
                 "name": "PlayerHubMotnSystem",
                 "file": "hub/player_hub_motn_sys.hpp"
             },
@@ -1514,6 +1740,10 @@
             {
                 "name": "PlayerHubSessStrtSystem",
                 "file": "hub/player_hub_sess_strt_sys.hpp"
+            },
+            {
+                "name": "PlayerHubSlotPubSystem",
+                "file": "hub/player_hub_slot_pub_sys.hpp"
             },
             {
                 "name": "PlayerHubSpndSystem",

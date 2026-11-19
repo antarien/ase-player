@@ -13,7 +13,7 @@
  * @usecase     usecase:101557 - receive a spawn request
  * @actor       Player Presence Steward (PLAYPRESTE)
  * @created     2025-12-01
- * @modified    2026-10-31
+ * @modified    2026-11-19
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -245,12 +245,13 @@ constexpr float PLR_AC_TELEPORT_STEP_SQ = PLR_AC_TELEPORT_STEP * PLR_AC_TELEPORT
  * MOVEMENT RESTRICTION FROM COMBAT (PlayerCmbSynSystem, PlayerCtrlMovSystem, PlayerSimKnbkSystem)
  * The combat star lays slow, frost, stun and knockback per figure; the player module reads them into
  * PlayerInpCmbComponent and PlayerInpCmbKnbkComponent. A star flag carries 0 or 1, so it counts as set
- * from the half. Slow intensity and frost slow are fractions of the target speed in [0, 1].
+ * from the half. Slow intensity and frost slow are shares of the target speed; their range is the
+ * star's own, HUB_CONST_SHARE_MIN and HUB_CONST_SHARE_MAX, which PlayerCmbSynSystem reads every pass.
  */
 constexpr float PLR_CMB_FLAG_SET_MIN = 0.5f;  // A combat star flag at or above this counts as set
-constexpr float PLR_CMB_UNIT_MIN = 0.0f;      // Lower bound of slow intensity and frost slow
-constexpr float PLR_CMB_UNIT_MAX = 1.0f;      // Upper bound of slow intensity and frost slow
 constexpr float PLR_CMB_SCALE_FULL = 1.0f;    // Speed factor of a figure without restriction
+constexpr float PLR_CMB_SCALE_HELD = 0.0f;    // Speed factor of a figure a running stun holds in place
+constexpr float PLR_CMB_STUN_NONE = 0.0f;     // Stun seconds of a figure no stun holds (s)
 
 /**
  * ANTI-CHEAT ARCHETYPE AUTHORITIES (Phase 13 AP-3)
@@ -309,6 +310,8 @@ constexpr uint32_t PLR_SPW_SPEED_OFF        = 73u; // roam speed:f32 offset (0 =
 constexpr uint32_t PLR_SPW_RCV_BATCH_MAX    = 32u; // max spawn frames drained per tick (bounded)
 constexpr float    PLR_SPW_SPEED_NONE       = 0.0f;// speed value that means "no errand, just stand"
 constexpr const char* PLR_HUB_SPWN_SEAT_PREFIX = "seat-"; // player_id of a host entry (HUB_PLR_SPWN_REQ): this prefix, then the seat in decimal
+constexpr uint32_t PLR_HUB_SLOT_MIN         = 0u;        // lowest seat filed as PLR_SEAT; seat 0 is the host itself (range of PLR_SEAT in hub_metrics.json)
+constexpr uint32_t PLR_HUB_SLOT_LIMIT       = 16777216u; // first seat a float hub value no longer carries exactly (2^24, ARCH_ASE_CODEGEN_NET 7.6); PLR_SEAT stays below it
 
 /**
  * SESSION INDEX REGISTER (PlayerHubSessRegSystem)
@@ -328,16 +331,17 @@ constexpr uint32_t PLR_SESS_DIGIT_MAX       = 10u;  // decimal digits a uint32 s
 /**
  * THE AREA BOUNDARY (PlayerSimBndySystem, usecase:101612 - keep figure in loaded area)
  *
- * The radius is a value of the area (TRN_FLAT_RAD of the plate, PlayerInpAreaComponent); the module adds
- * only the margin the figure keeps from the rim, so the body never leans over the levelled edge.
+ * The edges are a value of the loaded ase-gis raster (HUB_GIS_GRND on the figure, PlayerInpGrndComponent); the
+ * module adds only the margin the figure keeps from a chunk border, so the body never leans over the loaded ground.
  */
-constexpr float PLR_AREA_EDGE_M             = 0.35f; // margin in metres the figure keeps from the rim of its area
+constexpr float PLR_AREA_EDGE_M             = 0.35f; // margin in metres the figure keeps from a border of the loaded raster
+constexpr float PLR_AREA_RIM_M              = 0.01f; // band in metres inside a border in which a figure stands on the rim
 
 /**
  * THE WALK FRAME (PlayerSimWalkSystem, usecase:101588 - move player figure over ground)
  *
- * A figure files its place with ase-physics relative to a frame (PlayerStaFrmComponent): the levelled disc of
- * its area plate, or the corner of a chunk when it walks unbound. An unbound frame is laid again when the
+ * A figure files its place with ase-physics relative to a frame (PlayerStaFrmComponent): the centre and level
+ * of its area plate, or the corner of a chunk when it walks unbound. An unbound frame is laid again when the
  * figure has walked this many chunks away from its corner on either axis, so the float place physics carries
  * stays within a few chunk edges of zero and keeps its precision.
  */

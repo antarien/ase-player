@@ -3,9 +3,9 @@
  *
  * @file        player_sim_bndy_sys.cpp
  * @brief       PlayerSimBndySystem - keeps every bound figure inside its loaded area
- * @description Pure calculation on the settled place: a figure beyond the circle of its area is set back onto
- *              it, loses the outward part of its horizontal velocity and asks for its walking body to be laid
- *              again at the bounded place.
+ * @description Pure calculation on the settled place: a figure beyond the chunk borders of the loaded ase-gis
+ *              raster around it is set back onto them, loses the outward part of its horizontal velocity and asks
+ *              for its walking body to be laid again at the bounded place.
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -15,7 +15,7 @@
  * @category    process/simulation
  * @schedule    Dynamics
  * @created     2026-11-13
- * @modified    2026-11-14
+ * @modified    2026-11-17
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -24,7 +24,7 @@
  *
  * CAUSAL CHAIN (PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.7, DoD 07-C: the figure stays in the area)
  *
- *   [PlayerAreaSynSystem laid the area of its plate on the figure: PlayerInpAreaComponent]
+ *   [PlayerAreaSynSystem laid the edges of the loaded raster on the figure: PlayerInpGrndComponent]
  *   [PlayerSimStndSystem took the place ase-physics stood the body on: PlayerStaPosComponent,
  *    PlayerStaVelComponent; PlayerCtrlMovSystem, Cht, Tlpt and Knbk moved it for this frame]
  *          │
@@ -32,9 +32,9 @@
  *   ┌────────────────────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerSimBndySystem                          │
  *   │                                                            │
- *   │  READS:  PlayerInpAreaComponent, PlayerInpChnkCnstComponent │
+ *   │  READS:  PlayerInpGrndComponent, PlayerInpChnkCnstComponent │
  *   │  WRITES: PlayerStaPosComponent, PlayerStaVelComponent,     │
- *   │          PlayerWalkRplcTag                                 │
+ *   │          PlayerWalkRplcTag, PlayerAreaBndyTag              │
  *   └────────────────────────────────────────────────────────────┘
  *          │
  *          ▼
@@ -45,17 +45,22 @@
  * spans the chunk grid with x and z and carries the height in y, so the second horizontal axis of the area is
  * the z axis of the place, the same swap PlayerSimWrldSystem makes.
  *
- * THE FLOOR IS NOT HERE. ase-physics stands the walking body on the plane above the levelled disc
- * (PhysicsGrndCalcSystem, PhysicsWalkCntcSystem) and answers with HUB_PHYS_STAND; this system bounds the
- * horizontal place only.
+ * THE FLOOR IS NOT HERE. ase-physics stands the walking body on the elevation cells ase-gis measured under it
+ * (PhysicsGrndCalcSystem asks them, PhysicsWalkCntcSystem holds the capsule against their quads) and answers with
+ * HUB_PHYS_STAND; this system bounds the horizontal place only.
  *
- * THE RIM IS A CIRCLE, NOT A WALL. The figure is set back along the line to the centre onto the circle of radius
- * radius_m less PLR_AREA_EDGE_M; only the outward part of the velocity goes, the part along the rim stays, so a
- * figure that runs against the rim slides along it. A radius not larger than the margin holds the figure on the
- * centre.
+ * THE RIM IS THE RASTER, NEVER A CIRCLE (usecase:101612, HUB_GIS_GRND). The figure is held inside the four chunk
+ * borders of the loaded elevation raster, each moved in by PLR_AREA_EDGE_M; every axis is set back on its own, and
+ * only the outward part of the velocity goes, so a figure that runs against a border slides along it. The edges
+ * move out when ase-gis loads a neighbouring chunk; ase-physics holds the walking body at the same borders
+ * (PhysicsWalkBndySystem).
  *
  * NO LINE PER FRAME. A figure pushing against the rim is set back in every frame; that is the normal state of the
  * area, so the step writes no log line. The arrival and the loss of the area are named by PlayerAreaSynSystem.
+ *
+ * THE RIM STATE IS A TAG. PlayerAreaBndyTag stands on the figure in every frame it is set back and goes in the
+ * frame it stands inside again; PlayerHubMotnSystem publishes it as HUB_PLR_MOTN_BNDY, and the drawing host
+ * shows the line RAND DES AREALS of the mockup (07-G, cam.bound) and logs its edge.
  *
  * HUB Pattern (ARCH_ASE_HUB_API v2.0)
  *
@@ -155,10 +160,11 @@
 // Own header FIRST
 #include <ase/player/systems/simulation/player_sim_bndy_sys.hpp>
 // Components from same module
-#include <ase/player/components/input/player_inp_area_comp.hpp>
 #include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
+#include <ase/player/components/input/player_inp_grnd_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/tag/player_area_bndy_tag.hpp>
 #include <ase/player/components/tag/player_mgr_tag.hpp>
 #include <ase/player/components/tag/player_walk_rplc_tag.hpp>
 // types.hpp for the margin the figure keeps from the rim
@@ -208,37 +214,50 @@ void PlayerSimBndySystem::tick(ecs::Registry& registry, float /*dt*/) {
     }
 
     /**
-     * PASS: every figure with an area. The view carries no type the loop adds or removes.
+     * PASS: every figure with the edges of its loaded raster. The view carries no type the loop adds or removes.
      */
-    for (auto [figure, area, pos, vel] :
-         registry.view<PlayerInpAreaComponent, PlayerStaPosComponent, PlayerStaVelComponent>().each()) {
+    for (auto [figure, grnd, pos, vel] :
+         registry.view<PlayerInpGrndComponent, PlayerStaPosComponent, PlayerStaVelComponent>().each()) {
         /**
-         * STEP 1: The world place on the two horizontal axes and its offset from the centre of the area.
+         * STEP 1: The world place on the two horizontal axes, and the box the figure may stand in: the four chunk
+         * borders of the loaded raster, each moved in by PLR_AREA_EDGE_M. A raster narrower than twice the margin
+         * holds the figure on the middle line of that axis.
          */
         const float world_x = static_cast<float>(pos.chunk_x) * chunk_size + pos.local_x;
         const float world_z = static_cast<float>(pos.chunk_z) * chunk_size + pos.local_z;
-        const float off_x = world_x - area.x;
-        const float off_z = world_z - area.z;
-        const float distance = math::sqrt(off_x * off_x + off_z * off_z);
+        const float mid_x = (grnd.west + grnd.east) * 0.5f;
+        const float mid_z = (grnd.south + grnd.north) * 0.5f;
+        const float min_x = math::min(grnd.west + PLR_AREA_EDGE_M, mid_x);
+        const float max_x = math::max(grnd.east - PLR_AREA_EDGE_M, mid_x);
+        const float min_z = math::min(grnd.south + PLR_AREA_EDGE_M, mid_z);
+        const float max_z = math::max(grnd.north - PLR_AREA_EDGE_M, mid_z);
 
         /**
-         * STEP 2: Inside the circle the figure walks free.
+         * STEP 2: Inside the box the figure walks free. A figure this system set onto an edge stands ON it in the
+         * next frame, a rounding step to either side: within PLR_AREA_RIM_M of an edge it is on the rim, the rim
+         * state holds and nothing is set back. Without that band the state stood for the one frame of the set-back
+         * and fell before the drawing host read it (measured 2026-11-17, case 07-G of the adapter test).
          */
-        const float limit = math::max(area.radius_m - PLR_AREA_EDGE_M, 0.0f);
-        if (distance <= limit) {
+        const bool inside_x = world_x >= min_x && world_x <= max_x;
+        const bool inside_z = world_z >= min_z && world_z <= max_z;
+        const bool free_x = world_x > min_x + PLR_AREA_RIM_M && world_x < max_x - PLR_AREA_RIM_M;
+        const bool free_z = world_z > min_z + PLR_AREA_RIM_M && world_z < max_z - PLR_AREA_RIM_M;
+        if (free_x && free_z) {
+            registry.remove<PlayerAreaBndyTag>(figure);  // inside again: the rim state of this frame is off
+            continue;
+        }
+        if (inside_x && inside_z) {
+            registry.emplace_or_replace<PlayerAreaBndyTag>(figure);  // standing on an edge: the rim state holds
             continue;
         }
 
         /**
-         * STEP 3: Set the place back onto the circle along the line to the centre, then write chunk address and
-         * local metres back from the world place, so the local metres stay inside [0, edge). The body ase-physics
-         * walks has to be laid again at the bounded place: PlayerWalkRplcTag asks PlayerSimWalkSystem for a new
-         * placement.
+         * STEP 3: Set the place back onto the box, each axis on its own, then write chunk address and local metres
+         * back from the world place, so the local metres stay inside [0, edge). The body ase-physics walks has to be
+         * laid again at the bounded place: PlayerWalkRplcTag asks PlayerSimWalkSystem for a new placement.
          */
-        const float dir_x = off_x / distance;
-        const float dir_z = off_z / distance;
-        const float bound_x = area.x + dir_x * limit;
-        const float bound_z = area.z + dir_z * limit;
+        const float bound_x = math::clamp(world_x, min_x, max_x);
+        const float bound_z = math::clamp(world_z, min_z, max_z);
         const float cell_x = math::floor(bound_x / chunk_size);
         const float cell_z = math::floor(bound_z / chunk_size);
         pos.chunk_x = static_cast<int32_t>(cell_x);
@@ -246,14 +265,19 @@ void PlayerSimBndySystem::tick(ecs::Registry& registry, float /*dt*/) {
         pos.local_x = bound_x - cell_x * chunk_size;
         pos.local_z = bound_z - cell_z * chunk_size;
         registry.emplace_or_replace<PlayerWalkRplcTag>(figure);
+        registry.emplace_or_replace<PlayerAreaBndyTag>(figure);  // the rim state, published as HUB_PLR_MOTN_BNDY
 
         /**
-         * STEP 4: Take away the outward part of the horizontal velocity; the part along the rim stays.
+         * STEP 4: Take away the outward part of the horizontal velocity on each axis the figure crossed; the part
+         * along the edge stays, so a figure that runs against a chunk border slides along it.
          */
-        const float outward = vel.vx * dir_x + vel.vz * dir_z;
-        if (types::is_pos_float(outward)) {
-            vel.vx -= dir_x * outward;
-            vel.vz -= dir_z * outward;
+        const float out_x = (world_x > max_x) ? vel.vx : -vel.vx;
+        if (!inside_x && types::is_pos_float(out_x)) {
+            vel.vx = 0.0f;
+        }
+        const float out_z = (world_z > max_z) ? vel.vz : -vel.vz;
+        if (!inside_z && types::is_pos_float(out_z)) {
+            vel.vz = 0.0f;
         }
     }
 }

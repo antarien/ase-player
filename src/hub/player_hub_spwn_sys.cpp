@@ -161,6 +161,8 @@
 // Own header FIRST
 #include <ase/player/systems/hub/player_hub_spwn_sys.hpp>
 // Components from same module
+#include <ase/player/components/request/player_req_chr_comp.hpp>
+#include <ase/player/components/request/player_req_slot_comp.hpp>
 #include <ase/player/components/request/player_req_spwn_comp.hpp>
 #include <ase/player/components/request/player_req_spwn_res_comp.hpp>
 #include <ase/player/components/tag/player_spwn_hub_tag.hpp>
@@ -249,6 +251,17 @@ void PlayerHubSpwnSystem::tick(ecs::Registry& registry, float dt) {
         request.x = x;
         request.z = z;
         registry.emplace<PlayerSpwnHubTag>(request_entity);
+
+        // The seat rides beside the request as a number: PlayerHubSlotPubSystem puts it on the figure the
+        // answer names and files it as PLR_SEAT, the identity of the figure's last state (D2467).
+        registry.emplace<PlayerReqSlotComponent>(request_entity).seat = seat;
+
+        // The character the host named for the figure. A row without the field names none, and the
+        // request then carries no character row; PlayerHubChrPubSystem reads only requests with one.
+        uint32_t character_hash = 0u;
+        if (hub::try_get_u32(registry, row_id, "HUB_PLR_SPWN_CHAR"_hs, character_hash)) {
+            registry.emplace<PlayerReqChrComponent>(request_entity).character_hash = character_hash;
+        }
 
         log::info("[PlayerHubSpwnSystem] host spawn request filed (player_id={} x={} z={})",
                   request.player_id, request.x, request.z);

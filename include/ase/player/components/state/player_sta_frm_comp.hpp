@@ -7,7 +7,7 @@
  * @brief       PlayerStaFrmComponent - the origin and level a walking figure files its place from
  * @description The frame of a figure that walks as a body of ase-physics: its place on the row HUB_PHYS_WALK
  *              is measured from this origin and above this level. A figure bound to an area plate walks in
- *              the frame of that plate (the centre of its levelled disc and its level); a figure bound to no
+ *              the frame of that plate (its centre and its level); a figure bound to no
  *              plate walks in the frame of a chunk corner at level 0. The origin is held chunk-relative, like
  *              PlayerStaPosComponent, so no world coordinate grows beyond what a float carries.
  *

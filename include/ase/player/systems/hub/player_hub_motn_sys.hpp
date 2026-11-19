@@ -18,7 +18,7 @@
  * @schedule    Dynamics
  * @parity      server_only
  * @created     2026-11-13
- * @modified    2026-11-13
+ * @modified    2026-11-17
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -56,10 +56,11 @@ namespace ase::player {
  * @schedule Dynamics - after PlayerStaGaitSystem, so the mark states the gait of this frame, and after
  *           PlayerHubSpndSystem, so the figure is on the roster in the same pass.
  * @reads    PlayerSpndTag, PlayerStaYawComponent, PlayerStaVelComponent, PlayerGaitStndTag,
- *           PlayerGaitWalkTag, PlayerGaitRunTag
+ *           PlayerGaitWalkTag, PlayerGaitRunTag, PlayerAreaBndyTag
  * @writes   hub row kind HUB_PLR_MOTN (hub::row_adopt, idempotent), its fields HUB_PLR_MOTN_YAW,
- *           HUB_PLR_MOTN_VEL_X, HUB_PLR_MOTN_VEL_Y (hub::set_f64) and its marks HUB_PLR_GAIT_STND,
- *           HUB_PLR_GAIT_WALK, HUB_PLR_GAIT_RUN (hub::row_tag, hub::row_untag)
+ *           HUB_PLR_MOTN_VEL_X, HUB_PLR_MOTN_VEL_Y (hub::set_f64), its marks HUB_PLR_GAIT_STND,
+ *           HUB_PLR_GAIT_WALK, HUB_PLR_GAIT_RUN and the rim mark HUB_PLR_MOTN_BNDY while
+ *           PlayerAreaBndyTag stands (hub::row_tag, hub::row_untag)
  */
 class PlayerHubMotnSystem : public ecs::System {
 public:

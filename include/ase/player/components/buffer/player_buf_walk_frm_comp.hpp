@@ -7,8 +7,9 @@
  * @brief       PlayerBufWalkFrmComponent - the world origin of the frame a figure files its step in
  * @description Bridge component: the frame origin of a walking figure in world metres, settled by
  *              PlayerSimWalkSystem from the chunk-relative frame (PlayerStaFrmComponent) and the chunk edge,
- *              written onto the row HUB_PHYS_WALK by PlayerHubWalkSystem. ase-physics lays it as the disc of a
- *              figure bound to no plate, so the terrain it orders lies under the figure's world place.
+ *              written onto the row HUB_PHYS_WALK by PlayerHubWalkSystem. ase-physics asks the elevation cells
+ *              of ase-gis at this origin plus the figure's place, so the terrain it meets lies under the figure's
+ *              world place.
  *
  *              buf = buffer, walk = walk, frm = frame
  *

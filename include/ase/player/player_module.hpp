@@ -52,6 +52,8 @@
 #include <ase/player/systems/hub/player_hub_sess_reg_sys.hpp>
 #include <ase/player/systems/hub/player_hub_sess_strt_sys.hpp>
 #include <ase/player/systems/hub/player_hub_spnd_sys.hpp>
+#include <ase/player/systems/hub/player_hub_chr_pub_sys.hpp>
+#include <ase/player/systems/hub/player_hub_slot_pub_sys.hpp>
 #include <ase/player/systems/hub/player_hub_spwn_sys.hpp>
 #include <ase/player/systems/hub/player_hub_turn_sys.hpp>
 #include <ase/player/systems/hub/player_hub_motn_sys.hpp>
@@ -144,8 +146,9 @@ struct PlayerModule {
         app.add_system<PlayerCmbSynSystem>(ecs::Schedule::Ingestion);
 
         /**
-         * The loaded area of its plate (row HUB_PLR_AREA, disc TRN_FLAT_*) onto every bound figure;
-         * PlayerSimBndySystem reads it in Dynamics without touching the Hub (07.7).
+         * The anchor of its plate (row HUB_PLR_AREA, TRN_FLAT_HGT/_X/_Z of ase-terrain) and the edges of its loaded
+         * raster (HUB_GIS_GRND of ase-gis) onto every bound figure; PlayerSimBndySystem reads the edges in Dynamics
+         * without touching the Hub (07.7).
          */
         app.add_system<PlayerAreaSynSystem>(ecs::Schedule::Ingestion);
 
@@ -174,6 +177,22 @@ struct PlayerModule {
          * eine zugewanderte Figur kommt in Reception und steht damit schon davor.
          */
         app.add_system_with<PlayerHubSpndSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerLifeSpwnSystem");
+
+        /**
+         * THE CHARACTER OF A NEW FIGURE. PlayerHubChrPubSystem files one row of kind HUB_CRT_CHR
+         * for every spawn request that names a character and was answered with a figure in THIS
+         * tick; ase-creation takes the row and files the genome and the start values.
+         */
+        app.add_system_with<PlayerHubChrPubSystem>(ecs::Schedule::Dynamics)
+            .run_after("PlayerLifeSpwnSystem");
+
+        /**
+         * THE SEAT OF A NEW FIGURE (D2467). PlayerHubSlotPubSystem lays PlayerStaSlotComponent on
+         * every figure a host spawn request brought into being in THIS tick and files PLR_SEAT on
+         * it; ase-hub keys the restore of the figure's last state on that seat.
+         */
+        app.add_system_with<PlayerHubSlotPubSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerLifeSpwnSystem");
 
         // "TerrainChkSystem", NOT "TerrainChunkSystem" — the name here is the RUNTIME name a
@@ -258,7 +277,7 @@ struct PlayerModule {
         app.add_system_with<PlayerHubRoamSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimRestSystem");
 
-        // The area keeps the figure inside its loaded disc (07.7). It runs after every system that sets
+        // The area keeps the figure inside the chunk borders of its loaded raster (07.7). It runs after every system that sets
         // place or velocity in this frame and before every reader of them: status, gait, chunk stamp and
         // the filed step see the bounded values of this frame.
         app.add_system_with<PlayerSimBndySystem>(ecs::Schedule::Dynamics)

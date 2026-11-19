@@ -13,7 +13,7 @@
  * @category    hub
  * @schedule    Dynamics
  * @created     2026-11-13
- * @modified    2026-11-13
+ * @modified    2026-11-17
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -76,6 +76,7 @@
  *   row kind HUB_PLR_MOTN → hub::row_adopt onto the figure entity, idempotent
  *   fields HUB_PLR_MOTN_YAW, HUB_PLR_MOTN_VEL_X, HUB_PLR_MOTN_VEL_Y → hub::set_f64
  *   marks HUB_PLR_GAIT_STND, HUB_PLR_GAIT_WALK, HUB_PLR_GAIT_RUN → hub::row_tag, hub::row_untag
+ *   mark HUB_PLR_MOTN_BNDY while PlayerAreaBndyTag stands (the rim state, 07-G) → hub::row_tag, hub::row_untag
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -174,6 +175,7 @@
 #include <ase/player/components/tag/player_gait_stnd_tag.hpp>
 #include <ase/player/components/tag/player_gait_walk_tag.hpp>
 #include <ase/player/components/tag/player_gait_run_tag.hpp>
+#include <ase/player/components/tag/player_area_bndy_tag.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
 // Hub for the row API
@@ -248,6 +250,22 @@ void PlayerHubMotnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         hub::row_untag(registry, figure, "HUB_PLR_GAIT_STND"_hs);
         hub::row_untag(registry, figure, "HUB_PLR_GAIT_WALK"_hs);
         hub::row_tag(registry, figure, "HUB_PLR_GAIT_RUN"_hs);
+    }
+
+    /**
+     * STEP 5: The rim state as its own mark - the figure PlayerSimBndySystem set back onto the circle of its area
+     */
+    for (auto figure : registry.view<PlayerSpndTag, PlayerAreaBndyTag>()) {
+        hub::row_adopt(registry, figure, "HUB_PLR_MOTN"_hs);
+        hub::row_tag(registry, figure, "HUB_PLR_MOTN_BNDY"_hs);
+    }
+
+    /**
+     * STEP 6: The figure inside its area, or without one, carries no rim mark
+     */
+    for (auto figure : registry.view<PlayerSpndTag>(entt::exclude<PlayerAreaBndyTag>)) {
+        hub::row_adopt(registry, figure, "HUB_PLR_MOTN"_hs);
+        hub::row_untag(registry, figure, "HUB_PLR_MOTN_BNDY"_hs);
     }
 }
 

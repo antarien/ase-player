@@ -62,6 +62,9 @@
 #include <ase/player/systems/sync/player_area_syn_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_bndy_sys.hpp>
 #include <ase/player/components/input/player_inp_area_comp.hpp>
+#include <ase/player/components/input/player_inp_grnd_comp.hpp>
+#include <ase/player/components/state/player_sta_wrld_comp.hpp>
+#include <ase/player/components/tag/player_area_bndy_tag.hpp>
 // The chunk edge of the terrain protocol, laid on the manager row by its sync system
 #include <ase/player/systems/sync/player_chnk_cnst_syn_sys.hpp>
 #include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
@@ -83,6 +86,12 @@
 #include <ase/player/components/input/player_inp_watr_comp.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/tag/player_stnd_watr_tag.hpp>
+// The seat of a new figure (usecase:101637, D2467)
+#include <ase/player/systems/hub/player_hub_slot_pub_sys.hpp>
+#include <ase/player/components/request/player_req_slot_comp.hpp>
+#include <ase/player/components/request/player_req_spwn_res_comp.hpp>
+#include <ase/player/components/state/player_sta_slot_comp.hpp>
+#include <ase/player/components/tag/player_slot_pnd_tag.hpp>
 #include <ase/math/math.hpp>
 #include <ase/hub/api.hpp>
 #include <entt/core/hashed_string.hpp>
@@ -689,73 +698,127 @@ TEST_CASE("the motion row states course, horizontal velocity and exactly one gai
     CHECK_FALSE(hub::row_has(registry, stranger, "HUB_PLR_MOTN"_hs));
 }
 
-TEST_CASE("the area of a figure is the measured disc of its plate, and an unmeasured disc is no area") {
+TEST_CASE("a bound figure reads the anchor on its plate and the raster edges on itself, and no answer is no area") {
+    // usecase:101612 - keep figure in loaded area. The anchor stands on the plate of the binding (TRN_FLAT_HGT,
+    // TRN_FLAT_X, TRN_FLAT_Z of ase-terrain; B0447: several plates in one 32 m chunk never mix), the edges of the
+    // walk stand on the figure as the answer ase-gis gives ase-physics (row HUB_GIS_GRND, CAUSA_ASE_GIS B0541).
     using namespace entt::literals;
     ase::ecs::Registry registry;
     auto figure = registry.create();
     registry.emplace<PlayerSpndTag>(figure);
+    auto& wrld = registry.emplace<PlayerStaWrldComponent>(figure);
+    wrld.x = -3.0f;
+    wrld.y = 6.0f;
+    wrld.z = 1.5f;
     const uint32_t figure_id = static_cast<uint32_t>(figure);
     auto plate = registry.create();
     const uint32_t plate_id = static_cast<uint32_t>(plate);
     PlayerAreaSynSystem area_sync;
 
-    // The levelled disc ase-terrain wrote under the plate.
-    hub::set(registry, plate_id, "TRN_FLAT_HGT"_hs, 1.5f);
-    hub::set(registry, plate_id, "TRN_FLAT_RAD"_hs, 12.0f);
-    hub::set(registry, plate_id, "TRN_FLAT_X"_hs, -4.0f);
-    hub::set(registry, plate_id, "TRN_FLAT_Z"_hs, 7.0f);
-
     // RED when: a figure that nobody bound to a plate walks bounded.
     area_sync.tick(registry, 0.0f);
     CHECK_FALSE(registry.all_of<PlayerInpAreaComponent>(figure));
+    CHECK_FALSE(registry.all_of<PlayerInpGrndComponent>(figure));
 
     // The binding as ase-pl-avatar files it from the host port avatar.area.v1: the plate field first,
     // the kind last.
     hub::set_u32(registry, figure_id, "HUB_PLR_AREA_PLATE"_hs, plate_id);
     hub::row_tag(registry, figure, "HUB_PLR_AREA"_hs);
     area_sync.tick(registry, 0.0f);
+
+    // RED when: a plate whose anchor ase-terrain has not filed yet passes as an area.
+    CHECK_FALSE(registry.all_of<PlayerInpAreaComponent>(figure));
+
+    // The anchor as TerrainHubFlatPubSystem files it on the plate itself.
+    hub::set(registry, plate_id, "TRN_FLAT_HGT"_hs, 1.5f);
+    hub::set(registry, plate_id, "TRN_FLAT_X"_hs, -4.0f);
+    hub::set(registry, plate_id, "TRN_FLAT_Z"_hs, 7.0f);
+    area_sync.tick(registry, 0.0f);
     REQUIRE(registry.all_of<PlayerInpAreaComponent>(figure));
     const auto& bound = registry.get<PlayerInpAreaComponent>(figure);
     CHECK(bound.level == doctest::Approx(1.5f));
-    CHECK(bound.radius_m == doctest::Approx(12.0f));
     CHECK(bound.x == doctest::Approx(-4.0f));
     CHECK(bound.z == doctest::Approx(7.0f));
+    CHECK(bound.plate == plate_id);
 
-    // RED when: the area keeps last pass's edge after the disc lost its measurement.
-    hub::remove(registry, plate_id, "TRN_FLAT_RAD"_hs);
+    // RED when: an anchor without a raster answer bounds the walk - the bound is the raster, never the anchor.
+    CHECK_FALSE(registry.all_of<PlayerInpGrndComponent>(figure));
+
+    // The answer of ase-gis on the figure: the chunk borders of the loaded raster around it.
+    hub::row_adopt(registry, figure, "HUB_GIS_GRND"_hs);
+    hub::set_f32(registry, figure_id, "HUB_GIS_GRND_WEST"_hs, -32.0f);
+    hub::set_f32(registry, figure_id, "HUB_GIS_GRND_EAST"_hs, 32.0f);
+    hub::set_f32(registry, figure_id, "HUB_GIS_GRND_SOUTH"_hs, 0.0f);
+    hub::set_f32(registry, figure_id, "HUB_GIS_GRND_NORTH"_hs, 64.0f);
+    area_sync.tick(registry, 0.0f);
+    REQUIRE(registry.all_of<PlayerInpGrndComponent>(figure));
+    const auto& edges = registry.get<PlayerInpGrndComponent>(figure);
+    CHECK(edges.west == doctest::Approx(-32.0f));
+    CHECK(edges.east == doctest::Approx(32.0f));
+    CHECK(edges.south == doctest::Approx(0.0f));
+    CHECK(edges.north == doctest::Approx(64.0f));
+
+    // RED when: the edges keep last pass's values after ase-gis withdrew its answer.
+    hub::row_withdraw(registry, figure, "HUB_GIS_GRND"_hs);
+    area_sync.tick(registry, 0.0f);
+    CHECK_FALSE(registry.all_of<PlayerInpGrndComponent>(figure));
+    CHECK(registry.all_of<PlayerInpAreaComponent>(figure));
+
+    // RED when: an answer missing a field passes as a bound. A row field is taken away with remove_field;
+    // hub::remove takes a value of the star and leaves the field of the answer row standing.
+    hub::row_adopt(registry, figure, "HUB_GIS_GRND"_hs);
+    hub::set_f32(registry, figure_id, "HUB_GIS_GRND_WEST"_hs, -32.0f);
+    hub::set_f32(registry, figure_id, "HUB_GIS_GRND_EAST"_hs, 32.0f);
+    hub::set_f32(registry, figure_id, "HUB_GIS_GRND_SOUTH"_hs, 0.0f);
+    hub::set_f32(registry, figure_id, "HUB_GIS_GRND_NORTH"_hs, 64.0f);
+    area_sync.tick(registry, 0.0f);
+    REQUIRE(registry.all_of<PlayerInpGrndComponent>(figure));
+    REQUIRE(hub::remove_field(registry, figure_id, "HUB_GIS_GRND_WEST"_hs));
+    area_sync.tick(registry, 0.0f);
+    CHECK_FALSE(registry.all_of<PlayerInpGrndComponent>(figure));
+
+    // RED when: the anchor of an earlier plate stays after the binding moved to a plate without an anchor.
+    auto next_plate = registry.create();
+    hub::set_u32(registry, figure_id, "HUB_PLR_AREA_PLATE"_hs, static_cast<uint32_t>(next_plate));
     area_sync.tick(registry, 0.0f);
     CHECK_FALSE(registry.all_of<PlayerInpAreaComponent>(figure));
-
-    // RED when: a radius of zero passes as an area - the figure would be held on the centre point.
-    hub::set(registry, plate_id, "TRN_FLAT_RAD"_hs, 0.0f);
+    hub::set_u32(registry, figure_id, "HUB_PLR_AREA_PLATE"_hs, plate_id);
     area_sync.tick(registry, 0.0f);
-    CHECK_FALSE(registry.all_of<PlayerInpAreaComponent>(figure));
+    CHECK(registry.all_of<PlayerInpAreaComponent>(figure));
 
     // RED when: an entity without PlayerSpndTag gets an area - it is no figure of the roster.
     auto stranger = registry.create();
+    registry.emplace<PlayerStaWrldComponent>(stranger);
     hub::set_u32(registry, static_cast<uint32_t>(stranger), "HUB_PLR_AREA_PLATE"_hs, plate_id);
     hub::row_tag(registry, stranger, "HUB_PLR_AREA"_hs);
-    hub::set(registry, plate_id, "TRN_FLAT_RAD"_hs, 12.0f);
     area_sync.tick(registry, 0.0f);
-    CHECK(registry.all_of<PlayerInpAreaComponent>(figure));
     CHECK_FALSE(registry.all_of<PlayerInpAreaComponent>(stranger));
+
+    // RED when: anchor or edges outlive the binding.
+    hub::row_untag(registry, figure, "HUB_PLR_AREA"_hs);
+    area_sync.tick(registry, 0.0f);
+    CHECK_FALSE(registry.all_of<PlayerInpAreaComponent>(figure));
+    CHECK_FALSE(registry.all_of<PlayerInpGrndComponent>(figure));
+    CHECK(registry.valid(figure));
 }
 
-TEST_CASE("the rim sets a figure back onto the circle of its area and takes only the outward velocity") {
+TEST_CASE("the rim sets a figure back inside the chunk borders of its loaded raster and takes only the outward velocity") {
+    // usecase:101612 - keep figure in loaded area. The bound is the rim of the loaded chunks, never a circle
+    // around the body (CAUSA_ASE_GIS B0541): each axis is held on its own between two chunk borders.
     ase::ecs::Registry registry;
     lay_chunk_edge(registry);
     auto figure = registry.create();
-    auto& area = registry.emplace<PlayerInpAreaComponent>(figure);
+    auto& grnd = registry.emplace<PlayerInpGrndComponent>(figure);
     auto& pos = registry.emplace<PlayerStaPosComponent>(figure);
     auto& vel = registry.emplace<PlayerStaVelComponent>(figure);
     registry.emplace<PlayerStaPhysComponent>(figure);
-    area.radius_m = 10.0f;
-    area.x = 5.0f;
-    area.z = 5.0f;
-    const float limit = area.radius_m - PLR_AREA_EDGE_M;
+    grnd.west = 0.0f;
+    grnd.east = TEST_CHUNK_EDGE_M;
+    grnd.south = 0.0f;
+    grnd.north = TEST_CHUNK_EDGE_M;
     PlayerSimBndySystem rim;
 
-    // Inside the circle the figure walks free: place and velocity stay as they are.
+    // Inside the borders the figure walks free: place and velocity stay as they are.
     pos.chunk_x = 0;
     pos.local_x = 6.0f;
     pos.chunk_z = 0;
@@ -766,13 +829,13 @@ TEST_CASE("the rim sets a figure back onto the circle of its area and takes only
     CHECK(pos.local_x == doctest::Approx(6.0f));
     CHECK(vel.vx == doctest::Approx(3.0f));
 
-    // World place (40, 5) lies 35 m east of the centre: set back onto the circle, carried back into the
+    // World place (40, 5) lies beyond the east border: set back onto it, less the margin, carried back into the
     // chunk that holds it. RED when the chunk address keeps the old cell or the local metres leave [0, edge).
     pos.chunk_x = 1;
     pos.local_x = 8.0f;
     rim.tick(registry, 0.0f);
     CHECK(pos.chunk_x == 0);
-    CHECK(pos.local_x == doctest::Approx(5.0f + limit));
+    CHECK(pos.local_x == doctest::Approx(TEST_CHUNK_EDGE_M - PLR_AREA_EDGE_M));
     CHECK(pos.chunk_z == 0);
     CHECK(pos.local_z == doctest::Approx(5.0f));
     // RED when: the whole velocity goes - the figure would stick to the rim instead of sliding along it.
@@ -786,21 +849,22 @@ TEST_CASE("the rim sets a figure back onto the circle of its area and takes only
     rim.tick(registry, 0.0f);
     CHECK(vel.vx == doctest::Approx(-2.0f));
 
-    // West of a centre below zero: the bounded place lies in chunk -1. RED when the cell is truncated
+    // A raster loaded west of zero: the bounded place lies in chunk -1. RED when the cell is truncated
     // towards zero instead of floored.
-    area.x = -3.0f;
-    area.z = 0.0f;
-    pos.chunk_x = -1;
-    pos.local_x = 2.0f;
+    grnd.west = -TEST_CHUNK_EDGE_M;
+    grnd.east = 0.0f;
+    pos.chunk_x = -2;
+    pos.local_x = 10.0f;
     pos.chunk_z = 0;
-    pos.local_z = 0.0f;
+    pos.local_z = 5.0f;
     rim.tick(registry, 0.0f);
     CHECK(pos.chunk_x == -1);
-    CHECK(pos.local_x == doctest::Approx(TEST_CHUNK_EDGE_M - 3.0f - limit));
+    CHECK(pos.local_x == doctest::Approx(PLR_AREA_EDGE_M));
     CHECK(pos.local_x >= 0.0f);
     CHECK(pos.local_x < TEST_CHUNK_EDGE_M);
+    CHECK(pos.local_z == doctest::Approx(5.0f));
 
-    // RED when: a figure without an area is bounded - the radius is a value of the area, never of the module.
+    // RED when: a figure without raster edges is bounded - the bound is a value of the raster, never of the module.
     auto free_walker = registry.create();
     auto& free_pos = registry.emplace<PlayerStaPosComponent>(free_walker);
     registry.emplace<PlayerStaVelComponent>(free_walker);
@@ -809,6 +873,65 @@ TEST_CASE("the rim sets a figure back onto the circle of its area and takes only
     rim.tick(registry, 0.0f);
     CHECK(free_pos.chunk_x == 9);
     CHECK(free_pos.local_x == doctest::Approx(1.0f));
+}
+
+TEST_CASE("the rim state stands on the figure while it is set back and reaches the star as HUB_PLR_MOTN_BNDY") {
+    using namespace entt::literals;
+    ase::ecs::Registry registry;
+    lay_chunk_edge(registry);
+    auto figure = registry.create();
+    registry.emplace<PlayerSpndTag>(figure);
+    registry.emplace<PlayerStaYawComponent>(figure);
+    registry.emplace<PlayerInpAreaComponent>(figure);
+    auto& grnd = registry.emplace<PlayerInpGrndComponent>(figure);
+    auto& pos = registry.emplace<PlayerStaPosComponent>(figure);
+    registry.emplace<PlayerStaVelComponent>(figure);
+    registry.emplace<PlayerStaPhysComponent>(figure);
+    grnd.west = 0.0f;
+    grnd.east = TEST_CHUNK_EDGE_M;
+    grnd.south = 0.0f;
+    grnd.north = TEST_CHUNK_EDGE_M;
+    PlayerSimBndySystem rim;
+    PlayerHubMotnSystem motion;
+
+    // Inside the borders: no rim state, no mark.
+    pos.chunk_x = 0;
+    pos.local_x = 6.0f;
+    pos.local_z = 5.0f;
+    rim.tick(registry, 0.0f);
+    motion.tick(registry, 0.0f);
+    CHECK_FALSE(registry.all_of<PlayerAreaBndyTag>(figure));
+    CHECK_FALSE(hub::row_has(registry, figure, "HUB_PLR_MOTN_BNDY"_hs));
+
+    // RED when: the figure is set back without a rim state - the host could never write RAND DES AREALS.
+    pos.chunk_x = 1;
+    pos.local_x = 8.0f;
+    rim.tick(registry, 0.0f);
+    motion.tick(registry, 0.0f);
+    CHECK(registry.all_of<PlayerAreaBndyTag>(figure));
+    CHECK(hub::row_has(registry, figure, "HUB_PLR_MOTN_BNDY"_hs));
+
+    // RED when: the mark stays after the figure walked back inside - the line would stand for good.
+    pos.chunk_x = 0;
+    pos.local_x = 6.0f;
+    rim.tick(registry, 0.0f);
+    motion.tick(registry, 0.0f);
+    CHECK_FALSE(registry.all_of<PlayerAreaBndyTag>(figure));
+    CHECK_FALSE(hub::row_has(registry, figure, "HUB_PLR_MOTN_BNDY"_hs));
+
+    // RED when: a figure that loses its area keeps the rim state of an earlier frame. PlayerAreaSynSystem takes
+    // all off together: the figure was never bound to a plate (no row HUB_PLR_AREA).
+    pos.chunk_x = 1;
+    pos.local_x = 8.0f;
+    rim.tick(registry, 0.0f);
+    REQUIRE(registry.all_of<PlayerAreaBndyTag>(figure));
+    PlayerAreaSynSystem area_sync;
+    area_sync.tick(registry, 0.0f);
+    motion.tick(registry, 0.0f);
+    CHECK_FALSE(registry.all_of<PlayerInpAreaComponent>(figure));
+    CHECK_FALSE(registry.all_of<PlayerInpGrndComponent>(figure));
+    CHECK_FALSE(registry.all_of<PlayerAreaBndyTag>(figure));
+    CHECK_FALSE(hub::row_has(registry, figure, "HUB_PLR_MOTN_BNDY"_hs));
 }
 
 TEST_CASE("the area bounds the place only: height, fall and ground contact stay as ase-physics left them") {
@@ -820,13 +943,17 @@ TEST_CASE("the area bounds the place only: height, fall and ground contact stay 
     lay_chunk_edge(registry);
     auto figure = registry.create();
     auto& area = registry.emplace<PlayerInpAreaComponent>(figure);
+    auto& grnd = registry.emplace<PlayerInpGrndComponent>(figure);
     auto& pos = registry.emplace<PlayerStaPosComponent>(figure);
     auto& vel = registry.emplace<PlayerStaVelComponent>(figure);
     auto& physics = registry.emplace<PlayerStaPhysComponent>(figure);
     area.level = 12.0f;
-    area.radius_m = 10.0f;
     area.x = 5.0f;
     area.z = 5.0f;
+    grnd.west = 0.0f;
+    grnd.east = TEST_CHUNK_EDGE_M;
+    grnd.south = 0.0f;
+    grnd.north = TEST_CHUNK_EDGE_M;
     pos.local_x = 5.0f;
     pos.local_z = 5.0f;
     PlayerSimBndySystem rim;
@@ -856,7 +983,7 @@ TEST_CASE("the area bounds the place only: height, fall and ground contact stay 
     CHECK(vel.vy == doctest::Approx(0.0f));
     CHECK(physics.on_ground);
 
-    // Inside the circle the horizontal place stays too.
+    // Inside the borders the horizontal place stays too.
     CHECK(pos.local_x == doctest::Approx(5.0f));
     CHECK(pos.local_z == doctest::Approx(5.0f));
 }
@@ -1110,4 +1237,67 @@ TEST_CASE("usecase:101588 water under the figure: the measured cell depth lays t
     hub::set(registry, static_cast<uint32_t>(stranger), "GIS_HYD_CELL_DEPTH"_hs, 2.0f);
     water_sync.tick(registry, 0.0f);
     CHECK_FALSE(registry.all_of<PlayerInpWatrComponent>(stranger));
+}
+
+TEST_CASE("usecase:101637 seat a figure: an answered host request files the seat on the figure, nothing else does") {
+    using namespace entt::literals;
+    ecs::Registry registry;
+    PlayerHubSlotPubSystem seat;
+
+    const ecs::Entity figure = registry.create();
+    const uint32_t figure_id = static_cast<uint32_t>(figure);
+
+    // An answered request with a seat: the figure carries the seat and the star holds PLR_SEAT.
+    const ecs::Entity request = registry.create();
+    registry.emplace<PlayerReqSlotComponent>(request).seat = 3u;
+    auto& answer = registry.emplace<PlayerReqSpwnResComponent>(request);
+    answer.spawned_entity = figure;
+    answer.success = true;
+    seat.tick(registry, 0.0f);
+    REQUIRE(registry.all_of<PlayerStaSlotComponent>(figure));
+    CHECK(registry.get<PlayerStaSlotComponent>(figure).seat == 3u);
+    CHECK(hub::get(registry, figure_id, "PLR_SEAT"_hs) == doctest::Approx(3.0f));
+
+    // RED when: the seat row stays on the request and is filed again in the next pass.
+    CHECK_FALSE(registry.all_of<PlayerReqSlotComponent>(request));
+    CHECK(registry.view<PlayerSlotPndTag>().size() == 0u);
+
+    // RED when: a request that brought no figure seats the figure it names.
+    const ecs::Entity other = registry.create();
+    const ecs::Entity refused = registry.create();
+    registry.emplace<PlayerReqSlotComponent>(refused).seat = 5u;
+    auto& no = registry.emplace<PlayerReqSpwnResComponent>(refused);
+    no.spawned_entity = other;
+    no.success = false;
+    seat.tick(registry, 0.0f);
+    CHECK_FALSE(registry.all_of<PlayerStaSlotComponent>(other));
+    CHECK_FALSE(hub::exists(registry, static_cast<uint32_t>(other), "PLR_SEAT"_hs));
+    CHECK_FALSE(registry.all_of<PlayerReqSlotComponent>(refused));
+
+    // RED when: a seat past the range a float carries exactly is rounded onto the figure.
+    const ecs::Entity wide = registry.create();
+    const ecs::Entity past = registry.create();
+    registry.emplace<PlayerReqSlotComponent>(past).seat = PLR_HUB_SLOT_LIMIT;
+    auto& far = registry.emplace<PlayerReqSpwnResComponent>(past);
+    far.spawned_entity = wide;
+    far.success = true;
+    seat.tick(registry, 0.0f);
+    CHECK_FALSE(registry.all_of<PlayerStaSlotComponent>(wide));
+    CHECK_FALSE(hub::exists(registry, static_cast<uint32_t>(wide), "PLR_SEAT"_hs));
+    CHECK_FALSE(registry.all_of<PlayerReqSlotComponent>(past));
+
+    // RED when: an answer naming a figure that no longer lives lays a seat row on a dead id.
+    const ecs::Entity gone = registry.create();
+    registry.destroy(gone);
+    const ecs::Entity stale = registry.create();
+    registry.emplace<PlayerReqSlotComponent>(stale).seat = 7u;
+    auto& dead = registry.emplace<PlayerReqSpwnResComponent>(stale);
+    dead.spawned_entity = gone;
+    dead.success = true;
+    seat.tick(registry, 0.0f);
+    CHECK_FALSE(hub::exists(registry, static_cast<uint32_t>(gone), "PLR_SEAT"_hs));
+    CHECK_FALSE(registry.all_of<PlayerReqSlotComponent>(stale));
+
+    // The first figure keeps its seat through the passes that followed.
+    CHECK(registry.get<PlayerStaSlotComponent>(figure).seat == 3u);
 }

@@ -2,7 +2,7 @@
  * ASE ECS SYSTEM IMPLEMENTATION
  *
  * @file        player_area_syn_sys.cpp
- * @brief       PlayerAreaSynSystem - lays the loaded area of its plate on every bound figure
+ * @brief       PlayerAreaSynSystem - lays the plate anchor and the raster edges of every bound figure
  *
  * @module      ase-player
  * @layer       3 (Module)
@@ -12,8 +12,8 @@
  * @usecase     usecase:101612 - keep figure in loaded area
  * @actor       Game Areal Plate (AREAL)
  * @created     2026-11-13
- * @modified    2026-11-14
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-18
+ * @version     00.01.42.00094 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -21,35 +21,55 @@
  *
  * CAUSAL CHAIN (PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.7: figure and player camera stay in the area)
  *
- *   [ase-terrain levels the disc of the area plate and writes TRN_FLAT_* under it (TerrainHubFlatPubSystem)]
+ *   [ase-terrain levels the ground of the area plate and files its anchor on the plate itself: TRN_FLAT_HGT,
+ *    TRN_FLAT_X and TRN_FLAT_Z (TerrainHubFlatPubSystem); the levelled cells reach the ase-gis elevation
+ *    raster through HUB_TERN_MCRO]
  *   [ase-pl-avatar binds the figure to that plate: row HUB_PLR_AREA, field HUB_PLR_AREA_PLATE]
+ *   [ase-physics asks ase-gis for the loaded raster around the walking body, which is the figure
+ *    (HUB_GIS_GRND_REQ, PhysicsHubBndyOrdrSystem); ase-gis answers HUB_GIS_GRND on the same entity]
  *          │
  *          ▼
- *   ┌─────────────────────────────────────────────────────────────┐
- *   │  THIS SYSTEM: PlayerAreaSynSystem                           │
- *   │  READS:  HUB_PLR_AREA_PLATE, TRN_FLAT_* (owner = the plate) │
- *   │  WRITES: PlayerInpAreaComponent (on the figure)             │
- *   └─────────────────────────────────────────────────────────────┘
+ *   ┌──────────────────────────────────────────────────────────────────┐
+ *   │  THIS SYSTEM: PlayerAreaSynSystem                                │
+ *   │  READS:  HUB_PLR_AREA_PLATE, PlayerStaWrldComponent,             │
+ *   │          TRN_FLAT_* on the plate, HUB_GIS_GRND on the figure     │
+ *   │  WRITES: PlayerInpAreaComponent, PlayerInpGrndComponent          │
+ *   └──────────────────────────────────────────────────────────────────┘
  *          │
  *          ▼
- *   [PlayerSimBndySystem in Dynamics keeps the settled place inside the area; PlayerSimWalkSystem lays the
- *    walking frame on the plate]
+ *   [PlayerSimBndySystem in Dynamics keeps the settled place inside the raster edges; PlayerSimWalkSystem lays
+ *    the walking frame on the plate anchor]
  *
  * HUB Pattern (ARCH_ASE_HUB)
  *
  * READS (from Hub):
- *   row HUB_PLR_AREA, field HUB_PLR_AREA_PLATE        (per figure)
- *   TRN_FLAT_HGT, TRN_FLAT_RAD, TRN_FLAT_X, TRN_FLAT_Z (owner = the plate) - only once measured
+ *   row HUB_PLR_AREA, field HUB_PLR_AREA_PLATE                     (per figure)
+ *   TRN_FLAT_HGT, TRN_FLAT_X, TRN_FLAT_Z                           (per plate, only once measured)
+ *   row HUB_GIS_GRND, fields HUB_GIS_GRND_WEST, _EAST, _SOUTH, _NORTH (adopted on the figure by ase-gis, the
+ *     answer to the HUB_GIS_GRND_REQ ase-physics files on the walking body, which is the figure)
+ *
+ * WRITES (to Hub):
+ *   none
  *
  * WRITES (to Components):
- *   PlayerInpAreaComponent.level, radius_m, x, z, plate
+ *   PlayerInpAreaComponent.level, x, z, plate - the anchor of the bound plate
+ *   PlayerInpGrndComponent.west, east, south, north - the edges of the loaded raster around the figure
+ *   PlayerAreaBndyTag - taken off together with the area: a figure without an area stands on no rim
  *
- * MEASURED, NOT DECLARED. The four disc values stand in hub_metrics.json with 0.0, and 0.0 is a height, a
- * radius and a place, so the default of get() cannot say whether ase-terrain has levelled the plate. The row
- * is filled only when all four are measured; ase-terrain writes them together.
+ * THE BOUND IS RASTER, NEVER A CIRCLE. PlayerSimBndySystem keeps the figure inside the four edges of
+ * PlayerInpGrndComponent, the chunk borders of the loaded elevation raster ase-gis walks from the chunk of the
+ * figure; ase-physics holds the walking body at the very same edges (PhysicsWalkBndySystem), so figure and body
+ * meet one border.
  *
- * A LOST AREA IS REPORTED ONCE. When the plate of a bound figure stops being measured, the row is removed and
- * the removal named with the plate; afterwards the figure has no row and the pass is quiet until it returns.
+ * THE ANCHOR IS READ ON THE PLATE. The plate comes from the binding and is never found by place, so several
+ * plates in one 32 m chunk never mix (B0447). The anchor is the same set PhysicsHubGrndSyncSystem reads for the
+ * frame of a body: the declared 0.0 of an unmeasured value is no height and no place, so every value is asked
+ * with hub::is_measured first. How far the ground is levelled is no number of the plate: the levelled cells
+ * stand as metres in the ase-gis layer GIS_CAT_LITHO_TRN, and every body asks the cell under it (HUB_GIS_ELEV).
+ *
+ * NO ANSWER IS NO AREA. Until ase-terrain has filed the anchor, and until ase-gis has answered the raster, the
+ * figure walks unbounded. A lost area is reported once, with the plate, when the component goes; afterwards the
+ * pass is quiet until the area returns.
  *
  * ECS SYSTEM IMPLEMENTATION COMPLIANCE
  *
@@ -147,6 +167,9 @@
 // Components from same module
 #include <ase/player/components/tag/player_spnd_tag.hpp>
 #include <ase/player/components/input/player_inp_area_comp.hpp>
+#include <ase/player/components/input/player_inp_grnd_comp.hpp>
+#include <ase/player/components/state/player_sta_wrld_comp.hpp>
+#include <ase/player/components/tag/player_area_bndy_tag.hpp>
 // Hub for I/O (ALLOWED in Sync Systems!)
 #include <ase/hub/api.hpp>
 // Types for sentinel and range checks
@@ -178,82 +201,132 @@ void PlayerAreaSynSystem::on_start(ecs::Registry& /*registry*/) {
 
 void PlayerAreaSynSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * PASS: every figure on the roster. Adding or removing the area row does not touch the storage the view
-     * walks.
+     * PASS: every figure on the roster. Adding or removing the area and edge components does not touch the
+     * storage the view walks.
      */
     for (auto figure : registry.view<PlayerSpndTag>()) {
         const auto figure_id = static_cast<uint32_t>(figure);
 
         /**
-         * STEP 1: Bound? A figure the host never bound to a plate walks unbounded; a row it carried from an
-         * earlier binding goes with the binding.
+         * STEP 1: Bound? A figure the host never bound to a plate walks unbounded; the components it carried from
+         * an earlier binding go with the binding.
          */
         if (!hub::row_has(registry, figure, "HUB_PLR_AREA"_hs)) {
-            registry.remove<PlayerInpAreaComponent>(figure);
+            registry.remove<PlayerInpAreaComponent, PlayerInpGrndComponent, PlayerAreaBndyTag>(figure);
             continue;
         }
         uint32_t plate = types::InvalidEntityId;
         if (!hub::try_get_u32(registry, figure_id, "HUB_PLR_AREA_PLATE"_hs, plate) || !types::is_val_entity(plate)) {
             log::error(log::ERR::CAT::HUB_NOT_FOUND, "PlayerAreaSynSystem", figure_id, "HUB_PLR_AREA_PLATE");
-            registry.remove<PlayerInpAreaComponent>(figure);
+            registry.remove<PlayerInpAreaComponent, PlayerInpGrndComponent, PlayerAreaBndyTag>(figure);
             continue;
         }
 
         /**
-         * STEP 2: Measured? The declared 0.0 of hub_metrics.json is a height, a radius and a place and is never
-         * taken for an area. A row the figure carried is withdrawn, and the withdrawal named once.
+         * STEP 2: The world place of the figure is required: a bound figure without it is a broken spawn and walks
+         * unbounded.
          */
-        if (!hub::is_measured(registry, plate, "TRN_FLAT_HGT"_hs) ||
-            !hub::is_measured(registry, plate, "TRN_FLAT_RAD"_hs) ||
-            !hub::is_measured(registry, plate, "TRN_FLAT_X"_hs) || !hub::is_measured(registry, plate, "TRN_FLAT_Z"_hs)) {
+        const auto* wrld = registry.try_get<PlayerStaWrldComponent>(figure);
+        if (wrld == nullptr) {
+            log::error(log::ERR::CAT::COMPONENT_MISSING, "PlayerAreaSynSystem", figure_id, "PlayerStaWrldComponent");
+            registry.remove<PlayerInpAreaComponent, PlayerInpGrndComponent, PlayerAreaBndyTag>(figure);
+            continue;
+        }
+
+        /**
+         * STEP 3: The anchor of the bound plate, read on the plate itself where ase-terrain files it
+         * (TerrainHubFlatPubSystem), the same read PhysicsHubGrndSyncSystem makes for the frame of a body. The
+         * declared 0.0 of an unmeasured value is no height and no place: until all three are measured the figure
+         * carries no anchor, and the loss is named once.
+         */
+        if (!hub::is_measured(registry, plate, "TRN_FLAT_HGT"_hs) || !hub::is_measured(registry, plate, "TRN_FLAT_X"_hs) ||
+            !hub::is_measured(registry, plate, "TRN_FLAT_Z"_hs)) {
             if (registry.all_of<PlayerInpAreaComponent>(figure)) {
-                log::warn(log::WRN::CAT::HUB_NOT_FOUND, "PlayerAreaSynSystem", plate, "TRN_FLAT_RAD");
-                registry.remove<PlayerInpAreaComponent>(figure);
+                log::warn(log::WRN::CAT::HUB_NOT_FOUND, "PlayerAreaSynSystem", plate, "TRN_FLAT_HGT");
+                registry.remove<PlayerInpAreaComponent, PlayerInpGrndComponent, PlayerAreaBndyTag>(figure);
             }
             continue;
         }
 
         /**
-         * STEP 3: Read and validate each value as it is read - ase-terrain wrote numbers, and a radius above
-         * zero. An area that is no area is a defect of the writer; the figure walks unbounded with it.
+         * STEP 4: Read and validate each value as it is read. A value that is no number is a defect of the writer;
+         * the figure walks unbounded with it.
          */
         const float level = hub::get(registry, plate, "TRN_FLAT_HGT"_hs);
         if (!types::is_val_float(level)) {
             log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", plate, "TRN_FLAT_HGT", level);
-            registry.remove<PlayerInpAreaComponent>(figure);
-            continue;
-        }
-        const float radius = hub::get(registry, plate, "TRN_FLAT_RAD"_hs);
-        if (!types::is_val_float(radius) || !types::is_pos_float(radius)) {
-            log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", plate, "TRN_FLAT_RAD", radius);
-            registry.remove<PlayerInpAreaComponent>(figure);
+            registry.remove<PlayerInpAreaComponent, PlayerInpGrndComponent, PlayerAreaBndyTag>(figure);
             continue;
         }
         const float x = hub::get(registry, plate, "TRN_FLAT_X"_hs);
         if (!types::is_val_float(x)) {
             log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", plate, "TRN_FLAT_X", x);
-            registry.remove<PlayerInpAreaComponent>(figure);
+            registry.remove<PlayerInpAreaComponent, PlayerInpGrndComponent, PlayerAreaBndyTag>(figure);
             continue;
         }
         const float z = hub::get(registry, plate, "TRN_FLAT_Z"_hs);
         if (!types::is_val_float(z)) {
             log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", plate, "TRN_FLAT_Z", z);
-            registry.remove<PlayerInpAreaComponent>(figure);
+            registry.remove<PlayerInpAreaComponent, PlayerInpGrndComponent, PlayerAreaBndyTag>(figure);
             continue;
         }
 
         /**
-         * STEP 4: Lay the area on the figure; the first arrival is named with its plate.
+         * STEP 5: Lay the anchor on the figure; the first arrival is named with its plate.
          */
         if (!registry.all_of<PlayerInpAreaComponent>(figure)) {
-            log::info("[PlayerAreaSynSystem] figure {} walks on area plate {} (radius {} m)", figure_id, plate, radius);
+            log::info("[PlayerAreaSynSystem] figure {} walks on area plate {} (anchor {} {}, level {}, figure at {} {})",
+                      figure_id, plate, x, z, level, wrld->x, wrld->y);
         }
         auto& area = registry.get_or_emplace<PlayerInpAreaComponent>(figure);
         area.level = level;
-        area.radius_m = radius;
         area.x = x;
         area.z = z;
         area.plate = plate;
+
+        /**
+         * STEP 6: The edges of the loaded raster. ase-physics asks ase-gis for them on the walking body, and the
+         * walking body is the figure itself (HUB_GIS_GRND_REQ, PhysicsHubBndyOrdrSystem); ase-gis answers on the
+         * same entity, so the figure reads them there without a question of its own. No answer yet is no bound:
+         * the component goes and the figure walks unbounded until the raster around it is answered.
+         */
+        if (!hub::row_has(registry, figure, "HUB_GIS_GRND"_hs)) {
+            registry.remove<PlayerInpGrndComponent>(figure);
+            continue;
+        }
+        float west = 0.0f;
+        if (!hub::try_get_f32(registry, figure_id, "HUB_GIS_GRND_WEST"_hs, west) || !types::is_val_float(west)) {
+            log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", figure_id, "HUB_GIS_GRND_WEST", west);
+            registry.remove<PlayerInpGrndComponent>(figure);
+            continue;
+        }
+        float east = 0.0f;
+        if (!hub::try_get_f32(registry, figure_id, "HUB_GIS_GRND_EAST"_hs, east) || !types::is_val_float(east)) {
+            log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", figure_id, "HUB_GIS_GRND_EAST", east);
+            registry.remove<PlayerInpGrndComponent>(figure);
+            continue;
+        }
+        float south = 0.0f;
+        if (!hub::try_get_f32(registry, figure_id, "HUB_GIS_GRND_SOUTH"_hs, south) || !types::is_val_float(south)) {
+            log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", figure_id, "HUB_GIS_GRND_SOUTH", south);
+            registry.remove<PlayerInpGrndComponent>(figure);
+            continue;
+        }
+        float north = 0.0f;
+        if (!hub::try_get_f32(registry, figure_id, "HUB_GIS_GRND_NORTH"_hs, north) || !types::is_val_float(north)) {
+            log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", figure_id, "HUB_GIS_GRND_NORTH", north);
+            registry.remove<PlayerInpGrndComponent>(figure);
+            continue;
+        }
+        if (!registry.all_of<PlayerInpGrndComponent>(figure)) {
+            log::info("[PlayerAreaSynSystem] figure {} bounded by the loaded raster (west {} east {} south {} north {})",
+                      figure_id, west, east, south, north);
+        }
+        auto& grnd = registry.get_or_emplace<PlayerInpGrndComponent>(figure);
+        grnd.west = west;
+        grnd.east = east;
+        grnd.south = south;
+        grnd.north = north;
     }
 }
 

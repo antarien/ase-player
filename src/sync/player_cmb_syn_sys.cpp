@@ -15,7 +15,7 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-06
- * @modified    2026-11-06
+ * @modified    2026-11-19
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -45,7 +45,8 @@
  *
  * NOT AFFLICTED IS THE NORMAL STATE. A key the star does not carry for the figure writes 0 without
  * a log line, so a figure outside combat moves at full speed. A slow, frost or flag value outside
- * [0, 1] and a negative stun are reported and write 0. The knockback row stands only while
+ * the star's share range [HUB_CONST_SHARE_MIN, HUB_CONST_SHARE_MAX] writes the lower share bound, a
+ * negative stun writes PLR_CMB_STUN_NONE, and both are reported. The knockback row stands only while
  * CMB_KBK_ACTIVE is set and all three displacements are found; otherwise it is removed.
  *
  * AXES OF THE KNOCKBACK: CmbStatKbkDispComponent keeps X and Y on the ground and Z as the height.
@@ -61,6 +62,9 @@
  *   "CMB_PATZER_STUN"_hs          → seconds of blunder recovery remaining
  *   "CMB_KBK_ACTIVE"_hs           → knockback flag, 0 to 1
  *   "CMB_KBK_DISP_X/Y/Z"_hs       → knockback displacement in this frame, metres of either sign
+ * READS (from Hub, owner = GLOBAL):
+ *   "HUB_CONST_SHARE_MIN"_hs      → lower bound of every share above, read every pass
+ *   "HUB_CONST_SHARE_MAX"_hs      → upper bound of every share above, read every pass
  *
  * WRITES (to Hub): none
  *
@@ -193,6 +197,18 @@ void PlayerCmbSynSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerCmbSynSystem::tick(ecs::Registry& registry, float /*dt*/) {
+    // The share range of slow, frost and both flags is the star's: HUB_CONST_SHARE_MIN and _MAX on GLOBAL.
+    // Without both no value of the star can be judged, and the rows of the last pass stand.
+    const float share_min = hub::get(registry, hub::GLOBAL, "HUB_CONST_SHARE_MIN"_hs);
+    if (ase::types::is_not_found(share_min)) {
+        log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerCmbSynSystem", "HUB_CONST_SHARE_MIN");
+        return;
+    }
+    const float share_max = hub::get(registry, hub::GLOBAL, "HUB_CONST_SHARE_MAX"_hs);
+    if (ase::types::is_not_found(share_max)) {
+        log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerCmbSynSystem", "HUB_CONST_SHARE_MAX");
+        return;
+    }
     // The figures PlayerSyncInpSystem gives a movement input; spawned and migrated figures alike.
     for (auto [entity, pos, yaw] : registry.view<PlayerStaPosComponent, PlayerStaYawComponent>().each()) {
         (void)pos;
@@ -203,32 +219,32 @@ void PlayerCmbSynSystem::tick(ecs::Registry& registry, float /*dt*/) {
         // Slow: the intensity counts only while the slow flag is set.
         const float slow_active = hub::get(registry, owner, "CMB_SLW_ACTIVE"_hs);
         if (!ase::types::is_not_found(slow_active) &&
-            !ase::types::is_in_rng_f(slow_active, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX)) {
+            !ase::types::is_in_rng_f(slow_active, share_min, share_max)) {
             log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerCmbSynSystem", owner, "CMB_SLW_ACTIVE",
-                      slow_active, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX);
+                      slow_active, share_min, share_max);
         }
         const float slow_intensity = hub::get(registry, owner, "CMB_SLW_INTENSITY"_hs);
         if (!ase::types::is_not_found(slow_intensity) &&
-            !ase::types::is_in_rng_f(slow_intensity, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX)) {
+            !ase::types::is_in_rng_f(slow_intensity, share_min, share_max)) {
             log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerCmbSynSystem", owner, "CMB_SLW_INTENSITY",
-                      slow_intensity, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX);
+                      slow_intensity, share_min, share_max);
         }
-        const bool slow_set = ase::types::is_in_rng_f(slow_active, PLR_CMB_FLAG_SET_MIN, PLR_CMB_UNIT_MAX);
+        const bool slow_set = ase::types::is_in_rng_f(slow_active, PLR_CMB_FLAG_SET_MIN, share_max);
         cmb.slow_intensity =
-            (slow_set && ase::types::is_in_rng_f(slow_intensity, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX))
+            (slow_set && ase::types::is_in_rng_f(slow_intensity, share_min, share_max))
                 ? slow_intensity
-                : PLR_CMB_UNIT_MIN;
+                : share_min;
 
         // Frost: a movement reduction of its own, multiplied with the slow by the mover.
         const float freeze_slow = hub::get(registry, owner, "CMB_FRZ_STA_SLOW_FACTOR"_hs);
         if (!ase::types::is_not_found(freeze_slow) &&
-            !ase::types::is_in_rng_f(freeze_slow, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX)) {
+            !ase::types::is_in_rng_f(freeze_slow, share_min, share_max)) {
             log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerCmbSynSystem", owner, "CMB_FRZ_STA_SLOW_FACTOR",
-                      freeze_slow, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX);
+                      freeze_slow, share_min, share_max);
         }
-        cmb.freeze_slow = ase::types::is_in_rng_f(freeze_slow, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX)
+        cmb.freeze_slow = ase::types::is_in_rng_f(freeze_slow, share_min, share_max)
                               ? freeze_slow
-                              : PLR_CMB_UNIT_MIN;
+                              : share_min;
 
         // Stuns: seconds remaining; a positive value holds the figure in place.
         const float landing_stun = hub::get(registry, owner, "CMB_LANDING_STUN"_hs);
@@ -236,23 +252,23 @@ void PlayerCmbSynSystem::tick(ecs::Registry& registry, float /*dt*/) {
             log::warn(log::WRN::CAT::VALUE_NEGATIVE, "PlayerCmbSynSystem", owner, "CMB_LANDING_STUN",
                       landing_stun);
         }
-        cmb.landing_stun = ase::types::is_pos_float(landing_stun) ? landing_stun : PLR_CMB_UNIT_MIN;
+        cmb.landing_stun = ase::types::is_pos_float(landing_stun) ? landing_stun : PLR_CMB_STUN_NONE;
 
         const float patzer_stun = hub::get(registry, owner, "CMB_PATZER_STUN"_hs);
         if (!ase::types::is_not_found(patzer_stun) && ase::types::is_neg_float(patzer_stun)) {
             log::warn(log::WRN::CAT::VALUE_NEGATIVE, "PlayerCmbSynSystem", owner, "CMB_PATZER_STUN",
                       patzer_stun);
         }
-        cmb.patzer_stun = ase::types::is_pos_float(patzer_stun) ? patzer_stun : PLR_CMB_UNIT_MIN;
+        cmb.patzer_stun = ase::types::is_pos_float(patzer_stun) ? patzer_stun : PLR_CMB_STUN_NONE;
 
         // Knockback: the row stands only while the flag is set and all three displacements are found.
         const float knbk_active = hub::get(registry, owner, "CMB_KBK_ACTIVE"_hs);
         if (!ase::types::is_not_found(knbk_active) &&
-            !ase::types::is_in_rng_f(knbk_active, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX)) {
+            !ase::types::is_in_rng_f(knbk_active, share_min, share_max)) {
             log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerCmbSynSystem", owner, "CMB_KBK_ACTIVE",
-                      knbk_active, PLR_CMB_UNIT_MIN, PLR_CMB_UNIT_MAX);
+                      knbk_active, share_min, share_max);
         }
-        if (!ase::types::is_in_rng_f(knbk_active, PLR_CMB_FLAG_SET_MIN, PLR_CMB_UNIT_MAX)) {
+        if (!ase::types::is_in_rng_f(knbk_active, PLR_CMB_FLAG_SET_MIN, share_max)) {
             registry.remove<PlayerInpCmbKnbkComponent>(entity);
             continue;  // no knockback runs on this figure
         }

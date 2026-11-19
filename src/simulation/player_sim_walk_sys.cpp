@@ -39,10 +39,11 @@
  *          ▼
  *   [PlayerHubWalkSystem writes HUB_PHYS_WALK; ase-physics walks the body and answers with HUB_PHYS_STAND]
  *
- * THE FRAME. Under a plate the origin is the plate centre and the level the plate level: the disc ase-physics
- * lays for the plate is measured from there. On no plate the origin is the corner of the chunk the figure stands
- * in, at level 0, the disc ase-physics lays from ORIGIN_X and ORIGIN_Z. Either way the origin is stored as chunk
- * plus metres within it, so no world coordinate is held as one large float.
+ * THE FRAME. Under a plate the origin is the plate centre and the level the plate level; on no plate the origin is
+ * the corner of the chunk the figure stands in, at level 0. Either way the origin is stored as chunk plus metres
+ * within it, so no world coordinate is held as one large float. ase-physics lays no ground from it: it asks the
+ * elevation cells of ase-gis at origin plus place (PhysicsGrndCalcSystem) and holds the capsule against the quads
+ * they answer (PhysicsWalkCntcSystem).
  *
  * WHEN THE FRAME IS LAID AGAIN. A figure without a frame, a figure whose plate or plate frame changed, a figure
  * that left its plate, an unbound figure that walked more than PLR_WALK_FRAME_REACH_CHUNKS chunks from its frame
@@ -304,8 +305,8 @@ void PlayerSimWalkSystem::tick(ecs::Registry& registry, float /*dt*/) {
 
     /**
      * PASS E: file the wish relative to the frame. The place counts whole chunks from the frame chunk, the
-     * height from the frame level; the frame origin goes along for ase-physics to lay the disc of an unbound
-     * figure.
+     * height from the frame level; the frame origin goes along, so ase-physics asks the ase-gis cells under the
+     * figure's world place.
      */
     for (auto [figure, frame, placement, pos, vel] :
          registry.view<PlayerStaFrmComponent, PlayerStaPlcmComponent, PlayerStaPosComponent,

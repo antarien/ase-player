@@ -244,7 +244,7 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
         float speed = sprint ? MOVEMENT_DEFAULT_RUN_SPEED : MOVEMENT_DEFAULT_WALK_SPEED;
         speed *= (PLR_CMB_SCALE_FULL - cmb.slow_intensity) * (PLR_CMB_SCALE_FULL - cmb.freeze_slow);
         if (types::is_pos_float(cmb.landing_stun) || types::is_pos_float(cmb.patzer_stun)) {
-            speed = PLR_CMB_UNIT_MIN;
+            speed *= PLR_CMB_SCALE_HELD;
         }
         float control = physics.on_ground ? 1.0f : MOVEMENT_DEFAULT_AIR_CONTROL;
 

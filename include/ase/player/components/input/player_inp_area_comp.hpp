@@ -5,12 +5,13 @@
  *
  * @file        player_inp_area_comp.hpp
  * @brief       PlayerInpAreaComponent - the loaded area a figure walks on
- * @description Bridge component: on a figure bound to an area plate (row HUB_PLR_AREA), the level, the
- *              radius and the world centre of the disc ase-terrain levelled for that plate, filled in every
- *              Ingestion pass by PlayerAreaSynSystem once all four values are measured, together with the plate
- *              they belong to. PlayerSimBndySystem reads it to keep the figure inside the area;
- *              PlayerSimWalkSystem lays the walking frame on the plate centre and level and names the plate as
- *              the owner ase-physics walks the body on. A figure without the row walks unbounded.
+ * @description Bridge component: on a figure bound to an area plate (row HUB_PLR_AREA), the anchor of the
+ *              plate the walking frame is laid on (its level and its world place), filled in every Ingestion
+ *              pass by PlayerAreaSynSystem from TRN_FLAT_HGT, TRN_FLAT_X and TRN_FLAT_Z on the plate once every
+ *              value is measured, together with the plate they belong to. PlayerSimWalkSystem lays the
+ *              walking frame on the plate anchor and level and names the plate as the owner ase-physics walks
+ *              the body on. The bound of the walk is not here: the four raster edges stand on
+ *              PlayerInpGrndComponent. A figure without the row walks unbounded.
  *
  *              inp = input, area = loaded area
  *
@@ -21,8 +22,8 @@
  * @usecase     usecase:101612 - keep figure in loaded area
  * @actor       Game Areal Plate (AREAL)
  * @created     2026-11-13
- * @modified    2026-11-14
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-18
+ * @version     00.01.45.00095 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -37,12 +38,18 @@
  *   - Sync System (SERVER-ONLY): PlayerAreaSynSystem reads the Hub, writes this Component
  *   - Calc System: PlayerSimBndySystem reads this Component, writes the place and the velocity
  *
- * HUB SOURCE (owner = HUB_PLR_AREA_PLATE of the figure, all four measured)
- *   TRN_FLAT_HGT → level      TRN_FLAT_RAD → radius_m      TRN_FLAT_X → x      TRN_FLAT_Z → z
+ * HUB SOURCE
+ *   per plate, written by TerrainHubFlatPubSystem of ase-terrain: TRN_FLAT_HGT → level, TRN_FLAT_X → x,
+ *     TRN_FLAT_Z → z
  *   HUB_PLR_AREA_PLATE of the figure → plate
+ *   The edges of the walk are not here: row HUB_GIS_GRND on the figure lands on PlayerInpGrndComponent.
  *
- * THE PRESENCE IS THE MEASUREMENT. The row stands only while the plate is bound and its disc is measured;
- * the boundary is a value of the area, never a number of the player module.
+ * THE AREA IS RASTER, NEVER A CIRCLE (usecase:101612, HUB_GIS_GRND_REQ). The bound runs along the chunk borders
+ * of the loaded elevation raster, walked by ase-gis from the chunk of the figure along its row and its column;
+ * it moves out when a neighbouring chunk is loaded. The plate anchor places the walking frame, it bounds nothing.
+ *
+ * THE PRESENCE IS THE MEASUREMENT. The component stands only while the plate is bound and every value is
+ * measured; the boundary is a value of the raster, never a number of the player module.
  *
  * ECS COMPONENT COMPLIANCE
  *
@@ -81,11 +88,10 @@ namespace ase::player {
  * @brief The loaded area a figure walks on
  */
 struct PlayerInpAreaComponent {
-    float level = 0.0f;      // m - world height the area is levelled to
-    float radius_m = 0.0f;   // m - radius of the area around its centre
-    float x = 0.0f;          // m - world centre of the area along the axis of PLR_POS_X
-    float z = 0.0f;          // m - world centre of the area along the axis of PLR_POS_Y
-    uint32_t plate = 0;      // the area plate entity the disc belongs to (HUB_PLR_AREA_PLATE)
+    float level = 0.0f;      // m - TRN_FLAT_HGT, world height the plate is levelled to
+    float x = 0.0f;          // m - TRN_FLAT_X, world anchor of the plate along the axis of PLR_POS_X
+    float z = 0.0f;          // m - TRN_FLAT_Z, world anchor of the plate along the axis of PLR_POS_Y
+    uint32_t plate = 0;      // the area plate entity the anchor belongs to (HUB_PLR_AREA_PLATE)
 };
 
 }  // namespace ase::player

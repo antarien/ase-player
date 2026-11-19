@@ -97,6 +97,8 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/request/player_req_desp_comp.hpp
     include/ase/player/components/request/player_req_desp_res_comp.hpp
     include/ase/player/components/request/player_req_spwn_comp.hpp
+    include/ase/player/components/request/player_req_chr_comp.hpp
+    include/ase/player/components/request/player_req_slot_comp.hpp
     include/ase/player/components/request/player_req_roam_comp.hpp
     include/ase/player/components/request/player_req_spwn_res_comp.hpp
     include/ase/player/components/request/player_req_turn_comp.hpp
@@ -125,6 +127,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/state/player_sta_wrld_comp.hpp
     include/ase/player/components/state/player_sta_frm_comp.hpp
     include/ase/player/components/state/player_sta_plcm_comp.hpp
+    include/ase/player/components/state/player_sta_slot_comp.hpp
 
     #[[
     HEADER FILES - COMPONENTS (input/)
@@ -139,6 +142,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/input/player_inp_cmb_comp.hpp
     include/ase/player/components/input/player_inp_cmb_knbk_comp.hpp
     include/ase/player/components/input/player_inp_area_comp.hpp
+    include/ase/player/components/input/player_inp_grnd_comp.hpp
     include/ase/player/components/input/player_inp_stnd_comp.hpp
     include/ase/player/components/input/player_inp_turn_comp.hpp
     include/ase/player/components/input/player_inp_watr_comp.hpp
@@ -166,6 +170,8 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/tag/player_mgr_tag.hpp
     include/ase/player/components/tag/player_pst_dty_tag.hpp
     include/ase/player/components/tag/player_spnd_tag.hpp
+    include/ase/player/components/tag/player_chr_pnd_tag.hpp
+    include/ase/player/components/tag/player_slot_pnd_tag.hpp
     include/ase/player/components/tag/player_spwn_hub_tag.hpp
     include/ase/player/components/tag/player_roam_wand_tag.hpp
     include/ase/player/components/tag/player_roam_rest_tag.hpp
@@ -177,6 +183,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/tag/player_stnd_grnd_tag.hpp
     include/ase/player/components/tag/player_stnd_watr_tag.hpp
     include/ase/player/components/tag/player_walk_rplc_tag.hpp
+    include/ase/player/components/tag/player_area_bndy_tag.hpp
 
     #[[
     HEADER FILES - SYSTEMS (control/)
@@ -192,6 +199,8 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     include/ase/player/systems/hub/player_hub_pos_sys.hpp
     include/ase/player/systems/hub/player_hub_spnd_sys.hpp
+    include/ase/player/systems/hub/player_hub_chr_pub_sys.hpp
+    include/ase/player/systems/hub/player_hub_slot_pub_sys.hpp
     include/ase/player/systems/hub/player_hub_spwn_sys.hpp
     include/ase/player/systems/hub/player_hub_turn_sys.hpp
     include/ase/player/systems/hub/player_hub_motn_sys.hpp
@@ -335,6 +344,8 @@ add_library(${PROJECT_NAME} SHARED
     ]]
     src/hub/player_hub_pos_sys.cpp
     src/hub/player_hub_spnd_sys.cpp
+    src/hub/player_hub_chr_pub_sys.cpp
+    src/hub/player_hub_slot_pub_sys.cpp
     src/hub/player_hub_spwn_sys.cpp
     src/hub/player_hub_turn_sys.cpp
     src/hub/player_hub_motn_sys.cpp
