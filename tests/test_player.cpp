@@ -25,8 +25,9 @@
  * THE GROUND IS NOT COMPUTED HERE. ase-player holds no gravity and no ground (CAUSA_ASE_PHYSICS,
  * DoD 07-K): the spawn lays the figure at y = 0, PlayerSimWalkSystem files the step, ase-physics
  * answers the place on HUB_PHYS_STAND, and PlayerSimStndSystem takes that answer back. This suite
- * stands in for ase-physics with answer_as_physics(): it lays exactly the PlayerInpStndComponent
- * that PlayerHubStndSyncSystem lays from the row, for a body that stands where it was filed. The
+ * stands in for ase-physics with answer_as_physics(): it lays exactly the PlayerInpStndComponent and
+ * PlayerInpStndVlcyComponent that PlayerHubStndSyncSystem lays from the row, for a body that stands
+ * where it was filed and was granted the speed it wished. The
  * fall into a dug hole is covered by the host test of ase-physics.
  *
  * A CHECK THAT TURNS RED ON A REAL RUN IS A FINDING, NOT A REGRESSION. Do not weaken the check.
@@ -44,6 +45,7 @@
 #include <ase/player/systems/simulation/player_sim_walk_sys.hpp>
 #include <ase/player/systems/simulation/player_sim_stnd_sys.hpp>
 #include <ase/player/components/input/player_inp_stnd_comp.hpp>
+#include <ase/player/components/input/player_inp_stnd_vlcy_comp.hpp>
 #include <ase/player/components/state/player_sta_frm_comp.hpp>
 #include <ase/player/components/state/player_sta_plcm_comp.hpp>
 #include <ase/player/components/buffer/player_buf_walk_comp.hpp>
@@ -245,6 +247,9 @@ void answer_as_physics(ase::ecs::Registry& registry, ase::ecs::Entity figure, fl
     stand.z = walk.z;
     stand.vel_y = vel_y;
     stand.seq = placement.seq;
+    auto& granted = registry.get_or_emplace<PlayerInpStndVlcyComponent>(figure);
+    granted.vel_x = walk.vel_x;
+    granted.vel_z = walk.vel_z;
     if (grounded) {
         registry.emplace_or_replace<PlayerStndGrndTag>(figure);
         return;
@@ -539,6 +544,7 @@ TEST_CASE("PlayerSimStndSystem takes the stand answer of ase-physics back, and o
     stand.z = 5.0f;
     stand.vel_y = -3.0f;
     stand.seq = registry.get<PlayerStaPlcmComponent>(entity).seq;
+    (void)registry.get_or_emplace<PlayerInpStndVlcyComponent>(entity);
     stnd.tick(registry, 0.0f);
     const auto& pos = registry.get<PlayerStaPosComponent>(entity);
     CHECK(pos.y == doctest::Approx(1.5f));
@@ -569,6 +575,44 @@ TEST_CASE("PlayerSimStndSystem takes the stand answer of ase-physics back, and o
     stnd.tick(registry, 0.0f);
     CHECK(pos.chunk_x == 2);
     CHECK(pos.local_x == doctest::Approx(26.0f));
+}
+
+TEST_CASE("usecase:101588: the figure takes the speed ase-physics granted, so the brook it wades slows its next wish") {
+    ase::ecs::Registry registry;
+    auto entity = do_spawn_request(registry, "wade_test", 20.0f, 5.0f);
+    REQUIRE(entity != ase::ecs::NullEntity);
+    PlayerSimWalkSystem walk;
+    PlayerSimStndSystem stnd;
+    walk.tick(registry, 0.0f);
+    REQUIRE(registry.all_of<PlayerStaPlcmComponent, PlayerBufWalkComponent>(entity));
+
+    // The figure wishes 2 m/s east and none north.
+    auto& vel = registry.get<PlayerStaVelComponent>(entity);
+    vel.vx = 2.0f;
+    vel.vz = 0.0f;
+    walk.tick(registry, 0.0f);
+    CHECK(registry.get<PlayerBufWalkComponent>(entity).vel_x == doctest::Approx(2.0f));
+
+    // RED when: the level speed of the answer is dropped. ase-physics granted half the wish east, and the brook
+    // carried the figure 0.4 m/s north (PhysicsWalkSterSystem STEP 3, half the capsule under water).
+    answer_as_physics(registry, entity, 0.0f, true);
+    auto& granted = registry.get<PlayerInpStndVlcyComponent>(entity);
+    granted.vel_x = 1.0f;
+    granted.vel_z = 0.4f;
+    stnd.tick(registry, 0.0f);
+    CHECK(vel.vx == doctest::Approx(1.0f));
+    CHECK(vel.vz == doctest::Approx(0.4f));
+
+    // RED when: the next filed step starts from the wish of the last tick instead of the speed the body has.
+    walk.tick(registry, 0.0f);
+    CHECK(registry.get<PlayerBufWalkComponent>(entity).vel_x == doctest::Approx(1.0f));
+    CHECK(registry.get<PlayerBufWalkComponent>(entity).vel_z == doctest::Approx(0.4f));
+
+    // RED when: a speed of an answer to an older placement is taken. The figure was put somewhere else since.
+    registry.get<PlayerStaPlcmComponent>(entity).seq += 1u;
+    granted.vel_x = 0.0f;
+    stnd.tick(registry, 0.0f);
+    CHECK(vel.vx == doctest::Approx(1.0f));
 }
 
 TEST_CASE("session start is a pulse: up for one pass, down in the next, never announced twice") {

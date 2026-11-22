@@ -29,7 +29,8 @@
  *   ┌──────────────────────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerHubStndSyncSystem (Reception)            │
  *   │  READS:  row HUB_PHYS_STAND, its fields and its mark         │
- *   │  WRITES: PlayerInpStndComponent, PlayerStndGrndTag           │
+ *   │  WRITES: PlayerInpStndComponent, PlayerInpStndVlcyComponent, │
+ *   │          PlayerStndGrndTag                                   │
  *   └──────────────────────────────────────────────────────────────┘
  *          │
  *          ▼
@@ -40,11 +41,13 @@
  * READS (from Hub, per figure):
  *   row HUB_PHYS_STAND (hub::row_each)
  *   HUB_PHYS_STAND_X, HUB_PHYS_STAND_Y, HUB_PHYS_STAND_Z, HUB_PHYS_STAND_VEL_Y (hub::try_get_f32)
+ *   HUB_PHYS_STAND_VEL_X, HUB_PHYS_STAND_VEL_Z (hub::try_get_f32)
  *   HUB_PHYS_STAND_SEQ (hub::try_get_u32)
  *   mark HUB_PHYS_STAND_GRND (hub::row_each with the mark)
  *
  * WRITES (to Components):
  *   PlayerInpStndComponent.x, y, z, vel_y, seq
+ *   PlayerInpStndVlcyComponent.vel_x, vel_z (the level speed ase-physics granted, after wall and water)
  *   PlayerStndGrndTag
  *
  * THE MARK IS STATED ANEW IN EVERY PASS. The tag is taken off every figure first and laid again on exactly the
@@ -152,6 +155,7 @@
 #include <ase/player/systems/sync/player_hub_stnd_sync_sys.hpp>
 // Components from same module
 #include <ase/player/components/input/player_inp_stnd_comp.hpp>
+#include <ase/player/components/input/player_inp_stnd_vlcy_comp.hpp>
 #include <ase/player/components/state/player_sta_plcm_comp.hpp>
 #include <ase/player/components/tag/player_stnd_grnd_tag.hpp>
 // Hub for I/O (ALLOWED in Sync Systems!)
@@ -192,21 +196,25 @@ void PlayerHubStndSyncSystem::tick(ecs::Registry& registry, float /*dt*/) {
         const auto row = static_cast<uint32_t>(figure);
 
         /**
-         * STEP 1: Read every field; ase-physics writes all five together, so a missing one is a defect of the
+         * STEP 1: Read every field; ase-physics writes all seven together, so a missing one is a defect of the
          * writer, and the figure keeps no answer of an earlier pass.
          */
         float x = 0.0f;
         float y = 0.0f;
         float z = 0.0f;
+        float vel_x = 0.0f;
         float vel_y = 0.0f;
+        float vel_z = 0.0f;
         uint32_t seq = 0;
         if (!hub::try_get_f32(registry, row, "HUB_PHYS_STAND_X"_hs, x) ||
             !hub::try_get_f32(registry, row, "HUB_PHYS_STAND_Y"_hs, y) ||
             !hub::try_get_f32(registry, row, "HUB_PHYS_STAND_Z"_hs, z) ||
+            !hub::try_get_f32(registry, row, "HUB_PHYS_STAND_VEL_X"_hs, vel_x) ||
             !hub::try_get_f32(registry, row, "HUB_PHYS_STAND_VEL_Y"_hs, vel_y) ||
+            !hub::try_get_f32(registry, row, "HUB_PHYS_STAND_VEL_Z"_hs, vel_z) ||
             !hub::try_get_u32(registry, row, "HUB_PHYS_STAND_SEQ"_hs, seq)) {
             log::error(log::ERR::CAT::HUB_NOT_FOUND, "PlayerHubStndSyncSystem", row, "HUB_PHYS_STAND_X");
-            registry.remove<PlayerInpStndComponent>(figure);
+            registry.remove<PlayerInpStndComponent, PlayerInpStndVlcyComponent>(figure);
             return;
         }
 
@@ -215,12 +223,17 @@ void PlayerHubStndSyncSystem::tick(ecs::Registry& registry, float /*dt*/) {
          */
         if (!types::is_val_float(x) || !types::is_val_float(y) || !types::is_val_float(z)) {
             log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerHubStndSyncSystem", row, "HUB_PHYS_STAND_Y", y);
-            registry.remove<PlayerInpStndComponent>(figure);
+            registry.remove<PlayerInpStndComponent, PlayerInpStndVlcyComponent>(figure);
             return;
         }
         if (!types::is_val_float(vel_y)) {
             log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerHubStndSyncSystem", row, "HUB_PHYS_STAND_VEL_Y", vel_y);
-            registry.remove<PlayerInpStndComponent>(figure);
+            registry.remove<PlayerInpStndComponent, PlayerInpStndVlcyComponent>(figure);
+            return;
+        }
+        if (!types::is_val_float(vel_x) || !types::is_val_float(vel_z)) {
+            log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerHubStndSyncSystem", row, "HUB_PHYS_STAND_VEL_X", vel_x);
+            registry.remove<PlayerInpStndComponent, PlayerInpStndVlcyComponent>(figure);
             return;
         }
 
@@ -236,6 +249,9 @@ void PlayerHubStndSyncSystem::tick(ecs::Registry& registry, float /*dt*/) {
         stand.z = z;
         stand.vel_y = vel_y;
         stand.seq = seq;
+        auto& granted = registry.get_or_emplace<PlayerInpStndVlcyComponent>(figure);
+        granted.vel_x = vel_x;
+        granted.vel_z = vel_z;
     });
 
     /**
@@ -251,7 +267,7 @@ void PlayerHubStndSyncSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * answer off does not change its set.
      */
     for (auto figure : hub::without_row(registry.view<PlayerStaPlcmComponent>(), registry, "HUB_PHYS_STAND"_hs)) {
-        if (registry.remove<PlayerInpStndComponent>(figure) > 0) {
+        if (registry.remove<PlayerInpStndComponent, PlayerInpStndVlcyComponent>(figure) > 0) {
             log::debug("[PlayerHubStndSyncSystem] figure {} is no body of ase-physics any more",
                        static_cast<uint32_t>(figure));
         }

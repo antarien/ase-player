@@ -18,8 +18,8 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-13
- * @modified    2026-11-15
- * @version     00.00.00.00000 [seed]
+ * @modified    2026-11-21
+ * @version     00.01.46.00096 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -27,7 +27,8 @@
  *
  * CAUSAL CHAIN (CAUSA_PLR_GAIT: Gait from the speed)
  *
- *   [PlayerStaVelComponent]  ← PlayerCtrlMovSystem (vx, vz) and PlayerSimStndSystem (vy), this tick
+ *   [PlayerStaVelComponent]  ← PlayerSimStndSystem (vx, vy, vz: the speed ase-physics granted), then
+ *                              PlayerCtrlMovSystem (vx, vz: part of the rest to the wish), this tick
  *          │
  *          │ horizontal speed |(vx, vz)|
  *          ▼

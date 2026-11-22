@@ -22,23 +22,30 @@
  * CAUSAL CHAIN (PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.13, DoD 07-K: the figure walks over slope and hollow and
  * falls into a dug hole, because ase-physics walks it)
  *
- *   [PlayerHubStndSyncSystem laid the answer of ase-physics as PlayerInpStndComponent and PlayerStndGrndTag;
- *    PlayerSimWalkSystem laid frame and placement count (PlayerStaFrmComponent, PlayerStaPlcmComponent)]
+ *   [PlayerHubStndSyncSystem laid the answer of ase-physics as PlayerInpStndComponent,
+ *    PlayerInpStndVlcyComponent and PlayerStndGrndTag; PlayerSimWalkSystem laid frame and placement count
+ *    (PlayerStaFrmComponent, PlayerStaPlcmComponent)]
  *          │
  *          ▼
  *   ┌──────────────────────────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerSimStndSystem (Dynamics)                     │
  *   │  READS (from Components):                                        │
- *   │    PlayerInpStndComponent, PlayerStaFrmComponent,                │
- *   │    PlayerStaPlcmComponent, PlayerStndGrndTag,                    │
- *   │    PlayerInpChnkCnstComponent (manager row)                      │
+ *   │    PlayerInpStndComponent, PlayerInpStndVlcyComponent,           │
+ *   │    PlayerStaFrmComponent, PlayerStaPlcmComponent,                │
+ *   │    PlayerStndGrndTag, PlayerInpChnkCnstComponent (manager row)   │
  *   │  WRITES (to Components):                                         │
- *   │    PlayerStaPosComponent, PlayerStaVelComponent.vy,              │
+ *   │    PlayerStaPosComponent, PlayerStaVelComponent.vx, vy, vz,      │
  *   │    PlayerStaPhysComponent.on_ground, PlayerDrtyTag               │
  *   └──────────────────────────────────────────────────────────────────┘
  *          │
  *          ▼
- *   [PlayerCtrlMovSystem steers from the ground contact; PlayerSimWalkSystem files the next step]
+ *   [PlayerCtrlMovSystem accelerates from the taken speed towards the stick; PlayerStaGaitSystem picks the gait
+ *    from it; PlayerSimWalkSystem files the next step]
+ *
+ * THE SPEED IS THE ONE THE BODY HAS. The level speed of the answer is what ase-physics granted the wish: a wall
+ * took the part that ran into it, the water of the cell carried its share over to the flow (PhysicsWalkSterSystem
+ * STEP 3). Taking it over makes the figure in the brook wade: PlayerCtrlMovSystem accelerates from it, not from the
+ * wish of the last tick, and the gait band reads the slower speed.
  *
  * THE FRAME. The answer stands in metres from the frame origin the figure filed: the origin is the chunk
  * PlayerStaFrmComponent names plus the metres within it, the height is measured from its level. Adding the
@@ -153,6 +160,7 @@
 // Components from same module ONLY
 #include <ase/player/components/input/player_inp_chnk_cnst_comp.hpp>
 #include <ase/player/components/input/player_inp_stnd_comp.hpp>
+#include <ase/player/components/input/player_inp_stnd_vlcy_comp.hpp>
 #include <ase/player/components/state/player_sta_frm_comp.hpp>
 #include <ase/player/components/state/player_sta_plcm_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
@@ -212,9 +220,10 @@ void PlayerSimStndSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * PASS 1: every answer that follows the current placement. The view carries no type the loop adds or
      * removes; the dirty tag is not one of its types.
      */
-    for (auto [figure, stand, frame, placement, pos, vel, physics] :
-         registry.view<PlayerInpStndComponent, PlayerStaFrmComponent, PlayerStaPlcmComponent, PlayerStaPosComponent,
-                       PlayerStaVelComponent, PlayerStaPhysComponent>(entt::exclude<PlayerWalkRplcTag>).each()) {
+    for (auto [figure, stand, granted, frame, placement, pos, vel, physics] :
+         registry.view<PlayerInpStndComponent, PlayerInpStndVlcyComponent, PlayerStaFrmComponent,
+                       PlayerStaPlcmComponent, PlayerStaPosComponent, PlayerStaVelComponent, PlayerStaPhysComponent>(
+             entt::exclude<PlayerWalkRplcTag>).each()) {
         /**
          * STEP 2: An answer to an older placement follows a place the figure no longer stands at.
          */
@@ -237,11 +246,13 @@ void PlayerSimStndSystem::tick(ecs::Registry& registry, float /*dt*/) {
         pos.local_z = along_z - cells_z * chunk_edge;
 
         /**
-         * STEP 4: The height above the frame level and the vertical speed of the body; the ground contact is
-         * cleared here and stated again in PASS 2.
+         * STEP 4: The height above the frame level and the speed of the body as ase-physics granted it, after wall
+         * and water; the ground contact is cleared here and stated again in PASS 2.
          */
         pos.y = frame.level + stand.y;
+        vel.vx = granted.vel_x;
         vel.vy = stand.vel_y;
+        vel.vz = granted.vel_z;
         physics.on_ground = false;
 
         /**

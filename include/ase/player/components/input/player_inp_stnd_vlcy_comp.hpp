@@ -1,0 +1,91 @@
+#pragma once
+
+/**
+ * ASE ECS COMPONENT (INPUT)
+ *
+ * @file        player_inp_stnd_vlcy_comp.hpp
+ * @brief       PlayerInpStndVlcyComponent - the level speed ase-physics granted the walking figure in its step
+ * @description Bridge component: on a figure that walks as a body of ase-physics, the level speed of that module's
+ *              answer (row HUB_PHYS_STAND on the figure entity) after this tick's step. It is the wish of the figure
+ *              less what a wall stopped and what the water of its cell carried over to the flow
+ *              (PhysicsWalkSterSystem STEP 3). PlayerHubStndSyncSystem fills it in Reception beside
+ *              PlayerInpStndComponent; PlayerSimStndSystem takes it over into PlayerStaVelComponent in Dynamics
+ *              once the placement count of that answer matches the frame of the figure, so the gait and the next
+ *              acceleration of PlayerCtrlMovSystem start from the speed the body has.
+ *
+ *              inp = input, stnd = stand, vlcy = velocity
+ *
+ * @module      ase-player
+ * @layer       3 (Modules)
+ * @category    input
+ * @parity      shared
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
+ * @created     2026-11-21
+ * @modified    2026-11-21
+ * @version     00.01.46.00096 [feat]
+ *
+ * Copyright (c) Jan Ohlmann. All rights reserved.
+ * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
+ * SPDX-License-Identifier: LicenseRef-ASE-LIC
+ *
+ * KUERZEL AUS DER TAXONOMIE: "stand": "stnd" (03_act_action), "velocity": "vlcy", nachgeschlagen.
+ *
+ * SYN PATTERN (Hub I/O vs Calculation Separation)
+ *
+ * This component is the BRIDGE between:
+ *   - Sync System (SERVER-ONLY): PlayerHubStndSyncSystem reads the Hub, writes this Component
+ *   - Calc System (SHARED): PlayerSimStndSystem reads this Component, writes the level speed of the figure
+ *
+ * HUB SOURCE (row HUB_PHYS_STAND on the figure entity, written by PhysicsHubStndPubSystem)
+ *   HUB_PHYS_STAND_VEL_X → vel_x      HUB_PHYS_STAND_VEL_Z → vel_z
+ *   The placement count of the answer stands in PlayerInpStndComponent.seq; both components are laid together.
+ *
+ * WHY A COMPONENT OF ITS OWN: the place of the answer and its level speed are two quantities of one answer, and
+ * PlayerInpStndComponent carries the place, the vertical speed and the count. The level speed goes beside it,
+ * read by the same view, so neither component grows past one concern.
+ *
+ * WHY shared: the device runs PlayerSimStndSystem on the same answer, so the speed it draws the gait from is the
+ * speed the server granted; the field set is the wire both sides read.
+ *
+ * ECS COMPONENT COMPLIANCE
+ *
+ * [ ] DATA fields ONLY - No methods
+ * [ ] NO .cpp file - Header-only
+ * [ ] ONLY zero-initialization (= 0, = 0.0f, = false, = {})
+ * [ ] No magic numbers in defaults (use types.hpp constants)
+ * [ ] Entity references initialized to = 0 (systems set values)
+ * [ ] Single responsibility (one data category)
+ * [ ] No God-Component (unrelated fields)
+ * [ ] Large data in registry.ctx()? (component has only lookup ID!)
+ * [ ] Tag structs end with Tag suffix - N/A (not a tag)
+ * [ ] Filename: prefix/suffix NOT abbreviated, words between = 3-4 chars
+ * [ ] Struct name derived from filename (snake_case to PascalCase)
+ * [ ] 1 File = 1 Component
+ * [ ] File in correct category subfolder
+ * [ ] SHARED components listed in codegen.json components.shared
+ * [ ] Pointer components in codegen.json components.server_only
+ * [ ] Strings < 64 bytes use char[N] fixed arrays
+ * [ ] Strings 64-256 bytes use appropriately sized char[N]
+ * [ ] Strings > 256 bytes use registry.ctx() with lookup ID?
+ * [ ] NO Entity-per-Character (strings are single attributes, not N-Items!)
+ * [ ] Lookup-only strings use uint32_t hash (entt::hashed_string)
+ * [ ] NO std::shared_ptr in components (use Flyweight Pattern via ctx!)
+ * [ ] NO void* in components (use Flyweight Pattern via ctx!)
+ * [ ] NO uint64_t as pointer concept (use uint32_t ID + ResourceManager via ctx!)
+ * [ ] External library objects (shared_ptr, handles) in ResourceManager via ctx()
+ * [ ] Component stores ONLY primitive ID (uint32_t) referencing external resource
+ */
+
+namespace ase::player {
+
+/**
+ * @brief The level speed ase-physics granted the walking figure in its step
+ */
+struct PlayerInpStndVlcyComponent {
+    float vel_x = 0.0f;   // m/s - speed along the axis of PLR_POS_X after the step, as ase-physics granted it
+    float vel_z = 0.0f;   // m/s - speed along the axis of PLR_POS_Y after the step, as ase-physics granted it
+};
+
+}  // namespace ase::player

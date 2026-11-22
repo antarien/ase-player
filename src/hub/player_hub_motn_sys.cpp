@@ -253,7 +253,7 @@ void PlayerHubMotnSystem::tick(ecs::Registry& registry, float /*dt*/) {
     }
 
     /**
-     * STEP 5: The rim state as its own mark - the figure PlayerSimBndySystem set back onto the circle of its area
+     * STEP 5: The rim state as its own mark - the figure PlayerSimBndySystem holds on a chunk border of its loaded raster
      */
     for (auto figure : registry.view<PlayerSpndTag, PlayerAreaBndyTag>()) {
         hub::row_adopt(registry, figure, "HUB_PLR_MOTN"_hs);

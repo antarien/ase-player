@@ -7,8 +7,8 @@
  * @brief       PlayerHubStndSyncSystem - lays the answer of ase-physics on every walking figure
  * @description SYN split (WRFL_ASE_SYN_PATTERN): this system does the Hub READ and nothing else. For every
  *              figure that carries the row HUB_PHYS_STAND it reads place, vertical speed and placement count
- *              into PlayerInpStndComponent and states the mark HUB_PHYS_STAND_GRND as PlayerStndGrndTag.
- *              PlayerSimStndSystem reads only those two.
+ *              into PlayerInpStndComponent, the granted level speed into PlayerInpStndVlcyComponent, and states
+ *              the mark HUB_PHYS_STAND_GRND as PlayerStndGrndTag. PlayerSimStndSystem reads only those three.
  *
  *              AN ANSWER NOT FILED IS NO ANSWER: a figure whose row was withdrawn, or whose row lacks a field,
  *              loses the component instead of keeping last pass's place.
@@ -53,9 +53,10 @@ namespace ase::player {
  *
  * @schedule Reception - the answer ase-physics filed in Collision of the last tick is taken before
  *           PlayerSimStndSystem reads it in Dynamics.
- * @reads    row HUB_PHYS_STAND with HUB_PHYS_STAND_X, _Y, _Z, _VEL_Y, _SEQ (hub::row_each, hub::try_get_f32,
- *           hub::try_get_u32) and its mark HUB_PHYS_STAND_GRND (hub::row_each with the mark)
- * @writes   PlayerInpStndComponent, PlayerStndGrndTag (on the figure; both removed with the answer)
+ * @reads    row HUB_PHYS_STAND with HUB_PHYS_STAND_X, _Y, _Z, _VEL_X, _VEL_Y, _VEL_Z, _SEQ (hub::row_each,
+ *           hub::try_get_f32, hub::try_get_u32) and its mark HUB_PHYS_STAND_GRND (hub::row_each with the mark)
+ * @writes   PlayerInpStndComponent, PlayerInpStndVlcyComponent, PlayerStndGrndTag (on the figure; all removed with
+ *           the answer)
  */
 class PlayerHubStndSyncSystem : public ecs::System {
 public:

@@ -8,7 +8,8 @@
  * @description Every frame in Dynamics, before the steering: every walking figure whose answer of ase-physics
  *              (PlayerInpStndComponent) follows its current placement turns the place of the answer, given
  *              relative to the frame the figure filed (PlayerStaFrmComponent), back into chunk address, local
- *              metres and height, takes the vertical speed of the answer and states its ground contact from
+ *              metres and height, takes the speed of the answer (the level speed ase-physics granted after wall and
+ *              water, PlayerInpStndVlcyComponent, and the vertical one) and states its ground contact from
  *              PlayerStndGrndTag. Gravity, ground and falling are values of ase-physics alone; this system
  *              computes none of them, it only changes the frame of the numbers.
  *
@@ -57,8 +58,9 @@ namespace ase::player {
  *
  * @schedule Dynamics - first of the figure's motion: the steering reads the ground contact of this answer.
  * @reads    PlayerMgrTag, PlayerInpChnkCnstComponent (the chunk edge), PlayerInpStndComponent,
- *           PlayerStaFrmComponent, PlayerStaPlcmComponent, PlayerStndGrndTag, PlayerWalkRplcTag (excluded)
- * @writes   PlayerStaPosComponent, PlayerStaVelComponent.vy, PlayerStaPhysComponent.on_ground, PlayerDrtyTag
+ *           PlayerInpStndVlcyComponent, PlayerStaFrmComponent, PlayerStaPlcmComponent, PlayerStndGrndTag,
+ *           PlayerWalkRplcTag (excluded)
+ * @writes   PlayerStaPosComponent, PlayerStaVelComponent.vx, vy, vz, PlayerStaPhysComponent.on_ground, PlayerDrtyTag
  */
 class PlayerSimStndSystem : public ecs::System {
 public:

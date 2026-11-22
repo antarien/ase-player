@@ -6,7 +6,7 @@
  * @file        player_area_bndy_tag.hpp
  * @brief       PlayerAreaBndyTag - the figure stands on the rim of its loaded area
  * @description State tag of a bound figure. PlayerSimBndySystem sets it in the frame it sets the figure back
- *              onto the circle of its area and takes it off in the frame the figure stands inside again;
+ *              onto the chunk borders of its loaded raster and takes it off in the frame the figure stands inside again;
  *              PlayerHubMotnSystem publishes it as the mark HUB_PLR_MOTN_BNDY on the motion row, ase-pl-avatar
  *              files it on the camera record of the figure (edge) and the drawing host writes the line
  *              RAND DES AREALS of the mockup (PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.7, DoD 07-C and 07-G,
@@ -67,10 +67,10 @@ namespace ase::player {
 /**
  * @brief PlayerAreaBndyTag - the figure stands on the rim of its loaded area
  *
- * State: PlayerSimBndySystem set the figure back onto the circle of its area in this frame
+ * State: PlayerSimBndySystem set the figure back onto, or holds it on, a chunk border of its loaded raster in this frame
  * Filter: PlayerHubMotnSystem tags HUB_PLR_MOTN_BNDY on figures with it and untags it on the others
- * Added: PlayerSimBndySystem, beyond the circle
- * Removed: PlayerSimBndySystem, inside the circle
+ * Added: PlayerSimBndySystem, beyond a border or within PLR_AREA_RIM_M of it
+ * Removed: PlayerSimBndySystem, free inside the four borders
  */
 struct PlayerAreaBndyTag {};
 

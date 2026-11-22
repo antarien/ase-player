@@ -144,6 +144,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/input/player_inp_area_comp.hpp
     include/ase/player/components/input/player_inp_grnd_comp.hpp
     include/ase/player/components/input/player_inp_stnd_comp.hpp
+    include/ase/player/components/input/player_inp_stnd_vlcy_comp.hpp
     include/ase/player/components/input/player_inp_turn_comp.hpp
     include/ase/player/components/input/player_inp_watr_comp.hpp
 

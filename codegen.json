@@ -171,7 +171,7 @@
             "default": 0.0,
             "scope": "sim_entity",
             "source_module": "ase-terrain",
-            "description": "Runtime metric: the world place of the stem foot of a body, metres east, the origin of its frame (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. Readers: PhysicsHubGrndSyncSystem (ase-physics, usecase:100708, origin_x of PhysicsInpOwnrFrmComponent); RadixHubFrmSyncSystem (ase-radix, usecase:6459, origin_x of RadixInpFrmComponent); PlayerAreaSynSystem (ase-player, usecase:101612, PlayerInpAreaComponent.x on the area plate). 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
+            "description": "Runtime metric: the world place of the stem foot of a body, metres east, the origin of its frame (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. Readers: PhysicsHubGrndSyncSystem (ase-physics, usecase:100708, origin_x of PhysicsInpOwnrFrmComponent); RadixHubFrmSyncSystem (ase-radix, usecase:6459, origin_x of RadixInpFrmComponent); PlayerAreaSynSystem (ase-player, usecase:101612, PlayerInpAreaComponent.x on the area plate); PhytomerHubLocSyncSystem (ase-phytomer, usecase:3245, PhytomerInpLocComponent.east of the shoot, read by PhytomerPolnCalcSystem and PhytomerFertCalcSystem for the distance between mother and father). 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
             "hub_category": "metric"
         },
         {
@@ -182,7 +182,7 @@
             "default": 0.0,
             "scope": "sim_entity",
             "source_module": "ase-terrain",
-            "description": "Runtime metric: the world place of the stem foot of a body, metres north, the origin of its frame (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. Readers: PhysicsHubGrndSyncSystem (ase-physics, usecase:100708, origin_z of PhysicsInpOwnrFrmComponent); RadixHubFrmSyncSystem (ase-radix, usecase:6459, origin_z of RadixInpFrmComponent); PlayerAreaSynSystem (ase-player, usecase:101612, PlayerInpAreaComponent.z on the area plate). 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
+            "description": "Runtime metric: the world place of the stem foot of a body, metres north, the origin of its frame (per body owner, the same owner as TRN_FLAT_HGT; usecase:5939 - adapt area terrain), set by TerrainHubFlatPubSystem together with TRN_FLAT_HGT. Readers: PhysicsHubGrndSyncSystem (ase-physics, usecase:100708, origin_z of PhysicsInpOwnrFrmComponent); RadixHubFrmSyncSystem (ase-radix, usecase:6459, origin_z of RadixInpFrmComponent); PlayerAreaSynSystem (ase-player, usecase:101612, PlayerInpAreaComponent.z on the area plate); PhytomerHubLocSyncSystem (ase-phytomer, usecase:3245, PhytomerInpLocComponent.north of the shoot, read by PhytomerPolnCalcSystem and PhytomerFertCalcSystem for the distance between mother and father). 0.0 is a place, so a reader asks is_measured first. Value 0.0.",
             "hub_category": "metric"
         }
     ],
@@ -239,7 +239,13 @@
             "key": "HUB_PHYS_STAND_SEQ"
         },
         {
+            "key": "HUB_PHYS_STAND_VEL_X"
+        },
+        {
             "key": "HUB_PHYS_STAND_VEL_Y"
+        },
+        {
+            "key": "HUB_PHYS_STAND_VEL_Z"
         },
         {
             "key": "HUB_PHYS_STAND_X"
@@ -472,6 +478,7 @@
                 "PlayerInpCmbComponent",
                 "PlayerInpExtComponent",
                 "PlayerInpStndComponent",
+                "PlayerInpStndVlcyComponent",
                 "PlayerInpTlptComponent",
                 "PlayerInpWatrComponent",
                 "PlayerReqRoamComponent",
@@ -693,6 +700,25 @@
                     }
                 ],
                 "file": "input/player_inp_stnd_comp.hpp"
+            },
+            {
+                "name": "PlayerInpStndVlcyComponent",
+                "description": "PlayerInpStndVlcyComponent - the level speed ase-physics granted the walking figure in its step",
+                "fields": [
+                    {
+                        "name": "vel_x",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m/s - speed along the axis of PLR_POS_X after the step, as ase-physics granted it"
+                    },
+                    {
+                        "name": "vel_z",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m/s - speed along the axis of PLR_POS_Y after the step, as ase-physics granted it"
+                    }
+                ],
+                "file": "input/player_inp_stnd_vlcy_comp.hpp"
             },
             {
                 "name": "PlayerInpTlptComponent",

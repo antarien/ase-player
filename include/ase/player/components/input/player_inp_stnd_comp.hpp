@@ -39,6 +39,7 @@
  * HUB SOURCE (row HUB_PHYS_STAND on the figure entity, written by PhysicsHubStndPubSystem)
  *   HUB_PHYS_STAND_X → x      HUB_PHYS_STAND_Y → y      HUB_PHYS_STAND_Z → z
  *   HUB_PHYS_STAND_VEL_Y → vel_y      HUB_PHYS_STAND_SEQ → seq
+ *   HUB_PHYS_STAND_VEL_X, HUB_PHYS_STAND_VEL_Z → PlayerInpStndVlcyComponent (the level speed of the same answer)
  *   mark HUB_PHYS_STAND_GRND → PlayerStndGrndTag (not a field: a tag-filtered view reads it)
  *
  * WHY shared: the device runs PlayerSimStndSystem on the same answer, so the place it draws is the place the
