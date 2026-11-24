@@ -12,8 +12,8 @@
  * @usecase     usecase:100692 - migrate figure between regions
  * @actor       Border Passage Warden (BORDPASWAR)
  * @created     2026-10-14
- * @modified    2026-11-15
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -174,6 +174,7 @@
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_wish_comp.hpp>
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_chk_comp.hpp>
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
@@ -362,6 +363,11 @@ void PlayerMigAplySystem::tick(ecs::Registry& registry, float /*dt*/) {
         vel.vx = vx;
         vel.vy = vy;
         vel.vz = vz;
+        // The figure keeps walking the way it walked: the delivered horizontal speed is also the wish filed to
+        // ase-physics until PlayerCtrlMovSystem writes the next one from the input (B0818).
+        auto& wish = registry.get_or_emplace<PlayerStaVelWishComponent>(plr_ent);
+        wish.vx = vx;
+        wish.vz = vz;
         auto& sts = registry.get<PlayerStaStsComponent>(plr_ent);
         sts.sts = static_cast<uint8_t>(status);
         // The UUID string identity is seeded by the Replica authority (Mongo `players`), never

@@ -12,11 +12,12 @@
  *
  * @module      ase-player
  * @layer       3 (Modules)
+ * @usecase     usecase:101588 - move player figure over ground
  * @category    state/abundance/change
  * @schedule    Dynamics
  * @created     2026-06-30
- * @modified    2026-06-30
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -50,7 +51,8 @@ namespace ase::player {
  *
  * @schedule Dynamics — runs after PlayerCtrlMovSystem so it overrides the input-capped velocity
  * @reads    PlayerStaIdntComponent (player_id → Hub owner), Hub "PLR_CHEAT_SPEED"
- * @writes   PlayerStaVelComponent (forced superhuman velocity), PlayerStaChtComponent (cheat-state marker)
+ * @writes   PlayerStaVelComponent (forced superhuman velocity), PlayerStaVelWishComponent (the same speed, filed
+ *           to ase-physics), PlayerStaChtComponent (cheat-state marker)
  */
 class PlayerSimChtSystem : public ecs::System {
 public:

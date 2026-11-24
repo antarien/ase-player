@@ -12,8 +12,8 @@
  * @schedule    Dynamics
  * @usecase     usecase:101588 - move player figure over ground
  * @created     2026-06-30
- * @modified    2026-11-14
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -34,6 +34,7 @@
  *   │                                                          │
  *   │  WRITES:                                                 │
  *   │    → PlayerStaVelComponent (vx forced, vz = 0)            │
+ *   │    → PlayerStaVelWishComponent (same, filed to physics)  │
  *   │    → PlayerStaChtComponent (forced_speed marker)         │
  *   └──────────────────────────────────────────────────────────┘
  *          │
@@ -148,6 +149,7 @@
 // Components from same module ONLY
 #include <ase/player/components/state/player_sta_idnt_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_wish_comp.hpp>
 #include <ase/player/components/state/player_sta_cht_comp.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -204,6 +206,11 @@ void PlayerSimChtSystem::tick(ecs::Registry& registry, float /*dt*/) {
 
             vel.vx = cheat_speed;  // forced superhuman horizontal velocity (simulated speed-hack)
             vel.vz = 0.0f;
+            // The hacked legs ask for the same speed: PlayerSimWalkSystem files the wish, not the velocity, to
+            // ase-physics (B0818), so a cheat that forced only the velocity would never move the body.
+            auto& wish = registry.get_or_emplace<PlayerStaVelWishComponent>(entity);
+            wish.vx = cheat_speed;
+            wish.vz = 0.0f;
 
             // Republish the player's session-scoped project label (the /api/player/cheat route set it under
             // owner = hash(player_id)) onto the player ENTITY owner, so the anti-cheat flag and the project

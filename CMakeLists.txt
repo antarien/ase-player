@@ -114,6 +114,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/state/player_sta_pos_comp.hpp
     include/ase/player/components/state/player_sta_sts_comp.hpp
     include/ase/player/components/state/player_sta_vel_comp.hpp
+    include/ase/player/components/state/player_sta_vel_wish_comp.hpp
     include/ase/player/components/state/player_sta_cht_comp.hpp
     include/ase/player/components/state/player_sta_roam_comp.hpp
     include/ase/player/components/state/player_sta_acmp_comp.hpp
@@ -181,6 +182,7 @@ add_library(${PROJECT_NAME} SHARED
     include/ase/player/components/tag/player_gait_walk_tag.hpp
     include/ase/player/components/tag/player_gait_run_tag.hpp
     include/ase/player/components/tag/player_jump_req_tag.hpp
+    include/ase/player/components/tag/player_body_req_tag.hpp
     include/ase/player/components/tag/player_stnd_grnd_tag.hpp
     include/ase/player/components/tag/player_stnd_watr_tag.hpp
     include/ase/player/components/tag/player_walk_rplc_tag.hpp

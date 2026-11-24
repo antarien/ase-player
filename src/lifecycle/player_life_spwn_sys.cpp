@@ -11,8 +11,8 @@
  * @category    ecs/entity/entitylifecycle
  * @schedule    Dynamics
  * @created     2026-01-22
- * @modified    2026-11-01
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -50,6 +50,7 @@
  *   │    → PlayerStaPosComponent (create)         │
  *   │    → PlayerStaYawComponent (create)         │
  *   │    → PlayerStaVelComponent (create)         │
+ *   │    → PlayerStaVelWishComponent (create)     │
  *   │    → PlayerStaPhysComponent (create)        │
  *   │    → PlayerStaStsComponent (create)         │
  *   │    → PlayerStaChkComponent (create)         │
@@ -180,6 +181,7 @@
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_wish_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/state/player_sta_sts_comp.hpp>
 #include <ase/player/components/state/player_sta_chk_comp.hpp>
@@ -373,6 +375,7 @@ void PlayerLifeSpwnSystem::tick(ecs::Registry& registry, float /*dt*/) {
             registry.emplace<PlayerStaYawComponent>(result_entity);
 
             registry.emplace<PlayerStaVelComponent>(result_entity);
+            registry.emplace<PlayerStaVelWishComponent>(result_entity);  // the legs ask nothing until the stick does
 
             auto& physics = registry.emplace<PlayerStaPhysComponent>(result_entity);
             physics.on_ground = true;

@@ -12,7 +12,7 @@
  * @category    process/simulation
  * @schedule    Dynamics
  * @created     2026-11-14
- * @modified    2026-11-14
+ * @modified    2026-11-23
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -43,8 +43,9 @@
  *    from it; PlayerSimWalkSystem files the next step]
  *
  * THE SPEED IS THE ONE THE BODY HAS. The level speed of the answer is what ase-physics granted the wish: a wall
- * took the part that ran into it, the water of the cell carried its share over to the flow (PhysicsWalkSterSystem
- * STEP 3). Taking it over makes the figure in the brook wade: PlayerCtrlMovSystem accelerates from it, not from the
+ * took the part that ran into it, the water of the cell resisted it by the share of its capsule under the water line
+ * (PhysicsCurrSystem STEP 4, the law of every body in the brook). Taking it over makes the figure in the brook wade:
+ * PlayerCtrlMovSystem accelerates from it, not from the
  * wish of the last tick, and the gait band reads the slower speed.
  *
  * THE FRAME. The answer stands in metres from the frame origin the figure filed: the origin is the chunk

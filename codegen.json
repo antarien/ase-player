@@ -371,6 +371,30 @@
             "key": "HUB_LIFE_ALIV_PLR_BODY"
         },
         {
+            "key": "HUB_PHYS_REG_BODY_ADD_FALL"
+        },
+        {
+            "key": "HUB_PHYS_REG_BODY_ADD_MAKE"
+        },
+        {
+            "key": "HUB_PHYS_REG_BODY_ADD_MASS"
+        },
+        {
+            "key": "HUB_PHYS_REG_BODY_ADD_OWNER"
+        },
+        {
+            "key": "HUB_PHYS_REG_BODY_ADD_ROUGH"
+        },
+        {
+            "key": "HUB_PHYS_REG_BODY_ADD_X"
+        },
+        {
+            "key": "HUB_PHYS_REG_BODY_ADD_Y"
+        },
+        {
+            "key": "HUB_PHYS_REG_BODY_ADD_Z"
+        },
+        {
             "key": "HUB_PHYS_WALK_JUMP"
         },
         {
@@ -390,15 +414,6 @@
         },
         {
             "key": "HUB_PHYS_WALK_VEL_Z"
-        },
-        {
-            "key": "HUB_PHYS_WALK_X"
-        },
-        {
-            "key": "HUB_PHYS_WALK_Y"
-        },
-        {
-            "key": "HUB_PHYS_WALK_Z"
         },
         {
             "key": "HUB_PLR_MIG_STG_FIG"
@@ -496,7 +511,8 @@
                 "PlayerStaPlcmComponent",
                 "PlayerStaPosComponent",
                 "PlayerStaRoamComponent",
-                "PlayerStaVelComponent"
+                "PlayerStaVelComponent",
+                "PlayerStaVelWishComponent"
             ]
         },
         {
@@ -512,6 +528,7 @@
             "reliability": "reliable",
             "type": "create",
             "components": [
+                "PlayerBodyReqTag",
                 "PlayerDrtyTag",
                 "PlayerGaitRunTag",
                 "PlayerGaitStndTag",
@@ -530,6 +547,7 @@
             "reliability": "reliable",
             "type": "delete",
             "components": [
+                "PlayerBodyReqTag",
                 "PlayerDrtyTag",
                 "PlayerGaitRunTag",
                 "PlayerGaitStndTag",
@@ -546,6 +564,12 @@
     ],
     "components": {
         "shared": [
+            {
+                "name": "PlayerBodyReqTag",
+                "description": "PlayerBodyReqTag - the figure was put somewhere and files its body with ase-physics",
+                "fields": [],
+                "file": "tag/player_body_req_tag.hpp"
+            },
             {
                 "name": "PlayerDrtyTag",
                 "description": "PlayerDrtyTag - this player changed since the last outbound pass",
@@ -1109,6 +1133,25 @@
                     }
                 ],
                 "file": "state/player_sta_vel_comp.hpp"
+            },
+            {
+                "name": "PlayerStaVelWishComponent",
+                "description": "PlayerStaVelWishComponent - the speed the legs of the figure ask for in this tick",
+                "fields": [
+                    {
+                        "name": "vx",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Horizontal wish, world axis X (m/s)"
+                    },
+                    {
+                        "name": "vz",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Horizontal wish, world axis Z (m/s)"
+                    }
+                ],
+                "file": "state/player_sta_vel_wish_comp.hpp"
             },
             {
                 "name": "PlayerStndGrndTag",

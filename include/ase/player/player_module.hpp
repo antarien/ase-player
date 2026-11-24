@@ -300,9 +300,9 @@ struct PlayerModule {
             .run_after("PlayerSimStndSystem")
             .run_after("PlayerSimBndySystem");
 
-        // The gait tags read the velocity PlayerSimStndSystem took from ase-physics, PlayerCtrlMovSystem moved
-        // toward the wish and PlayerSimBndySystem bounded in this frame (07.5, 07.7, 07.13); the order on
-        // PlayerCtrlMovSystem comes over PlayerSimBndySystem, which runs after the three systems behind it.
+        // The gait tags read the speed PlayerSimStndSystem took from ase-physics and PlayerSimBndySystem bounded
+        // in this frame (07.5, 07.7, 07.13), never the wish PlayerCtrlMovSystem writes into its own component
+        // (B0818); the order on PlayerCtrlMovSystem comes over PlayerSimBndySystem, which runs after it.
         app.add_system_with<PlayerStaGaitSystem>(ecs::Schedule::Dynamics)
             .run_after("PlayerSimStndSystem")
             .run_after("PlayerSimBndySystem");

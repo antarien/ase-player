@@ -6,8 +6,9 @@
  * @file        player_buf_walk_comp.hpp
  * @brief       PlayerBufWalkComponent - the step a figure files with ase-physics this tick
  * @description Bridge component: the place and the horizontal velocity of a walking figure relative to its
- *              frame, settled by PlayerSimWalkSystem in Dynamics and written onto the row HUB_PHYS_WALK by
- *              PlayerHubWalkSystem in the same pass. ase-physics walks the body from this place with this
+ *              frame, settled by PlayerSimWalkSystem in Dynamics and written by PlayerHubWalkSystem in the
+ *              same pass: the place onto HUB_PHYS_REG_BODY_ADD_FIGR when the figure is laid, the velocity onto
+ *              HUB_PHYS_WALK every tick. ase-physics lays the body at this place, walks it toward this
  *              velocity, adds gravity and ground contact, and answers on HUB_PHYS_STAND.
  *
  *              buf = buffer, walk = walk
@@ -20,7 +21,7 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-14
- * @modified    2026-11-14
+ * @modified    2026-11-23
  * @version     00.01.42.00092 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -31,11 +32,16 @@
  *
  * This component is the BRIDGE between:
  *   - Calc System (SERVER-ONLY): PlayerSimWalkSystem turns the chunk address into a place in the frame
- *   - Hub System (SERVER-ONLY): PlayerHubWalkSystem writes it unchanged onto the row
+ *   - Hub System (SERVER-ONLY): PlayerHubWalkSystem writes it unchanged onto two rows
  *
- * HUB TARGET (row HUB_PHYS_WALK on the figure entity)
- *   x → HUB_PHYS_WALK_X      y → HUB_PHYS_WALK_Y      z → HUB_PHYS_WALK_Z
- *   vel_x → HUB_PHYS_WALK_VEL_X      vel_z → HUB_PHYS_WALK_VEL_Z
+ * HUB TARGET (on the figure entity)
+ *   x → HUB_PHYS_REG_BODY_ADD_X   y → HUB_PHYS_REG_BODY_ADD_Y   z → HUB_PHYS_REG_BODY_ADD_Z   (row FIGR, once per
+ *                                                                                           placement, PASS 4)
+ *   vel_x → HUB_PHYS_WALK_VEL_X      vel_z → HUB_PHYS_WALK_VEL_Z                           (row HUB_PHYS_WALK, each tick)
+ *
+ * THE PLACE GOES ONLY WITH THE BODY (register A1698). A body has one place, and ase-physics moves it; the place
+ * is filed when the figure is laid, together with mass, fall speed, make and roughness, and never again until
+ * the placement count rises. Every tick only the wish travels: the velocity the legs aim for.
  *
  * THE FRAME IS ITS OWN ROW. The origin the place is relative to stands in PlayerBufWalkFrmComponent: the step
  * changes every tick, the frame only when the figure is placed. Unlike the notepad of a running save

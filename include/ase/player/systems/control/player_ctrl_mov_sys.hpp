@@ -17,8 +17,8 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-11-13
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -26,8 +26,8 @@
  *
  * ARCHITECTURE (SYN Pattern - SHARED Calc System):
  *
- *   PlayerInpExtComponent  →PlayerCtrlMovSystem  →PlayerStaVelComponent
- *   (from PlayerSyncInpSystem)  (calculates velocity)   (vx, vy, vz)
+ *   PlayerInpExtComponent  →PlayerCtrlMovSystem  →PlayerStaVelWishComponent
+ *   (from PlayerSyncInpSystem)  (calculates the walk wish)  (vx, vz)
  *
  * ECS SYSTEM HEADER COMPLIANCE
  *
@@ -53,8 +53,9 @@ namespace ase::player {
  *
  * @schedule Dynamics - processes input for movement
  * @reads    PlayerInpExtComponent (input bridge from SyncSystem)
- * @reads    PlayerStaPosComponent, PlayerStaVelComponent, PlayerStaPhysComponent, PlayerStMovComponent
- * @writes   PlayerStaVelComponent (velocity from input)
+ * @reads    PlayerStaPosComponent, PlayerStaPhysComponent, PlayerStMovComponent
+ * @writes   PlayerStaVelWishComponent (walk wish from input; the granted speed PlayerStaVelComponent stays as
+ *           PlayerSimStndSystem laid it, B0818)
  */
 class PlayerCtrlMovSystem : public ecs::System {
 public:

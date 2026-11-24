@@ -29,12 +29,15 @@
  *   ┌──────────────────────────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerHubWalkSystem (Dynamics)                     │
  *   │  READS:  PlayerBufWalkComponent, PlayerBufWalkFrmComponent,      │
- *   │          PlayerStaPlcmComponent, PlayerJumpReqTag                │
- *   │  WRITES: row HUB_PHYS_WALK (adopt) and its ten fields            │
+ *   │          PlayerStaPlcmComponent, PlayerJumpReqTag,               │
+ *   │          PlayerBodyReqTag                                        │
+ *   │  WRITES: row HUB_PHYS_WALK (adopt) and its seven fields; row     │
+ *   │          HUB_PHYS_REG_BODY_ADD_FIGR (adopt) once per placement   │
  *   └──────────────────────────────────────────────────────────────────┘
  *          │
  *          ▼
- *   [PhysicsHubWalkSyncSystem of ase-physics lays the body; the answer comes back as HUB_PHYS_STAND]
+ *   [PhysicsHubBodySystem of ase-physics lays the body, PhysicsHubWalkSyncSystem gives it its legs; the answer comes
+ *    back as HUB_PHYS_STAND]
  *
  * HUB Pattern (MIG_ASE_HUB_API O(1))
  *
@@ -44,11 +47,13 @@
  * WRITES (to Hub for other modules):
  *   row kind HUB_PHYS_WALK → hub::row_adopt onto the figure entity, idempotent
  *   HUB_PHYS_WALK_OWNER, HUB_PHYS_WALK_SEQ → hub::set_u32
- *   HUB_PHYS_WALK_ORIGIN_X, _ORIGIN_Z, _X, _Y, _Z, _VEL_X, _VEL_Z, _JUMP → hub::set_f32
+ *   HUB_PHYS_WALK_ORIGIN_X, _ORIGIN_Z, _VEL_X, _VEL_Z, _JUMP → hub::set_f32
+ *   row kind HUB_PHYS_REG_BODY_ADD_FIGR → hub::row_adopt onto the figure entity, once per placement
+ *   HUB_PHYS_REG_BODY_ADD_OWNER, _MAKE → hub::set_u32; _X, _Y, _Z, _MASS, _FALL, _ROUGH → hub::set_f32
  *
- * EVERY VALUE IS FILLED IN EVERY PASS from its one home, so ase-physics never reads a step older than the frame.
- * ase-physics reads the place only when the placement count moved or the body is new; between placements it
- * walks the body on from its own state and takes the velocity and the jump.
+ * EVERY VALUE OF THE WISH IS FILLED IN EVERY PASS from its one home, so ase-physics never reads a step older than the
+ * frame. THE PLACE GOES ONLY WITH THE BODY: HUB_PHYS_REG_BODY_ADD_FIGR carries it once per placement, and between
+ * placements ase-physics walks the body on from its own state and takes the velocity and the jump.
  *
  * THE AXIS ORDER. This module carries the height in y and spans the ground with x and z; HUB_PHYS_WALK names the
  * same axes, so no swap happens here.
@@ -149,6 +154,7 @@
 #include <ase/player/components/buffer/player_buf_walk_comp.hpp>
 #include <ase/player/components/buffer/player_buf_walk_frm_comp.hpp>
 #include <ase/player/components/state/player_sta_plcm_comp.hpp>
+#include <ase/player/components/tag/player_body_req_tag.hpp>
 #include <ase/player/components/tag/player_jump_req_tag.hpp>
 // types.hpp for constants
 #include <ase/player/types.hpp>
@@ -181,7 +187,7 @@ void PlayerHubWalkSystem::on_start(ecs::Registry& /*registry*/) {
 
 void PlayerHubWalkSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
-     * PASS 1: adopt the row and fill owner, frame origin, place, velocity and placement count of every figure
+     * PASS 1: adopt the row and fill owner, frame origin, velocity and placement count of every figure
      * with a filed step.
      */
     for (auto [figure, walk, origin, placement] :
@@ -191,9 +197,6 @@ void PlayerHubWalkSystem::tick(ecs::Registry& registry, float /*dt*/) {
         hub::set_u32(registry, owner, "HUB_PHYS_WALK_OWNER"_hs, placement.owner);
         hub::set_f32(registry, owner, "HUB_PHYS_WALK_ORIGIN_X"_hs, origin.origin_x);
         hub::set_f32(registry, owner, "HUB_PHYS_WALK_ORIGIN_Z"_hs, origin.origin_z);
-        hub::set_f32(registry, owner, "HUB_PHYS_WALK_X"_hs, walk.x);
-        hub::set_f32(registry, owner, "HUB_PHYS_WALK_Y"_hs, walk.y);
-        hub::set_f32(registry, owner, "HUB_PHYS_WALK_Z"_hs, walk.z);
         hub::set_f32(registry, owner, "HUB_PHYS_WALK_VEL_X"_hs, walk.vel_x);
         hub::set_f32(registry, owner, "HUB_PHYS_WALK_VEL_Z"_hs, walk.vel_z);
         hub::set_u32(registry, owner, "HUB_PHYS_WALK_SEQ"_hs, placement.seq);
@@ -213,6 +216,30 @@ void PlayerHubWalkSystem::tick(ecs::Registry& registry, float /*dt*/) {
          registry.view<PlayerBufWalkComponent, PlayerStaPlcmComponent>(entt::exclude<PlayerJumpReqTag>)) {
         hub::set_f32(registry, static_cast<uint32_t>(figure), "HUB_PHYS_WALK_JUMP"_hs, 0.0f);
     }
+
+    /**
+     * PASS 4: THE FIGURE IS A BODY LIKE EVERY OTHER (register A1698). A figure that was put somewhere files its body
+     * once on its own entity, at the place it now stands in its frame: mass, fall speed, make and the roughness of its
+     * soles are its own facts (PLR_FIG_*). PhysicsHubBodySystem withdraws the row and lays the body afresh, at rest,
+     * as it lays a seed or a stone; gravity, the current, the air and the friction of the ground then act on it, and
+     * HUB_PHYS_WALK adds only the wish of its legs.
+     */
+    const auto make = static_cast<uint32_t>(entt::hashed_string::value(PLR_FIG_MAKE));
+    for (auto [figure, walk, placement] :
+         registry.view<PlayerBufWalkComponent, PlayerStaPlcmComponent, PlayerBodyReqTag>().each()) {
+        hub::row_adopt(registry, figure, "HUB_PHYS_REG_BODY_ADD_FIGR"_hs);
+        const auto owner = static_cast<uint32_t>(figure);
+        hub::set_u32(registry, owner, "HUB_PHYS_REG_BODY_ADD_OWNER"_hs, placement.owner);
+        hub::set_f32(registry, owner, "HUB_PHYS_REG_BODY_ADD_X"_hs, walk.x);
+        hub::set_f32(registry, owner, "HUB_PHYS_REG_BODY_ADD_Y"_hs, walk.y);
+        hub::set_f32(registry, owner, "HUB_PHYS_REG_BODY_ADD_Z"_hs, walk.z);
+        hub::set_f32(registry, owner, "HUB_PHYS_REG_BODY_ADD_MASS"_hs, PLR_FIG_MASS_KG);
+        hub::set_f32(registry, owner, "HUB_PHYS_REG_BODY_ADD_FALL"_hs, PLR_FIG_FALL_MPS);
+        hub::set_u32(registry, owner, "HUB_PHYS_REG_BODY_ADD_MAKE"_hs, make);
+        hub::set_f32(registry, owner, "HUB_PHYS_REG_BODY_ADD_ROUGH"_hs, PLR_FIG_ROUGH_M);
+        log::debug("[PlayerHubWalkSystem] figure {} files its body (placement {})", owner, placement.seq);
+    }
+    registry.clear<PlayerBodyReqTag>();
 
     /**
      * STEP 4: the request is written; it is answered once.

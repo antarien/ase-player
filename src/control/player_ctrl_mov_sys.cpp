@@ -14,8 +14,8 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-11-14
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -38,12 +38,12 @@
  *   │    - PlayerStaPhysComponent (on_ground)     │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStaVelComponent (vx, vz)         │
+ *   │    - PlayerStaVelWishComponent (vx, vz)     │
  *   │    - PlayerStaPhysComponent (on_ground)     │
  *   │    - PlayerJumpReqTag (jump asked)          │
  *   └─────────────────────────────────────────────┘
  *          │
- *          │ horizontal velocity calculated
+ *          │ horizontal walk wish calculated (the granted speed PlayerStaVelComponent stays untouched)
  *          ▼
  *   PlayerSimKnbkSystem (knockback), PlayerSimBndySystem (rim), then PlayerSimWalkSystem files the step
  *   and PlayerHubWalkSystem writes it as HUB_PHYS_WALK; ase-physics walks the body, falls and stands it.
@@ -157,7 +157,7 @@
 #include <ase/player/components/input/player_inp_cam_comp.hpp>
 #include <ase/player/components/input/player_inp_cmb_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
-#include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_wish_comp.hpp>
 #include <ase/player/components/state/player_sta_phys_comp.hpp>
 #include <ase/player/components/tag/player_jump_req_tag.hpp>
 // types.hpp for constants
@@ -193,6 +193,9 @@ void PlayerCtrlMovSystem::on_start(ecs::Registry& /*registry*/) {
 }
 
 void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
+    // The wish is a speed, not a step: the time of the tick acts in ase-physics, which reaches the wish
+    (void)dt;
+
     /**
      * STEP 1: The movement settings are the MOVEMENT_DEFAULT_* constants of types.hpp.
      */
@@ -207,11 +210,11 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
         PlayerInpCamComponent,
         PlayerInpCmbComponent,
         PlayerStaPosComponent,
-        PlayerStaVelComponent,
+        PlayerStaVelWishComponent,
         PlayerStaPhysComponent
     >();
 
-    for (auto [entity, inp, cam, cmb, pos, vel, physics] : view.each()) {
+    for (auto [entity, inp, cam, cmb, pos, wish, physics] : view.each()) {
         /**
          * STEP 3: Read input values from the bridge components (SYN Pattern).
          * The axes live in PlayerInpExtComponent, the camera yaw in PlayerInpCamComponent.
@@ -246,23 +249,16 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
         if (types::is_pos_float(cmb.landing_stun) || types::is_pos_float(cmb.patzer_stun)) {
             speed *= PLR_CMB_SCALE_HELD;
         }
-        float control = physics.on_ground ? 1.0f : MOVEMENT_DEFAULT_AIR_CONTROL;
-
-        float target_vx = move_x * speed;
-        float target_vz = move_z * speed;
-
         /**
-         * STEP 6: Apply acceleration based on ground state
+         * STEP 6: The wish of the legs is the target speed itself. The legs add a wish to the body and never a
+         * ground of their own: how fast the body reaches it, how far its soles brake it when the stick lets go
+         * and that a wish moves nothing in the air is the one grip of ase-physics on the soil of the cell
+         * (PhysicsWalkCntcSystem STEP 8, the aim only on a floor). PlayerSimWalkSystem files it as the wish.
+         * The wish has a component of its own: PlayerSimStndSystem lays the speed the ground granted on
+         * PlayerStaVelComponent, and gait, motion row and anticheat read that answer, never the stick (B0818).
          */
-        if (physics.on_ground) {
-            float accel = MOVEMENT_DEFAULT_GROUND_FRICTION * dt;
-            accel = math::min(accel, 1.0f);
-            vel.vx += (target_vx - vel.vx) * accel;
-            vel.vz += (target_vz - vel.vz) * accel;
-        } else {
-            vel.vx += (target_vx - vel.vx) * control * dt;
-            vel.vz += (target_vz - vel.vz) * control * dt;
-        }
+        wish.vx = move_x * speed;
+        wish.vz = move_z * speed;
 
         /**
          * STEP 7: A jump is asked, never flown here. A figure on the ground that wants to jump is marked

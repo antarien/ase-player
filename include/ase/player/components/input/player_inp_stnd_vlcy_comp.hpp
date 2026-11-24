@@ -6,9 +6,10 @@
  * @file        player_inp_stnd_vlcy_comp.hpp
  * @brief       PlayerInpStndVlcyComponent - the level speed ase-physics granted the walking figure in its step
  * @description Bridge component: on a figure that walks as a body of ase-physics, the level speed of that module's
- *              answer (row HUB_PHYS_STAND on the figure entity) after this tick's step. It is the wish of the figure
- *              less what a wall stopped and what the water of its cell carried over to the flow
- *              (PhysicsWalkSterSystem STEP 3). PlayerHubStndSyncSystem fills it in Reception beside
+ *              answer (row HUB_PHYS_STAND on the figure entity) after this tick's step. The grip of the sole pulls
+ *              it towards the wish of the figure no faster than the ground holds (PhysicsWalkCntcSystem STEP 8), a
+ *              wall takes the part that runs into it and the water of its cell resists it (PhysicsCurrSystem
+ *              STEP 4). PlayerHubStndSyncSystem fills it in Reception beside
  *              PlayerInpStndComponent; PlayerSimStndSystem takes it over into PlayerStaVelComponent in Dynamics
  *              once the placement count of that answer matches the frame of the figure, so the gait and the next
  *              acceleration of PlayerCtrlMovSystem start from the speed the body has.
@@ -23,8 +24,8 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-21
- * @modified    2026-11-21
- * @version     00.01.46.00096 [feat]
+ * @modified    2026-11-24
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.

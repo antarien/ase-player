@@ -9,9 +9,11 @@
  *              stamped: every figure with the edges of its loaded raster (PlayerInpGrndComponent) that stands
  *              beyond a chunk border of that raster less the margin PLR_AREA_EDGE_M is set back onto the border,
  *              each axis on its own, and the part of its horizontal velocity that points outward is taken away.
- *              The figure slides along the border instead of sticking to it. A set back figure is marked
- *              PlayerWalkRplcTag, so PlayerSimWalkSystem lays its walking body again at the bounded place. The
- *              floor is not here: ase-physics stands the body on the elevation cells ase-gis measured under it.
+ *              The outward part of its walk wish (PlayerStaVelWishComponent) is taken as well, so the step
+ *              PlayerSimWalkSystem files no longer presses outward. The figure slides along the border instead of
+ *              sticking to it. A set back figure gets NO new placement: the glass of ase-physics holds the walking
+ *              body at the border, and laying it again would set it at rest outside the box every frame (B0821).
+ *              The floor is not here: ase-physics stands the body on the elevation cells ase-gis measured under it.
  *
  *              It runs after PlayerSimTlptSystem and PlayerSimKnbkSystem and before PlayerSimWalkSystem and
  *              PlayerStaChnkSystem on purpose: the teleport jump and the knockback have moved the place for
@@ -34,8 +36,8 @@
  * @schedule    Dynamics
  * @parity      server_only
  * @created     2026-11-13
- * @modified    2026-11-17
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -64,9 +66,10 @@ namespace ase::player {
  * @brief Keeps every bound figure inside its loaded area
  *
  * @reads    PlayerInpGrndComponent, PlayerInpChnkCnstComponent (manager row), PlayerStaPosComponent,
- *           PlayerStaVelComponent
+ *           PlayerStaVelComponent, PlayerStaVelWishComponent
  * @writes   PlayerStaPosComponent (chunk address, local metres), PlayerStaVelComponent (vx, vz),
- *           PlayerWalkRplcTag, PlayerAreaBndyTag (set at a border of the raster, taken off inside it: the rim state)
+ *           PlayerStaVelWishComponent (outward vx, vz taken), PlayerAreaBndyTag (set at a border of the raster,
+ *           taken off inside it: the rim state); no new placement, the glass of ase-physics holds the body (B0821)
  */
 class PlayerSimBndySystem : public ecs::System {
 public:

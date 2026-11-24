@@ -12,8 +12,8 @@
  * @category    process/simulation
  * @schedule    Dynamics
  * @created     2026-11-14
- * @modified    2026-11-14
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -22,15 +22,17 @@
  * CAUSAL CHAIN (PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.13, DoD 07-K: ase-player writes its intent, ase-physics
  * resolves gravity and ground contact)
  *
- *   [PlayerCtrlMovSystem set the horizontal velocity; teleport, knockback, migration and PlayerSimBndySystem
- *    marked PlayerWalkRplcTag where they put the figure somewhere; PlayerAreaSynSystem laid the plate]
+ *   [PlayerCtrlMovSystem set the walk wish and PlayerSimBndySystem took its outward part at the rim; teleport,
+ *    knockback and migration marked PlayerWalkRplcTag where they put the figure somewhere; PlayerAreaSynSystem
+ *    laid the plate]
  *          │
  *          ▼
  *   ┌──────────────────────────────────────────────────────────────────┐
  *   │  THIS SYSTEM: PlayerSimWalkSystem (Dynamics)                     │
  *   │  READS (from Components):                                        │
  *   │    PlayerInpAreaComponent, PlayerStaPosComponent,                │
- *   │    PlayerStaVelComponent, PlayerInpChnkCnstComponent             │
+ *   │    PlayerStaVelComponent, PlayerStaVelWishComponent,             │
+ *   │    PlayerInpChnkCnstComponent                                    │
  *   │  WRITES (to Components):                                         │
  *   │    PlayerStaFrmComponent, PlayerStaPlcmComponent,                │
  *   │    PlayerBufWalkComponent, PlayerBufWalkFrmComponent             │
@@ -160,6 +162,8 @@
 #include <ase/player/components/state/player_sta_plcm_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_wish_comp.hpp>
+#include <ase/player/components/tag/player_body_req_tag.hpp>
 #include <ase/player/components/tag/player_mgr_tag.hpp>
 #include <ase/player/components/tag/player_walk_rplc_tag.hpp>
 // types.hpp for constants
@@ -279,6 +283,7 @@ void PlayerSimWalkSystem::tick(ecs::Registry& registry, float /*dt*/) {
         auto& placement = registry.get_or_emplace<PlayerStaPlcmComponent>(figure);
         placement.owner = area.plate;
         placement.seq += 1;
+        registry.emplace_or_replace<PlayerBodyReqTag>(figure);
         log::debug("[PlayerSimWalkSystem] Figure {} placed on plate {} (placement {})",
                    static_cast<uint32_t>(figure), area.plate, placement.seq);
     }
@@ -298,6 +303,7 @@ void PlayerSimWalkSystem::tick(ecs::Registry& registry, float /*dt*/) {
         auto& placement = registry.get_or_emplace<PlayerStaPlcmComponent>(figure);
         placement.owner = types::InvalidEntityId;
         placement.seq += 1;
+        registry.emplace_or_replace<PlayerBodyReqTag>(figure);
         log::debug("[PlayerSimWalkSystem] Figure {} placed on chunk {},{} (placement {})",
                    static_cast<uint32_t>(figure), pos.chunk_x, pos.chunk_z, placement.seq);
     }
@@ -308,16 +314,18 @@ void PlayerSimWalkSystem::tick(ecs::Registry& registry, float /*dt*/) {
      * height from the frame level; the frame origin goes along, so ase-physics asks the ase-gis cells under the
      * figure's world place.
      */
-    for (auto [figure, frame, placement, pos, vel] :
+    for (auto [figure, frame, placement, pos, wish] :
          registry.view<PlayerStaFrmComponent, PlayerStaPlcmComponent, PlayerStaPosComponent,
-                       PlayerStaVelComponent>().each()) {
+                       PlayerStaVelWishComponent>().each()) {
         (void)placement;
         auto& walk = registry.get_or_emplace<PlayerBufWalkComponent>(figure);
         walk.x = static_cast<float>(pos.chunk_x - frame.chunk_x) * chunk_edge + pos.local_x - frame.off_x;
         walk.z = static_cast<float>(pos.chunk_z - frame.chunk_z) * chunk_edge + pos.local_z - frame.off_z;
         walk.y = pos.y - frame.level;
-        walk.vel_x = vel.vx;
-        walk.vel_z = vel.vz;
+        // The WISH goes to ase-physics, never the speed it granted last beat: filed back, the granted speed
+        // would be asked for again and a body slowed by water or a slope would never come to rest (B0818).
+        walk.vel_x = wish.vx;
+        walk.vel_z = wish.vz;
 
         auto& origin = registry.get_or_emplace<PlayerBufWalkFrmComponent>(figure);
         origin.origin_x = static_cast<float>(frame.chunk_x) * chunk_edge + frame.off_x;

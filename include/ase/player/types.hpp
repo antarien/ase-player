@@ -99,11 +99,23 @@ constexpr float MOVEMENT_DEFAULT_JUMP_IMPULSE = 5.0f;   // Jump impulse (m/s)
 /**
  * DEFAULT VALUES - STEERING
  * How the wish of the figure turns into its horizontal velocity (PlayerCtrlMovSystem). Gravity, ground
- * contact and falling are not values of this module: ase-physics owns them for every walking body
- * (HUB_PHYS_WALK, PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.13).
+ * contact, falling and the grip that reaches the wish on the ground are not values of this module: ase-physics
+ * owns them for every walking body (HUB_PHYS_WALK, PhysicsWalkCntcSystem STEP 8,
+ * PLAN_ASE_VIVARIUM_PHASE_07_FIGURE 07.13).
  */
-constexpr float MOVEMENT_DEFAULT_GROUND_FRICTION = 1e1f;   // Ground friction coefficient
 constexpr float MOVEMENT_DEFAULT_AIR_CONTROL = 0.3f;       // Air control factor (0-1)
+
+/**
+ * THE FIGURE'S BODY
+ * The figure is filed with ase-physics as a body like every other (HUB_PHYS_REG_BODY_ADD_FIGR, register A1698):
+ * its mass, its fall speed and the roughness of its soles are facts of the figure and stand here with their owner,
+ * never as a constant of the physics. Gravity, the current, the air and the friction of the ground then act on it as
+ * on a seed or a stone; the legs add only the wish (HUB_PHYS_WALK).
+ */
+constexpr float PLR_FIG_MASS_KG = 70.0f;       // kg - mass of an adult figure, what gravity and the current act on
+constexpr float PLR_FIG_FALL_MPS = 53.0f;      // m/s - fall speed of a human body in air, belly down (skydiving)
+constexpr float PLR_FIG_ROUGH_M = 0.002f;      // m - roughness of a treaded sole against the ground
+constexpr const char* PLR_FIG_MAKE = "figure_body";  // make of the figure's body; ase-physics carries its hash back
 
 /**
  * DEFAULT VALUES - ROTATION

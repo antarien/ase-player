@@ -4,8 +4,8 @@
  * @file        player_sim_bndy_sys.cpp
  * @brief       PlayerSimBndySystem - keeps every bound figure inside its loaded area
  * @description Pure calculation on the settled place: a figure beyond the chunk borders of the loaded ase-gis
- *              raster around it is set back onto them, loses the outward part of its horizontal velocity and asks
- *              for its walking body to be laid again at the bounded place.
+ *              raster around it is set back onto them and loses the outward part of its walk wish and of its
+ *              horizontal velocity; the walking body stays where the glass of ase-physics holds it.
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -15,8 +15,8 @@
  * @category    process/simulation
  * @schedule    Dynamics
  * @created     2026-11-13
- * @modified    2026-11-17
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -34,12 +34,12 @@
  *   │                                                            │
  *   │  READS:  PlayerInpGrndComponent, PlayerInpChnkCnstComponent │
  *   │  WRITES: PlayerStaPosComponent, PlayerStaVelComponent,     │
- *   │          PlayerWalkRplcTag, PlayerAreaBndyTag              │
+ *   │          PlayerStaVelWishComponent, PlayerAreaBndyTag      │
  *   └────────────────────────────────────────────────────────────┘
  *          │
  *          ▼
- *   PlayerSimWalkSystem lays the body again where PlayerWalkRplcTag stands, PlayerStaChnkSystem stamps the chunk
- *   address, PlayerSimWrldSystem converts the place into world metres.
+ *   PlayerSimWalkSystem files the bounded wish to ase-physics, PlayerStaChnkSystem stamps the chunk address,
+ *   PlayerSimWrldSystem converts the place into world metres.
  *
  * THE AXIS ORDER: the area is laid in the axis order of the star (x = PLR_POS_X, z = PLR_POS_Y); this module
  * spans the chunk grid with x and z and carries the height in y, so the second horizontal axis of the area is
@@ -164,9 +164,9 @@
 #include <ase/player/components/input/player_inp_grnd_comp.hpp>
 #include <ase/player/components/state/player_sta_pos_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_wish_comp.hpp>
 #include <ase/player/components/tag/player_area_bndy_tag.hpp>
 #include <ase/player/components/tag/player_mgr_tag.hpp>
-#include <ase/player/components/tag/player_walk_rplc_tag.hpp>
 // types.hpp for the margin the figure keeps from the rim
 #include <ase/player/types.hpp>
 // ase-types (Layer 0) for the positive-float predicate
@@ -253,8 +253,12 @@ void PlayerSimBndySystem::tick(ecs::Registry& registry, float /*dt*/) {
 
         /**
          * STEP 3: Set the place back onto the box, each axis on its own, then write chunk address and local metres
-         * back from the world place, so the local metres stay inside [0, edge). The body ase-physics walks has to be
-         * laid again at the bounded place: PlayerWalkRplcTag asks PlayerSimWalkSystem for a new placement.
+         * back from the world place, so the local metres stay inside [0, edge). The body ase-physics walks is NOT
+         * laid again here: a new placement makes PhysicsHubWalkSyncSystem take the floor and the ground probe off
+         * the body, and PhysicsWalkBndySystem holds the capsule a capsule radius inside the same raster edge, which
+         * is outside this box. A body there was laid afresh in every frame, never had a floor, never took a wish
+         * and stood fast on the glass (register B0821). The glass holds the body; this box holds the place the
+         * figure reports, and a figure without a frame is laid by PASS A of PlayerSimWalkSystem in every tick.
          */
         const float bound_x = math::clamp(world_x, min_x, max_x);
         const float bound_z = math::clamp(world_z, min_z, max_z);
@@ -264,13 +268,15 @@ void PlayerSimBndySystem::tick(ecs::Registry& registry, float /*dt*/) {
         pos.chunk_z = static_cast<int32_t>(cell_z);
         pos.local_x = bound_x - cell_x * chunk_size;
         pos.local_z = bound_z - cell_z * chunk_size;
-        registry.emplace_or_replace<PlayerWalkRplcTag>(figure);
         registry.emplace_or_replace<PlayerAreaBndyTag>(figure);  // the rim state, published as HUB_PLR_MOTN_BNDY
 
         /**
-         * STEP 4: Take away the outward part of the horizontal velocity on each axis the figure crossed; the part
-         * along the edge stays, so a figure that runs against a chunk border slides along it.
+         * STEP 4: Take away the outward part of the walk wish and of the granted speed on each axis the figure
+         * crossed; the part along the edge stays, so a figure that runs against a chunk border slides along it. The
+         * wish is what PlayerSimWalkSystem files to ase-physics: with its outward part gone the body stops pressing
+         * against the glass of PhysicsWalkBndySystem and walks back in as soon as the stick points inward.
          */
+        auto* wish = registry.try_get<PlayerStaVelWishComponent>(figure);
         const float out_x = (world_x > max_x) ? vel.vx : -vel.vx;
         if (!inside_x && types::is_pos_float(out_x)) {
             vel.vx = 0.0f;
@@ -278,6 +284,17 @@ void PlayerSimBndySystem::tick(ecs::Registry& registry, float /*dt*/) {
         const float out_z = (world_z > max_z) ? vel.vz : -vel.vz;
         if (!inside_z && types::is_pos_float(out_z)) {
             vel.vz = 0.0f;
+        }
+        if (wish == nullptr) {
+            continue;  // a figure that carries no walk wish has none to bound
+        }
+        const float wish_out_x = (world_x > max_x) ? wish->vx : -wish->vx;
+        if (!inside_x && types::is_pos_float(wish_out_x)) {
+            wish->vx = 0.0f;
+        }
+        const float wish_out_z = (world_z > max_z) ? wish->vz : -wish->vz;
+        if (!inside_z && types::is_pos_float(wish_out_z)) {
+            wish->vz = 0.0f;
         }
     }
 }

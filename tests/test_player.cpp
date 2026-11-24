@@ -49,6 +49,7 @@
 #include <ase/player/components/state/player_sta_frm_comp.hpp>
 #include <ase/player/components/state/player_sta_plcm_comp.hpp>
 #include <ase/player/components/buffer/player_buf_walk_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_wish_comp.hpp>
 #include <ase/player/components/tag/player_stnd_grnd_tag.hpp>
 #include <ase/player/components/tag/player_walk_rplc_tag.hpp>
 #include <ase/player/systems/anticheat/player_acc_mov_sys.hpp>
@@ -577,24 +578,27 @@ TEST_CASE("PlayerSimStndSystem takes the stand answer of ase-physics back, and o
     CHECK(pos.local_x == doctest::Approx(26.0f));
 }
 
-TEST_CASE("usecase:101588: the figure takes the speed ase-physics granted, so the brook it wades slows its next wish") {
+TEST_CASE("usecase:101588: the figure takes the speed ase-physics granted and files its own wish, never the answer") {
     ase::ecs::Registry registry;
     auto entity = do_spawn_request(registry, "wade_test", 20.0f, 5.0f);
     REQUIRE(entity != ase::ecs::NullEntity);
+    // RED when: the spawn lays no wish - PlayerCtrlMovSystem and PASS E of PlayerSimWalkSystem would skip the figure.
+    REQUIRE(registry.all_of<PlayerStaVelWishComponent>(entity));
     PlayerSimWalkSystem walk;
     PlayerSimStndSystem stnd;
     walk.tick(registry, 0.0f);
     REQUIRE(registry.all_of<PlayerStaPlcmComponent, PlayerBufWalkComponent>(entity));
 
-    // The figure wishes 2 m/s east and none north.
+    // The figure wishes 2 m/s east and none north; the speed the body has is a value of its own.
+    auto& wish = registry.get<PlayerStaVelWishComponent>(entity);
     auto& vel = registry.get<PlayerStaVelComponent>(entity);
-    vel.vx = 2.0f;
-    vel.vz = 0.0f;
+    wish.vx = 2.0f;
+    wish.vz = 0.0f;
     walk.tick(registry, 0.0f);
     CHECK(registry.get<PlayerBufWalkComponent>(entity).vel_x == doctest::Approx(2.0f));
 
     // RED when: the level speed of the answer is dropped. ase-physics granted half the wish east, and the brook
-    // carried the figure 0.4 m/s north (PhysicsWalkSterSystem STEP 3, half the capsule under water).
+    // carried the figure 0.4 m/s north (PhysicsCurrSystem STEP 4, half the capsule under water).
     answer_as_physics(registry, entity, 0.0f, true);
     auto& granted = registry.get<PlayerInpStndVlcyComponent>(entity);
     granted.vel_x = 1.0f;
@@ -602,11 +606,17 @@ TEST_CASE("usecase:101588: the figure takes the speed ase-physics granted, so th
     stnd.tick(registry, 0.0f);
     CHECK(vel.vx == doctest::Approx(1.0f));
     CHECK(vel.vz == doctest::Approx(0.4f));
+    // RED when: the answer of the ground overwrites the wish - the legs would ask for what the water allowed.
+    CHECK(wish.vx == doctest::Approx(2.0f));
+    CHECK(wish.vz == doctest::Approx(0.0f));
 
-    // RED when: the next filed step starts from the wish of the last tick instead of the speed the body has.
+    // RED when: the next filed step is the granted speed instead of the wish (B0818). Filed back, the answer
+    // would be asked for again, and the gait and the motion row would read the stick instead of the body.
     walk.tick(registry, 0.0f);
-    CHECK(registry.get<PlayerBufWalkComponent>(entity).vel_x == doctest::Approx(1.0f));
-    CHECK(registry.get<PlayerBufWalkComponent>(entity).vel_z == doctest::Approx(0.4f));
+    CHECK(registry.get<PlayerBufWalkComponent>(entity).vel_x == doctest::Approx(2.0f));
+    CHECK(registry.get<PlayerBufWalkComponent>(entity).vel_z == doctest::Approx(0.0f));
+    CHECK(vel.vx == doctest::Approx(1.0f));
+    CHECK(vel.vz == doctest::Approx(0.4f));
 
     // RED when: a speed of an answer to an older placement is taken. The figure was put somewhere else since.
     registry.get<PlayerStaPlcmComponent>(entity).seq += 1u;
@@ -855,6 +865,7 @@ TEST_CASE("the rim sets a figure back inside the chunk borders of its loaded ras
     auto& grnd = registry.emplace<PlayerInpGrndComponent>(figure);
     auto& pos = registry.emplace<PlayerStaPosComponent>(figure);
     auto& vel = registry.emplace<PlayerStaVelComponent>(figure);
+    auto& wish = registry.emplace<PlayerStaVelWishComponent>(figure);
     registry.emplace<PlayerStaPhysComponent>(figure);
     grnd.west = 0.0f;
     grnd.east = TEST_CHUNK_EDGE_M;
@@ -862,16 +873,19 @@ TEST_CASE("the rim sets a figure back inside the chunk borders of its loaded ras
     grnd.north = TEST_CHUNK_EDGE_M;
     PlayerSimBndySystem rim;
 
-    // Inside the borders the figure walks free: place and velocity stay as they are.
+    // Inside the borders the figure walks free: place, velocity and wish stay as they are.
     pos.chunk_x = 0;
     pos.local_x = 6.0f;
     pos.chunk_z = 0;
     pos.local_z = 5.0f;
     vel.vx = 3.0f;
     vel.vz = 1.0f;
+    wish.vx = 3.0f;
+    wish.vz = 1.0f;
     rim.tick(registry, 0.0f);
     CHECK(pos.local_x == doctest::Approx(6.0f));
     CHECK(vel.vx == doctest::Approx(3.0f));
+    CHECK(wish.vx == doctest::Approx(3.0f));
 
     // World place (40, 5) lies beyond the east border: set back onto it, less the margin, carried back into the
     // chunk that holds it. RED when the chunk address keeps the old cell or the local metres leave [0, edge).
@@ -885,13 +899,20 @@ TEST_CASE("the rim sets a figure back inside the chunk borders of its loaded ras
     // RED when: the whole velocity goes - the figure would stick to the rim instead of sliding along it.
     CHECK(vel.vx == doctest::Approx(0.0f));
     CHECK(vel.vz == doctest::Approx(1.0f));
+    // RED when: the outward wish stays - the body would press on against the glass of ase-physics (B0821).
+    CHECK(wish.vx == doctest::Approx(0.0f));
+    CHECK(wish.vz == doctest::Approx(1.0f));
+    // RED when: the set-back asks for a new placement - the body would lose its floor in every frame (B0821).
+    CHECK_FALSE(registry.all_of<PlayerWalkRplcTag>(figure));
 
-    // RED when: an inward velocity is taken - the figure could not walk back into its area.
+    // RED when: an inward velocity or wish is taken - the figure could not walk back into its area.
     pos.chunk_x = 1;
     pos.local_x = 8.0f;
     vel.vx = -2.0f;
+    wish.vx = -2.0f;
     rim.tick(registry, 0.0f);
     CHECK(vel.vx == doctest::Approx(-2.0f));
+    CHECK(wish.vx == doctest::Approx(-2.0f));
 
     // A raster loaded west of zero: the bounded place lies in chunk -1. RED when the cell is truncated
     // towards zero instead of floored.

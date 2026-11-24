@@ -196,8 +196,8 @@ Applies movement intent to velocity:
 
 ### PlayerSimWalkSystem and PlayerSimStndSystem
 Case usecase:101588 - move player figure over ground. ase-player computes no gravity and no ground; the walking body belongs to ase-physics (CAUSA_ASE_PHYSICS):
-- **Walk**: PlayerSimWalkSystem lays the frame and placement and files the step; PlayerHubWalkSystem puts it on the row `HUB_PHYS_WALK`
-- **Placement**: a teleport, knockback, migration or the rim lays `PlayerWalkRplcTag`, and the next walk raises the placement count
+- **Walk**: PlayerSimWalkSystem lays the frame and placement and files the walk wish `PlayerStaVelWishComponent` as the step, never the speed ase-physics granted; PlayerHubWalkSystem puts it on the row `HUB_PHYS_WALK`
+- **Placement**: a teleport, knockback or migration lays `PlayerWalkRplcTag`, and the next walk raises the placement count. The rim (PlayerSimBndySystem) lays none: it takes the outward part of wish and speed, and the glass of ase-physics holds the body at the border
 - **Stand**: PlayerHubStndSyncSystem reads `HUB_PHYS_STAND` into `PlayerInpStndComponent`, `PlayerInpStndVlcyComponent` and `PlayerStndGrndTag`
 - **Take back**: PlayerSimStndSystem takes the answered place into the chunk address, the granted speed (`vx`, `vy`, `vz`, after wall and water) and `on_ground`, and skips an answer of an older placement
 

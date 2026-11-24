@@ -18,7 +18,9 @@
  *
  *              A NEW FRAME IS A NEW PLACEMENT. Laying a frame raises the placement count; ase-physics lays the body
  *              at the filed place again, and PlayerSimStndSystem takes no answer to an older count. Teleport,
- *              knockback, migration and the rim mark PlayerWalkRplcTag for the same reason.
+ *              knockback and migration mark PlayerWalkRplcTag for the same reason. The rim does not: the glass of
+ *              ase-physics holds the walking body at the border, and a new placement there would lay it at rest
+ *              outside the box every frame (B0821).
  *
  * @module      ase-player
  * @layer       3 (Modules)
@@ -29,8 +31,8 @@
  * @schedule    Dynamics
  * @parity      server_only
  * @created     2026-11-14
- * @modified    2026-11-14
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-23
+ * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -61,7 +63,8 @@ namespace ase::player {
  * @schedule Dynamics - after PlayerSimBndySystem: the step is filed once steering, teleport, knockback and the
  *           rim have set place and velocity of this frame.
  * @reads    PlayerMgrTag, PlayerInpChnkCnstComponent (the chunk edge), PlayerInpAreaComponent,
- *           PlayerStaPosComponent, PlayerStaVelComponent, PlayerStaPhysComponent, PlayerWalkRplcTag
+ *           PlayerStaPosComponent, PlayerStaVelComponent, PlayerStaVelWishComponent (the filed wish),
+ *           PlayerStaPhysComponent, PlayerWalkRplcTag
  * @writes   PlayerStaFrmComponent, PlayerStaPlcmComponent, PlayerWalkRplcTag (laid and cleared),
  *           PlayerBufWalkComponent, PlayerBufWalkFrmComponent
  */
