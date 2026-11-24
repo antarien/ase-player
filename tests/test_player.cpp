@@ -940,6 +940,52 @@ TEST_CASE("the rim sets a figure back inside the chunk borders of its loaded ras
     CHECK(free_pos.local_x == doctest::Approx(1.0f));
 }
 
+TEST_CASE("the rim box stands where the glass of ase-physics holds a capsule wider than the edge margin") {
+    // usecase:101612 - keep figure in loaded area. PhysicsWalkBndySystem holds the centre of the capsule one radius
+    // inside the edge; with a radius above PLR_AREA_EDGE_M the box must move in by the radius, or it never trips and
+    // the figure reports the speed of a run the held body does not make (register B0915).
+    ase::ecs::Registry registry;
+    lay_chunk_edge(registry);
+    auto figure = registry.create();
+    auto& grnd = registry.emplace<PlayerInpGrndComponent>(figure);
+    auto& pos = registry.emplace<PlayerStaPosComponent>(figure);
+    auto& vel = registry.emplace<PlayerStaVelComponent>(figure);
+    auto& wish = registry.emplace<PlayerStaVelWishComponent>(figure);
+    registry.emplace<PlayerStaPhysComponent>(figure);
+    const float radius = PLR_AREA_EDGE_M + 0.136f;  // the shoulder radius of the vivarium rig, wider than the margin
+    grnd.west = 0.0f;
+    grnd.east = TEST_CHUNK_EDGE_M;
+    grnd.south = 0.0f;
+    grnd.north = TEST_CHUNK_EDGE_M;
+    grnd.radius = radius;
+    PlayerSimBndySystem rim;
+
+    // The glass holds the body at north minus the radius; this frame's run moved the place a step beyond it.
+    // RED when the box keeps PLR_AREA_EDGE_M: the place lies inside that box, nothing is set back, the speed stays.
+    pos.chunk_x = 0;
+    pos.local_x = 5.0f;
+    pos.chunk_z = 0;
+    pos.local_z = TEST_CHUNK_EDGE_M - radius + 0.13f;
+    vel.vx = 0.0f;
+    vel.vz = 7.9f;
+    wish.vx = 0.0f;
+    wish.vz = 7.9f;
+    rim.tick(registry, 0.0f);
+    CHECK(pos.local_z == doctest::Approx(TEST_CHUNK_EDGE_M - radius));
+    CHECK(vel.vz == doctest::Approx(0.0f));
+    CHECK(wish.vz == doctest::Approx(0.0f));
+    CHECK(registry.all_of<PlayerAreaBndyTag>(figure));
+
+    // RED when: a radius under the margin narrows the box - the edge margin stays the least distance from the rim.
+    grnd.radius = PLR_AREA_EDGE_M * 0.5f;
+    pos.chunk_z = 1;
+    pos.local_z = 1.0f;
+    vel.vz = 2.0f;
+    rim.tick(registry, 0.0f);
+    CHECK(pos.chunk_z == 0);
+    CHECK(pos.local_z == doctest::Approx(TEST_CHUNK_EDGE_M - PLR_AREA_EDGE_M));
+}
+
 TEST_CASE("the rim state stands on the figure while it is set back and reaches the star as HUB_PLR_MOTN_BNDY") {
     using namespace entt::literals;
     ase::ecs::Registry registry;

@@ -16,7 +16,7 @@
  * @schedule    Dynamics
  * @created     2026-11-13
  * @modified    2026-11-23
- * @version     00.01.48.00098 [feat]
+ * @version     00.01.45.00095 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -50,7 +50,8 @@
  * HUB_PHYS_STAND; this system bounds the horizontal place only.
  *
  * THE RIM IS THE RASTER, NEVER A CIRCLE (usecase:101612, HUB_GIS_GRND). The figure is held inside the four chunk
- * borders of the loaded elevation raster, each moved in by PLR_AREA_EDGE_M; every axis is set back on its own, and
+ * borders of the loaded elevation raster, each moved in by PLR_AREA_EDGE_M or by the capsule radius of the body
+ * (PlayerInpGrndComponent.radius), whichever is larger; every axis is set back on its own, and
  * only the outward part of the velocity goes, so a figure that runs against a border slides along it. The edges
  * move out when ase-gis loads a neighbouring chunk; ase-physics holds the walking body at the same borders
  * (PhysicsWalkBndySystem).
@@ -220,17 +221,21 @@ void PlayerSimBndySystem::tick(ecs::Registry& registry, float /*dt*/) {
          registry.view<PlayerInpGrndComponent, PlayerStaPosComponent, PlayerStaVelComponent>().each()) {
         /**
          * STEP 1: The world place on the two horizontal axes, and the box the figure may stand in: the four chunk
-         * borders of the loaded raster, each moved in by PLR_AREA_EDGE_M. A raster narrower than twice the margin
-         * holds the figure on the middle line of that axis.
+         * borders of the loaded raster, each moved in by the margin. The margin is PLR_AREA_EDGE_M or the capsule
+         * radius of the body, whichever is larger: the glass of PhysicsWalkBndySystem holds the centre one radius
+         * inside the edge, and a box wider than the glass never trips, so the outward speed was never taken and the
+         * figure reported a run the held body did not make (register B0915). A raster narrower than twice the
+         * margin holds the figure on the middle line of that axis.
          */
+        const float margin = math::max(PLR_AREA_EDGE_M, grnd.radius);
         const float world_x = static_cast<float>(pos.chunk_x) * chunk_size + pos.local_x;
         const float world_z = static_cast<float>(pos.chunk_z) * chunk_size + pos.local_z;
         const float mid_x = (grnd.west + grnd.east) * 0.5f;
         const float mid_z = (grnd.south + grnd.north) * 0.5f;
-        const float min_x = math::min(grnd.west + PLR_AREA_EDGE_M, mid_x);
-        const float max_x = math::max(grnd.east - PLR_AREA_EDGE_M, mid_x);
-        const float min_z = math::min(grnd.south + PLR_AREA_EDGE_M, mid_z);
-        const float max_z = math::max(grnd.north - PLR_AREA_EDGE_M, mid_z);
+        const float min_x = math::min(grnd.west + margin, mid_x);
+        const float max_x = math::max(grnd.east - margin, mid_x);
+        const float min_z = math::min(grnd.south + margin, mid_z);
+        const float max_z = math::max(grnd.north - margin, mid_z);
 
         /**
          * STEP 2: Inside the box the figure walks free. A figure this system set onto an edge stands ON it in the
@@ -256,8 +261,8 @@ void PlayerSimBndySystem::tick(ecs::Registry& registry, float /*dt*/) {
          * back from the world place, so the local metres stay inside [0, edge). The body ase-physics walks is NOT
          * laid again here: a new placement makes PhysicsHubWalkSyncSystem take the floor and the ground probe off
          * the body, and PhysicsWalkBndySystem holds the capsule a capsule radius inside the same raster edge, which
-         * is outside this box. A body there was laid afresh in every frame, never had a floor, never took a wish
-         * and stood fast on the glass (register B0821). The glass holds the body; this box holds the place the
+         * is the edge of this box or outside it (STEP 1). A body laid here was laid afresh in every frame, never had
+         * a floor, never took a wish and stood fast on the glass (register B0821). The glass holds the body; this box holds the place the
          * figure reports, and a figure without a frame is laid by PASS A of PlayerSimWalkSystem in every tick.
          */
         const float bound_x = math::clamp(world_x, min_x, max_x);

@@ -19,8 +19,8 @@
  * @usecase     usecase:101612 - keep figure in loaded area
  * @actor       Game Areal Plate (AREAL)
  * @created     2026-11-18
- * @modified    2026-11-18
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-24
+ * @version     00.01.45.00095 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -37,6 +37,11 @@
  *
  * HUB SOURCE (row HUB_GIS_GRND on the figure, the answer of ase-gis to HUB_GIS_GRND_REQ of ase-physics)
  *   HUB_GIS_GRND_WEST → west  HUB_GIS_GRND_EAST → east  HUB_GIS_GRND_SOUTH → south  HUB_GIS_GRND_NORTH → north
+ * HUB SOURCE (row HUB_AVTR_RIG on the figure, the skeleton ase-pl-avatar measured)
+ *   HUB_AVTR_RIG_RADIUS_M → radius, the same measure PhysicsHubWalkSyncSystem gives the capsule of the body
+ *
+ * THE BOX STANDS WHERE THE GLASS STANDS. PhysicsWalkBndySystem holds the centre of the capsule one radius inside
+ * each edge; PlayerSimBndySystem keeps the place at least that far in, so both stop the figure at one line.
  *
  * THE AREA IS RASTER, NEVER A CIRCLE (usecase:101612, HUB_GIS_GRND_REQ). The edges run along the chunk borders of
  * the loaded elevation raster, walked by ase-gis from the chunk of the figure along its row and its column while
@@ -85,6 +90,7 @@ struct PlayerInpGrndComponent {
     float east = 0.0f;   // m - east edge of the loaded raster on the same chunk row, along PLR_POS_X
     float south = 0.0f;  // m - south edge of the loaded raster on the chunk column of the figure, along PLR_POS_Y
     float north = 0.0f;  // m - north edge of the loaded raster on the same chunk column, along PLR_POS_Y
+    float radius = 0.0f; // m - radius of the capsule ase-physics walks the figure as (HUB_AVTR_RIG_RADIUS_M); 0 while unmeasured
 };
 
 }  // namespace ase::player

@@ -218,6 +218,9 @@
             "key": "GIS_HYD_CELL_DEPTH"
         },
         {
+            "key": "HUB_AVTR_RIG_RADIUS_M"
+        },
+        {
             "key": "HUB_CONST_SHARE_MAX"
         },
         {
@@ -1379,6 +1382,12 @@
                         "type": "float32",
                         "default": "0.0f",
                         "description": "m - north edge of the loaded raster on the same chunk column, along PLR_POS_Y"
+                    },
+                    {
+                        "name": "radius",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "m - radius of the capsule ase-physics walks the figure as (HUB_AVTR_RIG_RADIUS_M); 0 while unmeasured"
                     }
                 ],
                 "file": "input/player_inp_grnd_comp.hpp"

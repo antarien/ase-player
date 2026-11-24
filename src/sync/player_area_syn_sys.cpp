@@ -12,8 +12,8 @@
  * @usecase     usecase:101612 - keep figure in loaded area
  * @actor       Game Areal Plate (AREAL)
  * @created     2026-11-13
- * @modified    2026-11-18
- * @version     00.01.42.00094 [feat]
+ * @modified    2026-11-24
+ * @version     00.01.45.00095 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -47,6 +47,7 @@
  *   TRN_FLAT_HGT, TRN_FLAT_X, TRN_FLAT_Z                           (per plate, only once measured)
  *   row HUB_GIS_GRND, fields HUB_GIS_GRND_WEST, _EAST, _SOUTH, _NORTH (adopted on the figure by ase-gis, the
  *     answer to the HUB_GIS_GRND_REQ ase-physics files on the walking body, which is the figure)
+ *   row HUB_AVTR_RIG, field HUB_AVTR_RIG_RADIUS_M                  (per figure, laid by ase-pl-avatar)
  *
  * WRITES (to Hub):
  *   none
@@ -54,6 +55,7 @@
  * WRITES (to Components):
  *   PlayerInpAreaComponent.level, x, z, plate - the anchor of the bound plate
  *   PlayerInpGrndComponent.west, east, south, north - the edges of the loaded raster around the figure
+ *   PlayerInpGrndComponent.radius - the capsule radius of the walking body, the margin of the glass
  *   PlayerAreaBndyTag - taken off together with the area: a figure without an area stands on no rim
  *
  * THE BOUND IS RASTER, NEVER A CIRCLE. PlayerSimBndySystem keeps the figure inside the four edges of
@@ -327,6 +329,24 @@ void PlayerAreaSynSystem::tick(ecs::Registry& registry, float /*dt*/) {
         grnd.east = east;
         grnd.south = south;
         grnd.north = north;
+
+        /**
+         * STEP 7: The capsule radius of the body, the measure ase-pl-avatar laid on the figure (HUB_AVTR_RIG) and
+         * PhysicsHubWalkSyncSystem gives the capsule. Its glass holds the centre one radius inside the edges, so the
+         * box of PlayerSimBndySystem keeps the place at least that far in. An unmeasured skeleton is a point body:
+         * radius 0. A measure that is no length keeps the radius the figure had.
+         */
+        if (!hub::row_has(registry, figure, "HUB_AVTR_RIG"_hs)) {
+            grnd.radius = 0.0f;
+            continue;
+        }
+        float radius = 0.0f;
+        if (!hub::try_get_f32(registry, figure_id, "HUB_AVTR_RIG_RADIUS_M"_hs, radius) || !types::is_val_float(radius) ||
+            types::is_neg_float(radius)) {
+            log::warn(log::WRN::CAT::VALUE_INVALID, "PlayerAreaSynSystem", figure_id, "HUB_AVTR_RIG_RADIUS_M", radius);
+            continue;
+        }
+        grnd.radius = radius;
     }
 }
 
