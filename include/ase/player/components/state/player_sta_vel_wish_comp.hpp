@@ -18,7 +18,7 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-11-23
- * @modified    2026-11-23
+ * @modified    2026-11-24
  * @version     00.01.48.00098 [feat]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
@@ -30,6 +30,11 @@
  * wish of this tick overwrote the granted speed before anyone read it, so the gait, the motion row of the hub and
  * the anticheat read the stick instead of the body: a figure wading a brook showed the speed of dry ground, and a
  * figure that rolled down a bank at no wish showed it standing (register B0818).
+ *
+ * THE PACE IS THE WISH OF A WHOLE STICK. Whoever files a part of the stick has to know what the whole one asks
+ * for: the AI stick of ase-pl-avatar eases off before the place it walks to by the way its body still covers at
+ * this speed (AvatarWalkClcSystem). The speed stays decided here alone, in PlayerCtrlMovSystem STEP 5; it travels
+ * as HUB_PLR_MOTN_PACE, and no reader keeps a walking speed of its own.
  *
  * AXES: as PlayerStaVelComponent, Y is the vertical in this module; the wish has no vertical part, the vertical
  * speed is the answer of the ground alone.
@@ -79,6 +84,7 @@ namespace ase::player {
 struct PlayerStaVelWishComponent {
     float vx = 0.0f;  // Horizontal wish, world axis X (m/s)
     float vz = 0.0f;  // Horizontal wish, world axis Z (m/s)
+    float pace = 0.0f;  // Speed the whole stick asks for in this tick: gait, slow, frost and stun applied (m/s)
 };
 
 }  // namespace ase::player

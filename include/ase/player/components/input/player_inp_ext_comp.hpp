@@ -23,8 +23,8 @@
  * @parity      shared
  * @usecase     usecase:101554 - receive player input
  * @created     2026-01-22
- * @modified    2026-11-14
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-25
+ * @version     00.01.43.00093 [refine]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -39,7 +39,7 @@
  * Hub Keys stored:
  *   PLR_INP_FWD    → inp_fwd    (Forward input -1 to 1)
  *   PLR_INP_STR    → inp_str    (Strafe input -1 to 1)
- *   PLR_INP_SPRINT → inp_sprint (Sprint flag 0 or 1)
+ *   PLR_INP_SPRINT → inp_sprint (Sprint level 0 to 1, the share of the way from walk to run)
  *   PLR_INP_JUMP   → inp_jump   (Jump flag 0 or 1)
  *
  * ECS COMPONENT COMPLIANCE
@@ -80,13 +80,14 @@ namespace ase::player {
  *
  * Filled in every tick by PlayerSyncInpSystem (Integration) from the owner-keyed
  * hub values PLR_INP_FWD/STR/SPRINT/JUMP; read by PlayerCtrlMovSystem,
- * PlayerCtrlInpSystem and PlayerStaStsSystem. The two flags ride as 0.0f/1.0f
- * because the hub value space is float32 - the readers threshold them at 0.5f.
+ * PlayerCtrlInpSystem and PlayerStaStsSystem. The jump flag rides as 0.0f/1.0f
+ * because the hub value space is float32 - its readers threshold it at 0.5f. The sprint
+ * is a level (B0943): PlayerCtrlMovSystem lays the pace along it without a step.
  */
 struct PlayerInpExtComponent {
     float inp_fwd = 0.0f;     // Forward input (-1 to 1) from PLR_INP_FWD
     float inp_str = 0.0f;     // Strafe input (-1 to 1) from PLR_INP_STR
-    float inp_sprint = 0.0f;  // Sprint input (0 or 1) from PLR_INP_SPRINT
+    float inp_sprint = 0.0f;  // Sprint level (0 to 1, share of the way from walk to run) from PLR_INP_SPRINT
     float inp_jump = 0.0f;    // Jump input (0 or 1) from PLR_INP_JUMP
 };
 

@@ -80,6 +80,13 @@
 #include <ase/player/systems/control/player_ctrl_turn_sys.hpp>
 #include <ase/player/components/input/player_inp_turn_comp.hpp>
 #include <ase/player/components/input/player_inp_ext_comp.hpp>
+// The wish of the legs and the pace beside it (usecase:101588)
+#include <ase/player/systems/control/player_ctrl_mov_sys.hpp>
+// The heading of a walking figure on the shortest arc, the span of the sprint level (B0943)
+#include <ase/player/systems/control/player_ctrl_inp_sys.hpp>
+#include <ase/player/systems/sync/player_sync_inp_sys.hpp>
+#include <ase/player/components/input/player_inp_cam_comp.hpp>
+#include <ase/player/components/input/player_inp_cmb_comp.hpp>
 #include <ase/player/components/request/player_req_turn_comp.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 #include <ase/player/components/tag/player_drty_tag.hpp>
@@ -625,6 +632,148 @@ TEST_CASE("usecase:101588: the figure takes the speed ase-physics granted and fi
     CHECK(vel.vx == doctest::Approx(1.0f));
 }
 
+TEST_CASE("usecase:101588: the pace is the speed of the whole stick, whatever share of it the stick gives") {
+    ase::ecs::Registry registry;
+    auto figure = registry.create();
+    auto& input = registry.emplace<PlayerInpExtComponent>(figure);
+    registry.emplace<PlayerInpCamComponent>(figure);
+    auto& combat = registry.emplace<PlayerInpCmbComponent>(figure);
+    registry.emplace<PlayerStaPosComponent>(figure);
+    auto& wish = registry.emplace<PlayerStaVelWishComponent>(figure);
+    registry.emplace<PlayerStaPhysComponent>(figure);
+    PlayerCtrlMovSystem legs;
+
+    // RED when: the pace is the speed of the stick. A quarter stick asks a quarter of the walk, its pace stays whole.
+    input.inp_fwd = 0.25f;
+    legs.tick(registry, 0.0f);
+    CHECK(wish.vz == doctest::Approx(-0.25f * MOVEMENT_DEFAULT_WALK_SPEED));
+    CHECK(wish.pace == doctest::Approx(MOVEMENT_DEFAULT_WALK_SPEED));
+
+    // RED when: the pace leaves the figure as it stands still - a reader would take the rest for a figure without legs.
+    input.inp_fwd = 0.0f;
+    legs.tick(registry, 0.0f);
+    CHECK(wish.vz == doctest::Approx(0.0f));
+    CHECK(wish.pace == doctest::Approx(MOVEMENT_DEFAULT_WALK_SPEED));
+
+    // RED when: sprint or the slow of the combat star is missing in the pace the AI eases off by.
+    input.inp_fwd = 1.0f;
+    input.inp_sprint = 1.0f;
+    combat.slow_intensity = 0.5f;
+    legs.tick(registry, 0.0f);
+    CHECK(wish.pace == doctest::Approx(0.5f * MOVEMENT_DEFAULT_RUN_SPEED));
+    CHECK(wish.vz == doctest::Approx(-0.5f * MOVEMENT_DEFAULT_RUN_SPEED));
+}
+
+TEST_CASE("usecase:101588: the sprint is a level, every share of it asks its own pace between walk and run") {
+    ase::ecs::Registry registry;
+    auto figure = registry.create();
+    auto& input = registry.emplace<PlayerInpExtComponent>(figure);
+    registry.emplace<PlayerInpCamComponent>(figure);
+    registry.emplace<PlayerInpCmbComponent>(figure);
+    registry.emplace<PlayerStaPosComponent>(figure);
+    auto& wish = registry.emplace<PlayerStaVelWishComponent>(figure);
+    registry.emplace<PlayerStaPhysComponent>(figure);
+    PlayerCtrlMovSystem legs;
+    const float gap = MOVEMENT_DEFAULT_RUN_SPEED - MOVEMENT_DEFAULT_WALK_SPEED;
+    input.inp_fwd = 1.0f;
+
+    // RED when: the sprint is a switch at one half (B0943). A thumb a quarter past the walk border asked the walk,
+    // one a hair past the half the whole run: the figure jumped from 4 to 8 m/s between two frames.
+    input.inp_sprint = 0.25f;
+    legs.tick(registry, 0.0f);
+    CHECK(wish.pace == doctest::Approx(MOVEMENT_DEFAULT_WALK_SPEED + 0.25f * gap));
+    CHECK(wish.vz == doctest::Approx(-(MOVEMENT_DEFAULT_WALK_SPEED + 0.25f * gap)));
+    input.inp_sprint = 0.75f;
+    legs.tick(registry, 0.0f);
+    CHECK(wish.pace == doctest::Approx(MOVEMENT_DEFAULT_WALK_SPEED + 0.75f * gap));
+
+    // RED when: the two ends move. The AI, the errand walker and the web route send 0 and 1 and get the two speeds.
+    input.inp_sprint = 0.0f;
+    legs.tick(registry, 0.0f);
+    CHECK(wish.pace == doctest::Approx(MOVEMENT_DEFAULT_WALK_SPEED));
+    input.inp_sprint = 1.0f;
+    legs.tick(registry, 0.0f);
+    CHECK(wish.pace == doctest::Approx(MOVEMENT_DEFAULT_RUN_SPEED));
+
+}
+
+TEST_CASE("usecase:101554: a sprint level out of the share span of the star is taken as the walk") {
+    using namespace entt::literals;
+    ase::ecs::Registry registry;
+    auto figure = registry.create();
+    registry.emplace<PlayerStaPosComponent>(figure);
+    registry.emplace<PlayerStaYawComponent>(figure);
+    const uint32_t owner = static_cast<uint32_t>(figure);
+    hub::set(registry, hub::GLOBAL, "HUB_CONST_SHARE_MIN"_hs, 0.0f);
+    hub::set(registry, hub::GLOBAL, "HUB_CONST_SHARE_MAX"_hs, 1.0f);
+    PlayerSyncInpSystem sync;
+
+    // RED when: the level is cut to a switch on the way in. A half sprint reaches the legs as a half.
+    hub::set(registry, owner, "PLR_INP_SPRINT"_hs, 0.5f);
+    sync.tick(registry, 0.0f);
+    CHECK(registry.get<PlayerInpExtComponent>(figure).inp_sprint == doctest::Approx(0.5f));
+
+    // RED when: a level past the span is taken as it stands: at 3 the legs would ask four times the gap to the run.
+    hub::set(registry, owner, "PLR_INP_SPRINT"_hs, 3.0f);
+    sync.tick(registry, 0.0f);
+    CHECK(registry.get<PlayerInpExtComponent>(figure).inp_sprint == doctest::Approx(0.0f));
+    hub::set(registry, owner, "PLR_INP_SPRINT"_hs, -1.0f);
+    sync.tick(registry, 0.0f);
+    CHECK(registry.get<PlayerInpExtComponent>(figure).inp_sprint == doctest::Approx(0.0f));
+}
+
+TEST_CASE("usecase:101588: a walking figure turns to the way it walks, on the shortest arc, by game time alone") {
+    ase::ecs::Registry registry;
+    auto figure = registry.create();
+    registry.emplace<PlayerStaIdntComponent>(figure);
+    auto& heading = registry.emplace<PlayerStaYawComponent>(figure);
+    auto& input = registry.emplace<PlayerInpExtComponent>(figure);
+    auto& camera = registry.emplace<PlayerInpCamComponent>(figure);
+    PlayerCtrlInpSystem inp;
+    const float dt = 1.0f / 30.0f;
+    const float share = 1.0f - math::exp(-MOVEMENT_DEFAULT_TURN_SPEED * dt);
+
+    // RED when: the heading of a walk to the side stays on the camera (B0943). The stick to the right walks the
+    // figure along +x (PlayerCtrlMovSystem STEP 4), whose course is -PI/2; a forward gait drawn crabbing sideways.
+    heading.yaw = 0.0f;
+    camera.cam_yaw = 0.0f;
+    input.inp_str = 1.0f;
+    inp.tick(registry, dt);
+    CHECK(heading.yaw == doctest::Approx(math::TWO_PI - share * math::HALF_PI).epsilon(1e-4));
+    CHECK(registry.all_of<PlayerDrtyTag>(figure));
+    for (int tick = 0; tick < 120; ++tick) {
+        inp.tick(registry, dt);
+    }
+    CHECK(heading.yaw == doctest::Approx(1.5f * math::PI).epsilon(1e-4));
+
+    // RED when: the step hangs on the count of the ticks. Two half ticks turn as far as one whole tick.
+    heading.yaw = 0.0f;
+    inp.tick(registry, dt);
+    const float whole = heading.yaw;
+    heading.yaw = 0.0f;
+    inp.tick(registry, 0.5f * dt);
+    inp.tick(registry, 0.5f * dt);
+    CHECK(heading.yaw == doctest::Approx(whole).epsilon(1e-4));
+
+    // RED when: the turn goes the long way round. From 6.0 to a camera course of 0.2 the short way crosses 2*PI.
+    heading.yaw = 6.0f;
+    camera.cam_yaw = 0.2f;
+    input.inp_str = 0.0f;
+    input.inp_fwd = 1.0f;
+    inp.tick(registry, dt);
+    const float arc = 0.2f + math::TWO_PI - 6.0f;
+    const float turned = 6.0f + share * arc;
+    CHECK(heading.yaw == doctest::Approx(turned < math::TWO_PI ? turned : turned - math::TWO_PI).epsilon(1e-4));
+
+    // RED when: a standing figure is turned. Without a stick the heading belongs to the turn on the spot.
+    registry.remove<PlayerDrtyTag>(figure);
+    input.inp_fwd = 0.0f;
+    const float held = heading.yaw;
+    inp.tick(registry, dt);
+    CHECK(heading.yaw == doctest::Approx(held));
+    CHECK_FALSE(registry.all_of<PlayerDrtyTag>(figure));
+}
+
 TEST_CASE("session start is a pulse: up for one pass, down in the next, never announced twice") {
     using namespace entt::literals;
     ase::ecs::Registry registry;
@@ -743,6 +892,12 @@ TEST_CASE("the motion row states course, horizontal velocity and exactly one gai
     motion.tick(registry, 0.0f);
     CHECK(hub::row_has(registry, figure, "HUB_PLR_GAIT_RUN"_hs));
     CHECK_FALSE(hub::row_has(registry, figure, "HUB_PLR_GAIT_WALK"_hs));
+
+    // RED when: the speed the whole stick asks for stays off the row - the stick of the AI (AvatarWalkClcSystem)
+    // could not tell how fast it sends its figure, and would send it past the bank it walks to.
+    registry.emplace<PlayerStaVelWishComponent>(figure).pace = 4.0f;
+    motion.tick(registry, 0.0f);
+    CHECK(hub::get_f64(registry, owner, "HUB_PLR_MOTN_PACE"_hs, -1.0) == doctest::Approx(4.0));
 
     // RED when: an entity without PlayerSpndTag reaches the star - it is no figure of the roster.
     auto stranger = registry.create();

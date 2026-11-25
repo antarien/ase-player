@@ -2,17 +2,26 @@
  * ASE ECS SYSTEM IMPLEMENTATION
  *
  * @file        player_ctrl_inp_sys.cpp
- * @brief       PlayerCtrlInpSystem - Process player input and update facing direction
- * @description SHARED System: Reads from PlayerInpExtComponent (no Hub access).
- *              Calculation systems read from Components, not Hub (SYN Pattern).
+ * @brief       PlayerCtrlInpSystem - Turns the heading of a walking figure towards the way it walks
+ * @description Calculation system without hub access (SYN pattern): reads the stick from
+ *              PlayerInpExtComponent and the camera course from PlayerInpCamComponent, both filled by
+ *              PlayerSyncInpSystem. The aim is the course of the velocity the stick asks along the camera
+ *              course, the same formula as PlayerCtrlMovSystem STEP 4; heading and aim stand as two
+ *              quaternions about the up axis and the heading moves by slerp with the share
+ *              1 - e^(-MOVEMENT_DEFAULT_TURN_SPEED * dt): game time alone sets the step, the shorter way
+ *              round is taken and the aim is never passed (register B0943).
  *
  * @module      ase-player
  * @layer       3 (Modules)
  * @category    action/control
+ * @parity      server_only
  * @schedule    Dynamics
+ * @design      DSGN_030
+ * @usecase     usecase:101588 - move player figure over ground
+ * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-01-29
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-25
+ * @version     00.01.43.00093 [refine]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -157,10 +166,10 @@
 #include <ase/player/types.hpp>
 // Logging
 #include <ase/log/log.hpp>
-// Math
+// Math: sin, cos, atan2, exp; the heading as a rotation about the up axis
 #include <ase/math/math.hpp>
-// Sentinel and range predicates (NO manual sentinel comparisons!)
-#include <ase/types/types.hpp>
+#include <ase/math/quaternion.hpp>
+#include <ase/math/vec3.hpp>
 
 namespace ase::player {
 using namespace entt::literals;  // For "_hs hashed strings (Hub)
@@ -215,23 +224,31 @@ void PlayerCtrlInpSystem::tick(ecs::Registry& registry, float dt) {
         bool is_orbit = (orbit_mode > 0.5f);
 
         /**
-         * STEP 4: Update player facing based on camera yaw (if moving and not in orbit mode)
+         * STEP 4: Turn the heading of a walking figure towards the way it walks (not in orbit mode).
+         * The aim is the course of the velocity the stick asks along the camera course - the formula of
+         * PlayerCtrlMovSystem STEP 4, whose walk direction is (-sin course, -cos course). Straight forward
+         * it is the camera course; a stick to the side turns the body to the side it walks, so a forward
+         * gait is never drawn walking sideways. PlayerSyncInpSystem lays the held heading as camera course
+         * where the star has none, so the aim is always a measured angle.
          */
         if (is_moving && !is_orbit) {
-            float delta = cam_yaw - yaw.yaw;
-            while (delta > math::PI) delta -= math::TWO_PI;
-            while (delta < -math::PI) delta += math::TWO_PI;
+            const float sin_cam = math::sin(cam_yaw);
+            const float cos_cam = math::cos(cam_yaw);
+            const float move_x = -forward * sin_cam + strafe * cos_cam;
+            const float move_z = -forward * cos_cam - strafe * sin_cam;
+            const float course = math::atan2(-move_x, -move_z);
 
-            float max_turn = turn_speed * dt;
-            if (math::abs(delta) < max_turn) {
-                yaw.yaw = cam_yaw;
-            } else {
-                /* `is_pos_float` statt `> 0.0f`: FloatUnset (FLT_MAX) ist AUCH groesser als null.
-                 * Die Drehrichtung ist hier die einzige Aussage des Ausdrucks - kaeme aus
-                 * cam.cam_yaw ein nie gesetzter Wert, drehte der Spieler mit voller Rate in die
-                 * Richtung, die der Sentinel diktiert, statt in die gemessene. */
-                yaw.yaw += (types::is_pos_float(delta) ? max_turn : -max_turn);
-            }
+            /**
+             * Heading and aim as rotations about the up axis: slerp takes the shorter way round by itself
+             * (it flips the aim when the two lie more than half a turn apart) and never passes the aim.
+             * The share of the way left behind each tick is e^(-rate * dt), so two half ticks turn exactly
+             * as far as one whole tick: the frame count never sets the turn, only the game time.
+             */
+            const math::Vec3 up{0.0f, 1.0f, 0.0f};
+            const math::Quaternion held = math::Quaternion::from_axis_angle(up, yaw.yaw);
+            const math::Quaternion aim = math::Quaternion::from_axis_angle(up, course);
+            const float share = 1.0f - math::exp(-turn_speed * dt);
+            yaw.yaw = math::Quaternion::slerp(held, aim, share).normalized().yaw();
 
             while (yaw.yaw < 0.0f) yaw.yaw += math::TWO_PI;
             while (yaw.yaw >= math::TWO_PI) yaw.yaw -= math::TWO_PI;

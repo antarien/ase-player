@@ -39,8 +39,8 @@
  *   │                                                 │
  *   │  WRITES:                                        │
  *   │    → hub row kind HUB_PLR_MOTN (adopt), fields  │
- *   │      HUB_PLR_MOTN_YAW, _VEL_X, _VEL_Y, one mark │
- *   │      HUB_PLR_GAIT_STND, _WALK or _RUN           │
+ *   │      HUB_PLR_MOTN_YAW, _VEL_X, _VEL_Y, _PACE,   │
+ *   │      one mark HUB_PLR_GAIT_STND, _WALK or _RUN  │
  *   └─────────────────────────────────────────────────┘
  *          │
  *          ▼
@@ -52,8 +52,12 @@
  * nothing.
  *
  * EVERY VALUE IS FILLED IN EVERY PASS from its one home: the course from PlayerStaYawComponent, the
- * velocity from PlayerStaVelComponent, the gait from the tag PlayerStaGaitSystem set in this frame. A
- * reader of the row never sees a value older than the frame.
+ * velocity from PlayerStaVelComponent, the gait from the tag PlayerStaGaitSystem set in this frame, the
+ * pace from PlayerStaVelWishComponent. A reader of the row never sees a value older than the frame.
+ *
+ * THE PACE IS WHAT THE WHOLE STICK ASKS FOR, NOT WHAT THE BODY DOES. The velocity fields carry the answer of
+ * the ground; the pace carries the question of the legs, and the AI stick of ase-pl-avatar shares its way out
+ * over it (AvatarWalkClcSystem, usecase:101588 - move player figure over ground).
  *
  * THE AXIS ORDER OF THE STAR. This module carries the height in vy and spans the ground with vx and vz;
  * the star orders the first horizontal axis, the second horizontal axis, the height (PLR_POS_X/Y/Z,
@@ -70,11 +74,11 @@
  * HUB Pattern (ARCH_ASE_HUB_API, Typisierte Zeilen):
  *
  * READS (from player module via Components):
- *   PlayerSpndTag, PlayerStaYawComponent, PlayerStaVelComponent, PlayerGait*Tag
+ *   PlayerSpndTag, PlayerStaYawComponent, PlayerStaVelComponent, PlayerStaVelWishComponent (pace), PlayerGait*Tag
  *
  * WRITES (to Hub for other modules):
  *   row kind HUB_PLR_MOTN → hub::row_adopt onto the figure entity, idempotent
- *   fields HUB_PLR_MOTN_YAW, HUB_PLR_MOTN_VEL_X, HUB_PLR_MOTN_VEL_Y → hub::set_f64
+ *   fields HUB_PLR_MOTN_YAW, HUB_PLR_MOTN_VEL_X, HUB_PLR_MOTN_VEL_Y, HUB_PLR_MOTN_PACE → hub::set_f64
  *   marks HUB_PLR_GAIT_STND, HUB_PLR_GAIT_WALK, HUB_PLR_GAIT_RUN → hub::row_tag, hub::row_untag
  *   mark HUB_PLR_MOTN_BNDY while PlayerAreaBndyTag stands (the rim state, 07-G) → hub::row_tag, hub::row_untag
  *
@@ -178,6 +182,7 @@
 #include <ase/player/components/tag/player_area_bndy_tag.hpp>
 #include <ase/player/components/state/player_sta_yaw_comp.hpp>
 #include <ase/player/components/state/player_sta_vel_comp.hpp>
+#include <ase/player/components/state/player_sta_vel_wish_comp.hpp>
 // Hub for the row API
 #include <ase/hub/api.hpp>
 // Logging
@@ -220,6 +225,16 @@ void PlayerHubMotnSystem::tick(ecs::Registry& registry, float /*dt*/) {
         hub::set_f64(registry, owner, "HUB_PLR_MOTN_YAW"_hs, static_cast<double>(yaw.yaw));
         hub::set_f64(registry, owner, "HUB_PLR_MOTN_VEL_X"_hs, static_cast<double>(vel.vx));
         hub::set_f64(registry, owner, "HUB_PLR_MOTN_VEL_Y"_hs, static_cast<double>(vel.vz));
+    }
+
+    /**
+     * STEP 1b: The speed the whole stick of a figure asks for, the value PlayerCtrlMovSystem laid in this frame.
+     * A figure whose legs wish nothing yet (no PlayerStaVelWishComponent) has no pace, and the field stays unset:
+     * a reader asks whether it is measured and never takes a 0 for a speed.
+     */
+    for (auto [figure, wish] : registry.view<PlayerSpndTag, PlayerStaVelWishComponent>().each()) {
+        hub::row_adopt(registry, figure, "HUB_PLR_MOTN"_hs);
+        hub::set_f64(registry, static_cast<uint32_t>(figure), "HUB_PLR_MOTN_PACE"_hs, static_cast<double>(wish.pace));
     }
 
     /**

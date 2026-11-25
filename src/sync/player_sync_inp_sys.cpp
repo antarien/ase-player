@@ -13,8 +13,8 @@
  * @usecase     usecase:101554 - receive player input
  * @actor       Player Input Warden (PLAYINPWAR)
  * @created     2026-01-22
- * @modified    2026-11-14
- * @version     00.01.42.00092 [feat]
+ * @modified    2026-11-25
+ * @version     00.01.43.00093 [refine]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -56,9 +56,16 @@
  *   "PLR_INP_JUMP"_hs   → PlayerInpExtComponent.inp_jump
  *   "PLR_CAM_YAW"_hs    → PlayerInpCamComponent.cam_yaw
  *   "PLR_CAM_ORB"_hs    → PlayerInpCamComponent.cam_orb
+ *   "HUB_CONST_SHARE_MIN"_hs, "HUB_CONST_SHARE_MAX"_hs (GLOBAL) → the span of the sprint level
  *
  * WRITES (to Components only - no Hub writes):
  *   (none)
+ *
+ * THE SPRINT IS A LEVEL (register B0943). PLR_INP_SPRINT carries the share of the way from walk to run,
+ * and PlayerCtrlMovSystem lays the pace along it without a step. A share has the star's span,
+ * HUB_CONST_SHARE_MIN to HUB_CONST_SHARE_MAX, the same PlayerCmbSynSystem judges slow and frost by: a level
+ * outside it is reported and taken as the walk, so no writer can ask a pace past the run. Without the span
+ * no level can be judged, and every figure walks while the error stands.
  *
  * ABSENCE IS NO ERROR HERE, IT IS THE NORMAL CASE.
  *
@@ -201,6 +208,20 @@ void PlayerSyncInpSystem::on_start(ecs::Registry& /*registry*/) {
 
 void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
     /**
+     * STEP 0: The span of the sprint level is the star's share range on GLOBAL. Missing, the level of every
+     * figure is taken as the walk and the error names the constant; the other inputs flow on.
+     */
+    const float share_min = hub::get(registry, hub::GLOBAL, "HUB_CONST_SHARE_MIN"_hs);
+    if (types::is_not_found(share_min)) {
+        log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerSyncInpSystem", "HUB_CONST_SHARE_MIN");
+    }
+    const float share_max = hub::get(registry, hub::GLOBAL, "HUB_CONST_SHARE_MAX"_hs);
+    if (types::is_not_found(share_max)) {
+        log::error(log::ERR::CAT::HUB_GLOBAL_MISSING, "PlayerSyncInpSystem", "HUB_CONST_SHARE_MAX");
+    }
+    const bool span_found = !types::is_not_found(share_min) && !types::is_not_found(share_max);
+
+    /**
      * STEP 1: Process each player entity with position (all players)
      * Sync Hub input values to PlayerInpExtComponent
      */
@@ -229,6 +250,13 @@ void PlayerSyncInpSystem::tick(ecs::Registry& registry, float /*dt*/) {
         if (types::is_not_found(inp_sprint)) {
             inp_sprint = 0.0f;
         }
+        // The sprint level counts only inside the star's share span; outside it is reported and walks.
+        const bool sprint_in_span = span_found && types::is_in_rng_f(inp_sprint, share_min, share_max);
+        if (span_found && !sprint_in_span) {
+            log::warn(log::WRN::CAT::VALUE_OUT_OF_RANGE, "PlayerSyncInpSystem", owner, "PLR_INP_SPRINT",
+                      inp_sprint, share_min, share_max);
+        }
+        inp_sprint = sprint_in_span ? inp_sprint : 0.0f;
 
         float inp_jump = hub::get(registry, owner, "PLR_INP_JUMP"_hs);
         if (types::is_not_found(inp_jump)) {

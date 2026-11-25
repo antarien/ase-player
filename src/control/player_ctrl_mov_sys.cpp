@@ -14,8 +14,8 @@
  * @usecase     usecase:101588 - move player figure over ground
  * @actor       SS/PC
  * @created     2026-01-22
- * @modified    2026-11-23
- * @version     00.01.48.00098 [feat]
+ * @modified    2026-11-25
+ * @version     00.01.49.00099 [refine]
  *
  * Copyright (c) Jan Ohlmann. All rights reserved.
  * Licensed to ANTARES SIMULACAO LTDA. Use is governed by LICENSE.md and PJV.md in this repository.
@@ -38,7 +38,7 @@
  *   │    - PlayerStaPhysComponent (on_ground)     │
  *   │                                             │
  *   │  WRITES (to Components):                    │
- *   │    - PlayerStaVelWishComponent (vx, vz)     │
+ *   │    - PlayerStaVelWishComponent (vx,vz,pace) │
  *   │    - PlayerStaPhysComponent (on_ground)     │
  *   │    - PlayerJumpReqTag (jump asked)          │
  *   └─────────────────────────────────────────────┘
@@ -221,7 +221,8 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
          */
         float forward = inp.inp_fwd;
         float strafe = inp.inp_str;
-        bool sprint = (inp.inp_sprint > 0.5f);
+        // The sprint is a level, the share of the way from walk to run; PlayerSyncInpSystem judged its span (B0943)
+        float sprint = inp.inp_sprint;
         bool jump = (inp.inp_jump > 0.5f);
         float movement_yaw = cam.cam_yaw;
 
@@ -242,9 +243,10 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
 
         /**
          * STEP 5: Calculate target velocity, restricted by the combat star.
-         * Slow and frost each take their fraction; a running stun holds the figure in place.
+         * The pace runs without a step from walk to run along the sprint level; slow and frost each take their
+         * fraction; a running stun holds the figure in place.
          */
-        float speed = sprint ? MOVEMENT_DEFAULT_RUN_SPEED : MOVEMENT_DEFAULT_WALK_SPEED;
+        float speed = MOVEMENT_DEFAULT_WALK_SPEED + (MOVEMENT_DEFAULT_RUN_SPEED - MOVEMENT_DEFAULT_WALK_SPEED) * sprint;
         speed *= (PLR_CMB_SCALE_FULL - cmb.slow_intensity) * (PLR_CMB_SCALE_FULL - cmb.freeze_slow);
         if (types::is_pos_float(cmb.landing_stun) || types::is_pos_float(cmb.patzer_stun)) {
             speed *= PLR_CMB_SCALE_HELD;
@@ -259,6 +261,8 @@ void PlayerCtrlMovSystem::tick(ecs::Registry& registry, float dt) {
          */
         wish.vx = move_x * speed;
         wish.vz = move_z * speed;
+        // The speed of a whole stick in this tick, published as HUB_PLR_MOTN_PACE: the AI eases off by it
+        wish.pace = speed;
 
         /**
          * STEP 7: A jump is asked, never flown here. A figure on the ground that wants to jump is marked

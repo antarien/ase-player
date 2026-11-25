@@ -425,6 +425,9 @@
             "key": "HUB_PLR_MIG_STG_SNAP"
         },
         {
+            "key": "HUB_PLR_MOTN_PACE"
+        },
+        {
             "key": "HUB_PLR_MOTN_VEL_X"
         },
         {
@@ -680,7 +683,7 @@
                         "name": "inp_sprint",
                         "type": "float32",
                         "default": "0.0f",
-                        "description": "Sprint input (0 or 1) from PLR_INP_SPRINT"
+                        "description": "Sprint level (0 to 1, share of the way from walk to run) from PLR_INP_SPRINT"
                     },
                     {
                         "name": "inp_jump",
@@ -1152,6 +1155,12 @@
                         "type": "float32",
                         "default": "0.0f",
                         "description": "Horizontal wish, world axis Z (m/s)"
+                    },
+                    {
+                        "name": "pace",
+                        "type": "float32",
+                        "default": "0.0f",
+                        "description": "Speed the whole stick asks for in this tick: gait, slow, frost and stun applied (m/s)"
                     }
                 ],
                 "file": "state/player_sta_vel_wish_comp.hpp"
